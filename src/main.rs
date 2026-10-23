@@ -59,6 +59,9 @@ struct Args {
     /// Threads that own book state (0 = half the CPUs, at most 8).
     #[arg(long, default_value_t = 0)]
     core_threads: usize,
+    /// Decoded frames queued per core before socket readers wait (and stop reading).
+    #[arg(long, default_value_t = 65536)]
+    core_queue: usize,
     /// Re-run discovery every this many minutes to pick up new markets.
     #[arg(long, default_value_t = 10)]
     rediscover_mins: u64,
@@ -440,7 +443,7 @@ async fn main() -> anyhow::Result<()> {
     let mut cores = Vec::with_capacity(n_cores);
     for idx in 0..n_cores {
         let (ctx, crx) = mpsc::unbounded_channel();
-        let (itx, irx) = mpsc::channel::<Inbound>(8192);
+        let (itx, irx) = mpsc::channel::<Inbound>(args.core_queue.max(1));
         let cfg = Config {
             tokens_per_conn: args.tokens_per_conn,
             replicas: args.replicas.max(1),
@@ -521,7 +524,8 @@ async fn main() -> anyhow::Result<()> {
             _ = report.tick() => {
                 let (tokens, sourced, conns, m) = total(&latest);
                 let per_core: Vec<usize> = latest.iter().map(|s| s.as_ref().map_or(0, |s| s.tokens)).collect();
-                tracing::info!(tokens, sourced, conns, ?per_core, m = ?m, "status");
+                let stalls = conn::STALLS.load(std::sync::atomic::Ordering::Relaxed);
+                tracing::info!(tokens, sourced, conns, ?per_core, stalls, m = ?m, "status");
             }
             _ = rediscover.tick(), if !discovering => {
                 discovering = true;

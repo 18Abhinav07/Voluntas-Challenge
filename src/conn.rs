@@ -6,7 +6,7 @@ use std::{
     net::SocketAddr,
     sync::{
         Arc,
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicU32, AtomicU64, Ordering},
     },
     time::{Duration, SystemTime},
 };
@@ -26,6 +26,10 @@ use tokio_tungstenite::{
 use tokio_util::sync::CancellationToken;
 
 use crate::adapter::{ConnId, ExchangeAdapter, NormEvent, Sym, Ts};
+
+/// Times a reader found its core's queue full and had to wait. While it waits it does not
+/// read its socket, and the server closes it as a slow consumer once its buffer fills.
+pub static STALLS: AtomicU64 = AtomicU64::new(0);
 
 /// No frame (not even a PONG) for this long means the socket is dead.
 const WATCHDOG: Duration = Duration::from_secs(30);
@@ -238,7 +242,19 @@ async fn session<A: ExchangeAdapter>(
                     tracing::warn!(conn = spec.id, error = %e, frame = %text.chars().take(200).collect::<String>(), "undecodable frame");
                     continue;
                 }
-                if !events.is_empty() && spec.out.send(Inbound::Events { conn: spec.id, recv_ts, events }).await.is_err() {
+                if events.is_empty() {
+                    continue;
+                }
+                let item = Inbound::Events { conn: spec.id, recv_ts, events };
+                let sent = match spec.out.try_send(item) {
+                    Ok(()) => Ok(()),
+                    Err(mpsc::error::TrySendError::Full(item)) => {
+                        STALLS.fetch_add(1, Ordering::Relaxed);
+                        spec.out.send(item).await.map_err(drop)
+                    }
+                    Err(mpsc::error::TrySendError::Closed(_)) => Err(()),
+                };
+                if sent.is_err() {
                     return Exit::Closed;
                 }
             }

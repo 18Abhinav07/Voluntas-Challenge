@@ -239,7 +239,13 @@ mod tests {
         // Source 1 is still in the first period, so its file stays open.
         assert!(!done(now).exists());
         tx.blocking_send((1, vec![upd(3), Rec::Rotate { epoch: now + 1 }])).unwrap();
-        sync();
+        // Poll rather than sleep once: a loaded test run can delay the writer thread.
+        for _ in 0..50 {
+            if done(now).exists() {
+                break;
+            }
+            sync();
+        }
         assert!(done(now).exists());
         assert_eq!(count(&done(now)), 2);
         assert!(!done(now + 1).exists(), "current period stays .part");

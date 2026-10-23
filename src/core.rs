@@ -48,8 +48,14 @@ pub struct Config {
 
 /// Ext 2 thresholds. A token is quiet when no replica has seen a delta for
 /// `factor` expected gaps (from its smoothed per-minute rate), clamped to `floor..=ceiling`
-/// and doubled per resubscribe that did not bring it back. Tokens slower than `min_rate`
-/// are left to periodic recycling: their silence is indistinguishable from a dead feed.
+/// and doubled per strike. Tokens slower than `min_rate` are left to periodic recycling:
+/// their silence is indistinguishable from a dead feed.
+///
+/// Every resubscribe is a strike. Only a resubscribe whose book corrects what readers hold
+/// (a real miss) clears them; deltas do not, because bursty markets fall silent for longer
+/// than their average gap all the time. Strikes step down once a minute while the token is
+/// active and its last resubscribe is older than `ceiling`. The first soak resubscribed
+/// 400k times in 90 minutes with deltas clearing strikes.
 #[derive(Clone, Debug)]
 pub struct Quiet {
     pub min_rate: f32,
@@ -68,10 +74,10 @@ impl Default for Quiet {
     fn default() -> Self {
         Self {
             min_rate: 1.0,
-            factor: 10.0,
-            floor: Duration::from_secs(20),
+            factor: 20.0,
+            floor: Duration::from_secs(60),
             ceiling: Duration::from_secs(30 * 60),
-            max_per_round: 200,
+            max_per_round: 25,
             conn_window: Duration::from_secs(30),
             conn_min: 30,
         }
@@ -177,6 +183,8 @@ pub struct Metrics {
     pub markets_removed: u64,
     /// Tokens resubscribed because every replica went quiet (Ext 2).
     pub quiet_resubs: u64,
+    /// Quiet resubscribes whose book corrected the output: real misses caught.
+    pub quiet_caught: u64,
     /// Sockets reconnected because they went quiet while a peer did not (Ext 2).
     pub quiet_reconnects: u64,
     /// Tokens waiting because the connection cap is reached.
@@ -193,7 +201,7 @@ impl Metrics {
         macro_rules! sum { ($($f:ident),*) => { $(self.$f += o.$f;)* } }
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
-            quiet_resubs, quiet_reconnects, unplaced);
+            quiet_resubs, quiet_caught, quiet_reconnects, unplaced);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }
@@ -258,6 +266,8 @@ struct Tok {
     /// Last quiet resubscribe and how many in a row have not brought deltas back.
     quiet_at: Option<Instant>,
     quiet_strikes: u8,
+    /// A quiet resubscribe is out: the source's next book says whether it caught a miss.
+    quiet_probe: bool,
 }
 
 impl Tok {
@@ -399,6 +409,7 @@ impl<M> Core<M> {
                         rate: 0.0,
                         quiet_at: None,
                         quiet_strikes: 0,
+                        quiet_probe: false,
                     },
                 );
                 let b = bucket_of(t, self.buckets.len());
@@ -569,8 +580,13 @@ impl<M> Core<M> {
                 rep.last_exch = rep.last_exch.max(*exch_ts);
                 if tok.source == Some(conn) {
                     // Mid-stream book on the source: emit whatever it corrects.
-                    if Self::emit_diff(tok, conn, recv, &mut self.out, &mut self.metrics) {
+                    let fixed = Self::emit_diff(tok, conn, recv, &mut self.out, &mut self.metrics);
+                    if fixed {
                         self.metrics.book_diffs += 1;
+                    }
+                    if std::mem::take(&mut tok.quiet_probe) && fixed {
+                        self.metrics.quiet_caught += 1;
+                        tok.quiet_strikes = 0;
                     }
                 } else if tok.source.is_none() {
                     Self::adopt(tok, conn, recv, &mut self.out, &mut self.metrics);
@@ -589,7 +605,6 @@ impl<M> Core<M> {
                         tok.newest = *exch_ts;
                         tok.active_at = now;
                         tok.this_min += 1;
-                        tok.quiet_strikes = 0;
                     }
                     if !rep.valid {
                         continue;
@@ -795,7 +810,7 @@ impl<M> Core<M> {
             self.retry_resnapshots(now, fx);
         }
         if self.tick_no > 0 && self.tick_no.is_multiple_of(60) {
-            self.roll_rates();
+            self.roll_rates(now);
         }
         if self.tick_no.is_multiple_of(5) {
             self.check_quiet(now, fx);
@@ -834,8 +849,12 @@ impl<M> Core<M> {
     // ------------------------------------------------------------ activity monitoring (Ext 2)
 
     /// Folds this minute's delta count into each token's smoothed per-minute rate.
-    fn roll_rates(&mut self) {
+    fn roll_rates(&mut self, now: Instant) {
+        let settle = self.cfg.quiet.ceiling;
         for tok in self.tokens.values_mut() {
+            if tok.this_min > 0 && tok.quiet_at.is_none_or(|a| now.duration_since(a) >= settle) {
+                tok.quiet_strikes = tok.quiet_strikes.saturating_sub(1);
+            }
             tok.rate = 0.9 * tok.rate + 0.1 * tok.this_min as f32;
             tok.this_min = 0;
         }
@@ -845,24 +864,33 @@ impl<M> Core<M> {
     /// gap. The peer lag check cannot see this: it needs one replica that still gets data.
     fn check_quiet(&mut self, now: Instant, fx: &mut dyn Effects) {
         let q = &self.cfg.quiet;
-        let mut by_conn: BTreeMap<ConnId, Vec<Sym>> = BTreeMap::new();
-        let mut n = 0;
-        for (t, tok) in self.tokens.iter_mut() {
-            if n >= q.max_per_round {
-                break;
-            }
+        // Most overdue first, so a capped round spends its budget where silence is least likely.
+        let mut due: Vec<(f32, &Sym)> = Vec::new();
+        for (t, tok) in &self.tokens {
             let Some(after) = tok.quiet_after(q) else { continue };
             let since = tok.quiet_at.map_or(tok.active_at, |a| a.max(tok.active_at));
+            let quiet = now.duration_since(since);
             // A replica still waiting for its book is not evidence either way.
-            if now.duration_since(since) < after || tok.replicas.values().all(|r| !r.valid) {
+            if quiet < after || tok.replicas.values().all(|r| !r.valid) {
                 continue;
             }
+            due.push((quiet.as_secs_f32() / after.as_secs_f32(), t));
+        }
+        if due.len() > q.max_per_round {
+            due.select_nth_unstable_by(q.max_per_round, |a, b| b.0.total_cmp(&a.0));
+            due.truncate(q.max_per_round);
+        }
+        let due: Vec<Sym> = due.into_iter().map(|(_, t)| t.clone()).collect();
+        let mut by_conn: BTreeMap<ConnId, Vec<Sym>> = BTreeMap::new();
+        let n = due.len();
+        for t in due {
+            let tok = self.tokens.get_mut(&t).expect("listed above");
             tok.quiet_at = Some(now);
             tok.quiet_strikes = tok.quiet_strikes.saturating_add(1);
+            tok.quiet_probe = true;
             for c in tok.replicas.keys() {
                 by_conn.entry(*c).or_default().push(t.clone());
             }
-            n += 1;
         }
         if n > 0 {
             tracing::info!(tokens = n, "quiet subscriptions; resubscribing");
@@ -1310,11 +1338,11 @@ mod tests {
         let (mut core, mut fx, now) = setup();
         core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
         core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
-        // 6 deltas a minute: one every 10 s, so quiet after 10 gaps = 100 s.
+        // 6 deltas a minute: one every 10 s, so quiet after 20 gaps = 200 s.
         set_rate(&mut core, "a", 6.0);
-        core.check_quiet(now + Duration::from_secs(99), &mut fx);
+        core.check_quiet(now + Duration::from_secs(199), &mut fx);
         assert_eq!(core.metrics.quiet_resubs, 0, "within its usual silence");
-        core.check_quiet(now + Duration::from_secs(101), &mut fx);
+        core.check_quiet(now + Duration::from_secs(201), &mut fx);
         assert_eq!(core.metrics.quiet_resubs, 1);
         let mut to: Vec<ConnId> = fx.sent.iter().filter(|(_, s)| s == r#"Resnapshot(["a"])"#).map(|(c, _)| *c).collect();
         to.sort();
@@ -1322,20 +1350,57 @@ mod tests {
     }
 
     #[test]
-    fn quiet_backs_off_until_a_delta_returns() {
+    fn quiet_backs_off_through_deltas_until_a_resubscribe_catches_a_miss() {
         let (mut core, mut fx, now) = setup();
         core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
         set_rate(&mut core, "a", 6.0);
         let at = |s| now + Duration::from_secs(s);
-        core.check_quiet(at(101), &mut fx);
-        core.check_quiet(at(250), &mut fx);
-        assert_eq!(core.metrics.quiet_resubs, 1, "second wait is doubled to 200 s");
-        core.check_quiet(at(302), &mut fx);
+        core.check_quiet(at(201), &mut fx);
+        core.check_quiet(at(500), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 1, "second wait is doubled to 400 s");
+        core.check_quiet(at(602), &mut fx);
         assert_eq!(core.metrics.quiet_resubs, 2);
-        core.on_events(0, 2, &[lvl("a", 6, Side::Bid, 410, 1)], at(310), &mut fx);
-        assert_eq!(core.tokens["a"].quiet_strikes, 0, "a delta proves the feed is back");
-        core.check_quiet(at(411), &mut fx);
-        assert_eq!(core.metrics.quiet_resubs, 3, "and the normal 100 s applies again");
+        // A burst after the silence is how bursty markets look; it is no proof of a miss.
+        core.on_events(0, 2, &[lvl("a", 6, Side::Bid, 410, 1)], at(610), &mut fx);
+        assert_eq!(core.tokens["a"].quiet_strikes, 2);
+        // The answering book matches what readers hold: a clean probe, strikes stay.
+        core.on_events(0, 3, &[book("a", 7, &[(400, 1), (410, 1)], &[])], at(611), &mut fx);
+        assert_eq!((core.tokens["a"].quiet_strikes, core.metrics.quiet_caught), (2, 0));
+        core.check_quiet(at(1409), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 2, "800 s wait from the last delta");
+        core.check_quiet(at(1411), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 3);
+        // This time the book shows a level we never heard about: a real miss.
+        core.on_events(0, 4, &[book("a", 8, &[(400, 1), (410, 1), (420, 3)], &[])], at(1413), &mut fx);
+        assert_eq!((core.tokens["a"].quiet_strikes, core.metrics.quiet_caught), (0, 1));
+    }
+
+    #[test]
+    fn strikes_settle_while_active_long_after_the_last_resubscribe() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        let tok = core.tokens.get_mut("a").unwrap();
+        (tok.quiet_strikes, tok.quiet_at) = (3, Some(now));
+        core.on_events(0, 2, &[lvl("a", 6, Side::Bid, 410, 1)], now, &mut fx);
+        core.roll_rates(now + Duration::from_secs(60));
+        assert_eq!(core.tokens["a"].quiet_strikes, 3, "too soon after the resubscribe");
+        core.on_events(0, 2, &[lvl("a", 7, Side::Bid, 410, 2)], now, &mut fx);
+        core.roll_rates(now + core.cfg.quiet.ceiling);
+        assert_eq!(core.tokens["a"].quiet_strikes, 2);
+        core.roll_rates(now + core.cfg.quiet.ceiling * 2);
+        assert_eq!(core.tokens["a"].quiet_strikes, 2, "only while deltas flow");
+    }
+
+    #[test]
+    fn capped_round_takes_the_most_overdue() {
+        let (mut core, mut fx, now) = setup();
+        core.cfg.quiet.max_per_round = 1;
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[]), book("b", 5, &[(400, 1)], &[])], now, &mut fx);
+        set_rate(&mut core, "a", 6.0);
+        set_rate(&mut core, "b", 60.0);
+        core.check_quiet(now + Duration::from_secs(300), &mut fx);
+        assert!(fx.sent.iter().any(|(_, s)| s == r#"Resnapshot(["b"])"#), "b is 5x overdue, a 1.5x");
+        assert_eq!(core.metrics.quiet_resubs, 1);
     }
 
     #[test]
@@ -1355,7 +1420,7 @@ mod tests {
             core.on_events(0, 2, &[lvl("a", ts, Side::Bid, 400, ts)], now, &mut fx);
             core.on_events(1, 2, &[lvl("a", ts, Side::Bid, 400, ts)], now, &mut fx);
         }
-        core.roll_rates();
+        core.roll_rates(now);
         assert_eq!(core.tokens["a"].rate, 1.0, "10 distinct deltas (seen on two sockets) smoothed by 0.1");
         assert_eq!(core.tokens["b"].rate, 0.0);
     }
