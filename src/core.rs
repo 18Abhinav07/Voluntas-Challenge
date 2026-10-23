@@ -19,6 +19,12 @@ use crate::{
 /// Tokens found mid-discovery wait at most this long for a full shard before getting one.
 const PENDING_MAX_WAIT: Duration = Duration::from_secs(5);
 
+/// Shard rates are smoothed per minute; splits wait until they mean something.
+const SPLIT_WARMUP_TICKS: u64 = 180;
+
+/// Rotation snapshots are spread over at most this many ticks (half the period if shorter).
+const ROTATE_SPREAD_SECS: u64 = 10;
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub tokens_per_conn: usize,
@@ -44,6 +50,13 @@ pub struct Config {
     /// First connection id this core hands out; cores on other threads use disjoint ranges.
     pub conn_id_base: ConnId,
     pub quiet: Quiet,
+    /// Split a shard whose message rate is this many times the median shard's (`None` = never).
+    /// Shards are planned by token count, but a few markets carry most of the traffic, and the
+    /// venue closes a socket that falls behind it ("slow consumer"). Rates are measured, not
+    /// configured: the hottest markets move to a new shard, make-before-break.
+    pub split_ratio: Option<f32>,
+    /// ...and at least this many new deltas a minute (smoothed), so idle universes never split.
+    pub split_min_rate: f32,
 }
 
 /// Ext 2 thresholds. A token is quiet when no replica has seen a delta for
@@ -100,6 +113,8 @@ impl Default for Config {
             recycle_parallel: 2,
             conn_id_base: 0,
             quiet: Quiet::default(),
+            split_ratio: Some(3.0),
+            split_min_rate: 20_000.0,
         }
     }
 }
@@ -189,6 +204,11 @@ pub struct Metrics {
     pub quiet_reconnects: u64,
     /// Tokens waiting because the connection cap is reached.
     pub unplaced: u64,
+    /// Rotation snapshots taken early because an update arrived before the drain reached them.
+    pub rot_early: u64,
+    /// Hot shards split, and tokens moved by those splits.
+    pub splits: u64,
+    pub split_tokens: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
     pub wire: Hist,
     /// Socket read to core apply: time spent queued inside this process.
@@ -201,7 +221,7 @@ impl Metrics {
         macro_rules! sum { ($($f:ident),*) => { $(self.$f += o.$f;)* } }
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
-            quiet_resubs, quiet_caught, quiet_reconnects, unplaced);
+            quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, splits, split_tokens);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }
@@ -270,6 +290,9 @@ struct Tok {
     quiet_probe: bool,
     /// Listed in `Core::lag_cands`: a non-source replica advanced since the last lag check.
     lag_cand: bool,
+    /// Rotation period this token was last snapshotted in. A period's file must open each book
+    /// with a snapshot before its first update; see [`Core::maybe_rotate`].
+    snap_epoch: i64,
 }
 
 impl Tok {
@@ -286,6 +309,17 @@ impl Tok {
 struct Shard {
     tokens: Vec<Sym>,
     conns: Vec<ConnId>,
+    /// Split off a hot shard: late arrivals go elsewhere.
+    closed: bool,
+}
+
+/// A hot shard's markets moving to a new shard. The old sockets stay replicas of the moved
+/// tokens (and `from` keeps listing them) until the new sockets have every book.
+struct Split {
+    from: usize,
+    to: usize,
+    moved: Vec<Sym>,
+    started: Instant,
 }
 
 struct ConnState {
@@ -319,10 +353,15 @@ pub struct Core<M> {
     buckets: Vec<Vec<Sym>>,
     /// Rotation period the output is in; `None` until the first tick.
     epoch: Option<i64>,
+    /// Books still to snapshot into the current period, and how many to take per tick.
+    rot_queue: Vec<Sym>,
+    rot_per_tick: usize,
     tick_no: u64,
     verdicts: Vec<Verdict>,
     /// Tokens the lag check must look at: only these can have a peer ahead of their source.
     lag_cands: Vec<Sym>,
+    /// At most one shard split in flight per core.
+    split: Option<Split>,
     pub out: Vec<Rec>,
     pub metrics: Metrics,
 }
@@ -367,9 +406,12 @@ impl<M> Core<M> {
             looking_up: HashSet::new(),
             buckets: vec![Vec::new(); n],
             epoch: None,
+            rot_queue: Vec::new(),
+            rot_per_tick: 0,
             tick_no: 0,
             verdicts: Vec::new(),
             lag_cands: Vec::new(),
+            split: None,
             out: Vec::new(),
             metrics: Metrics::default(),
         }
@@ -399,7 +441,7 @@ impl<M> Core<M> {
             self.integrity.register(&inst);
             self.metrics.markets_added += 1;
             // Late arrivals join the last live shard while it has room.
-            let tail = self.shards.len().checked_sub(1).filter(|&s| {
+            let tail = self.shards.iter().rposition(|s| !s.closed).filter(|&s| {
                 self.pending.is_empty() && self.shards[s].tokens.len() + inst.tokens.len() <= self.cfg.tokens_per_conn
             });
             let shard = tail.unwrap_or(self.shards.len());
@@ -423,6 +465,7 @@ impl<M> Core<M> {
                         quiet_strikes: 0,
                         quiet_probe: false,
                         lag_cand: false,
+                        snap_epoch: i64::MIN,
                     },
                 );
                 let b = bucket_of(t, self.buckets.len());
@@ -465,7 +508,7 @@ impl<M> Core<M> {
         self.pending_since = None;
         let shard = self.shards.len();
         let tokens = std::mem::take(&mut self.pending);
-        self.shards.push(Shard { tokens: tokens.clone(), conns: Vec::new() });
+        self.shards.push(Shard { tokens: tokens.clone(), conns: Vec::new(), closed: false });
         for r in 0..self.cfg.replicas {
             self.open_conn(shard, r, now, None, fx);
         }
@@ -496,7 +539,8 @@ impl<M> Core<M> {
         self.metrics.markets_removed += 1;
         let mut by_conn: HashMap<ConnId, Vec<Sym>> = HashMap::new();
         for t in &toks {
-            let Some(tok) = self.tokens.remove(t) else { continue };
+            let Some(mut tok) = self.tokens.remove(t) else { continue };
+            Self::open_period(&mut tok, self.epoch, recv, &mut self.out, &mut self.metrics);
             for (i, side) in [Side::Bid, Side::Ask].into_iter().enumerate() {
                 for &px in tok.emitted.side(side).keys() {
                     self.out.push(Rec::Update { sym: tok.syms[i].clone(), recv, exch: tok.emitted_exch, px, qty: 0 });
@@ -506,8 +550,9 @@ impl<M> Core<M> {
             for c in tok.replicas.keys() {
                 by_conn.entry(*c).or_default().push(t.clone());
             }
-            if let Some(s) = self.shards.get_mut(tok.shard) {
-                s.tokens.retain(|x| x != t);
+            let from = self.split.as_ref().filter(|s| s.to == tok.shard).map(|s| s.from);
+            for s in [Some(tok.shard), from].into_iter().flatten() {
+                self.shards[s].tokens.retain(|x| x != t);
             }
         }
         for (c, ts) in by_conn {
@@ -593,7 +638,7 @@ impl<M> Core<M> {
                 rep.last_exch = rep.last_exch.max(*exch_ts);
                 if tok.source == Some(conn) {
                     // Mid-stream book on the source: emit whatever it corrects.
-                    let fixed = Self::emit_diff(tok, conn, recv, &mut self.out, &mut self.metrics);
+                    let fixed = Self::emit_diff(tok, conn, self.epoch, recv, &mut self.out, &mut self.metrics);
                     if fixed {
                         self.metrics.book_diffs += 1;
                     }
@@ -602,12 +647,13 @@ impl<M> Core<M> {
                         tok.quiet_strikes = 0;
                     }
                 } else if tok.source.is_none() {
-                    Self::adopt(tok, conn, recv, &mut self.out, &mut self.metrics);
+                    Self::adopt(tok, conn, self.epoch, recv, &mut self.out, &mut self.metrics);
                 }
                 if let Some(cs) = self.conns.get_mut(&conn) {
                     cs.awaiting.remove(token);
                 }
                 self.maybe_finish_recycle(conn, recv, fx);
+                self.maybe_finish_split(recv, fx);
             }
             NormEvent::Levels { exch_ts, changes, .. } => {
                 self.metrics.wire.record(recv - exch_ts);
@@ -632,6 +678,9 @@ impl<M> Core<M> {
                             self.lag_cands.push(c.token.clone());
                         }
                     }
+                    if tok.source == Some(conn) {
+                        Self::open_period(tok, self.epoch, recv, &mut self.out, &mut self.metrics);
+                    }
                     if tok.source == Some(conn) && tok.emitted.apply(c.side, c.px, c.qty) {
                         tok.emitted_exch = *exch_ts;
                         let sym = tok.syms[c.side as usize].clone();
@@ -651,7 +700,11 @@ impl<M> Core<M> {
     }
 
     /// Starts a new output period: the marker, then every published book, so the period's
-    /// file replays without the ones before it.
+    /// file replays without the ones before it. Writing every book at the cut is two records
+    /// per token in one tick (1.1M on the full universe), so the books are queued and drained
+    /// over a few seconds instead; a book that changes before its turn is snapshotted right
+    /// before that change ([`Self::open_period`]). Every file still opens each book with a
+    /// snapshot ahead of its first update.
     fn maybe_rotate(&mut self, recv: Ts) {
         let Some(p) = self.cfg.rotate_every else { return };
         let e = recv / p.as_micros().max(1) as i64;
@@ -660,13 +713,41 @@ impl<M> Core<M> {
         }
         self.epoch = Some(e);
         self.out.push(Rec::Rotate { epoch: e });
-        for tok in self.tokens.values().filter(|t| t.announced) {
-            Self::snapshot(tok, recv, &mut self.out, &mut self.metrics);
+        self.rot_queue = self.tokens.iter().filter(|(_, t)| t.announced).map(|(s, _)| s.clone()).collect();
+        let spread = (p.as_secs() / 2).clamp(1, ROTATE_SPREAD_SECS) as usize;
+        self.rot_per_tick = self.rot_queue.len().div_ceil(spread);
+    }
+
+    /// Takes this tick's share of the rotation snapshots.
+    fn drain_rotation(&mut self, recv: Ts) {
+        let n = self.rot_per_tick.min(self.rot_queue.len());
+        for t in self.rot_queue.split_off(self.rot_queue.len() - n) {
+            if let Some(tok) = self.tokens.get_mut(&t)
+                && tok.announced
+                && Some(tok.snap_epoch) != self.epoch
+            {
+                Self::snapshot(tok, self.epoch, recv, &mut self.out, &mut self.metrics);
+            }
+        }
+    }
+
+    /// Snapshots a published book not yet written in the current period; call before any
+    /// update to it is pushed.
+    fn open_period(tok: &mut Tok, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
+        if let Some(e) = epoch
+            && tok.announced
+            && tok.snap_epoch != e
+        {
+            m.rot_early += 1;
+            Self::snapshot(tok, epoch, recv, out, m);
         }
     }
 
     /// Writes both sides of what readers hold.
-    fn snapshot(tok: &Tok, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
+    fn snapshot(tok: &mut Tok, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
+        if let Some(e) = epoch {
+            tok.snap_epoch = e;
+        }
         out.push(Rec::Snapshot {
             sym: tok.syms[0].clone(),
             recv,
@@ -685,9 +766,12 @@ impl<M> Core<M> {
     }
 
     /// Emits the level changes that take readers from `emitted` to `conn`'s book.
-    fn emit_diff(tok: &mut Tok, conn: ConnId, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) -> bool {
+    fn emit_diff(tok: &mut Tok, conn: ConnId, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) -> bool {
+        let diff = tok.emitted.diff(&tok.replicas[&conn].book);
+        if !diff.is_empty() {
+            Self::open_period(tok, epoch, recv, out, m);
+        }
         let rep = &tok.replicas[&conn];
-        let diff = tok.emitted.diff(&rep.book);
         for &(side, px, qty) in &diff {
             out.push(Rec::Update { sym: tok.syms[side as usize].clone(), recv, exch: rep.last_exch, px, qty });
         }
@@ -699,16 +783,16 @@ impl<M> Core<M> {
 
     /// Makes `conn` the token's source: the first time with a snapshot, afterwards with the
     /// diff from what readers already hold, so the output stream never jumps.
-    fn adopt(tok: &mut Tok, conn: ConnId, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
+    fn adopt(tok: &mut Tok, conn: ConnId, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
         tok.source = Some(conn);
         if tok.announced {
-            Self::emit_diff(tok, conn, recv, out, m);
+            Self::emit_diff(tok, conn, epoch, recv, out, m);
         } else {
             let rep = &tok.replicas[&conn];
             tok.emitted.clone_from(&rep.book);
             tok.emitted_exch = rep.last_exch;
             tok.announced = true;
-            Self::snapshot(tok, recv, out, m);
+            Self::snapshot(tok, epoch, recv, out, m);
         }
     }
 
@@ -724,7 +808,7 @@ impl<M> Core<M> {
             .max_by_key(|(c, r)| (r.seen(), std::cmp::Reverse(**c)))
             .map(|(c, _)| *c);
         if let Some(c) = best {
-            Self::adopt(tok, c, recv, &mut self.out, &mut self.metrics);
+            Self::adopt(tok, c, self.epoch, recv, &mut self.out, &mut self.metrics);
             self.metrics.switches += 1;
         }
     }
@@ -820,6 +904,7 @@ impl<M> Core<M> {
     /// Call once per second.
     pub fn on_tick(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
         self.maybe_rotate(recv);
+        self.drain_rotation(recv);
         self.integrity.on_tick(now, &mut self.verdicts);
         self.handle_verdicts(recv, now, fx);
         self.check_lag(now, recv, fx);
@@ -828,6 +913,12 @@ impl<M> Core<M> {
         }
         if self.tick_no > 0 && self.tick_no.is_multiple_of(60) {
             self.roll_rates(now);
+            if self.tick_no >= SPLIT_WARMUP_TICKS {
+                self.maybe_split(now, fx);
+            }
+        }
+        if self.split.as_ref().is_some_and(|s| now.duration_since(s.started) >= self.cfg.recycle_grace) {
+            self.finish_split(recv, fx);
         }
         if self.tick_no.is_multiple_of(5) {
             self.check_quiet(now, fx);
@@ -842,9 +933,9 @@ impl<M> Core<M> {
         let tokens = &self.tokens;
         self.buckets[b].retain(|t| tokens.contains_key(t));
         for t in &self.buckets[b] {
-            let tok = &self.tokens[t];
+            let tok = self.tokens.get_mut(t).expect("retained above");
             if tok.source.is_some() {
-                Self::snapshot(tok, recv, &mut self.out, &mut self.metrics);
+                Self::snapshot(tok, self.epoch, recv, &mut self.out, &mut self.metrics);
             }
         }
         if self.pending_since.is_some_and(|t| now.duration_since(t) >= PENDING_MAX_WAIT) {
@@ -989,11 +1080,14 @@ impl<M> Core<M> {
         if busy.len() >= self.cfg.recycle_parallel {
             return;
         }
+        let splitting = |s: usize| self.split.as_ref().is_some_and(|sp| sp.from == s || sp.to == s);
         // Oldest first; one recycle per shard at a time so its other replica stays put.
         let mut due: Vec<(Instant, ConnId, usize, usize)> = self
             .conns
             .iter()
-            .filter(|(_, c)| !c.retiring && c.replacing.is_none() && now.duration_since(c.born) >= age && !busy.contains(&c.shard))
+            .filter(|(_, c)| {
+                !c.retiring && c.replacing.is_none() && now.duration_since(c.born) >= age && !busy.contains(&c.shard) && !splitting(c.shard)
+            })
             .map(|(&id, c)| (c.born, id, c.shard, c.replica))
             .collect();
         due.sort_unstable();
@@ -1024,6 +1118,104 @@ impl<M> Core<M> {
         fx.send(old, ConnCmd::Close);
         // Hand over sources now rather than waiting for the old actor to exit.
         self.on_gone(old, recv);
+    }
+
+    // ------------------------------------------------------------ hot shard splits
+
+    /// Moves the hottest markets of the hottest shard to a new shard when that shard carries
+    /// `split_ratio` times the median shard's rate. Make-before-break, like recycling: the new
+    /// sockets subscribe first and the old ones keep serving until every book has arrived.
+    fn maybe_split(&mut self, now: Instant, fx: &mut dyn Effects) {
+        let Some(ratio) = self.cfg.split_ratio else { return };
+        if self.split.is_some() || (self.shards.len() + 1) * self.cfg.replicas > self.cfg.max_conns {
+            return;
+        }
+        let mut rate = vec![0f32; self.shards.len()];
+        for tok in self.tokens.values() {
+            rate[tok.shard] += tok.rate;
+        }
+        let mut live: Vec<f32> = rate.iter().zip(&self.shards).filter(|(_, s)| !s.tokens.is_empty()).map(|(r, _)| *r).collect();
+        if live.len() < 3 {
+            return;
+        }
+        live.sort_unstable_by(f32::total_cmp);
+        let median = live[live.len() / 2];
+        let bar = (median * ratio).max(self.cfg.split_min_rate);
+        let ready = |s: usize| {
+            let conns = &self.shards[s].conns;
+            conns.len() == self.cfg.replicas
+                && conns.iter().filter_map(|c| self.conns.get(c)).all(|c| c.up_since.is_some() && !c.retiring && c.replacing.is_none())
+        };
+        let Some(from) = (0..self.shards.len()).filter(|&s| rate[s] > bar && ready(s)).max_by(|&a, &b| rate[a].total_cmp(&rate[b])) else {
+            return;
+        };
+        let mut markets: Vec<(f32, &Vec<Sym>)> = self
+            .markets
+            .values()
+            .filter(|ts| ts.first().and_then(|t| self.tokens.get(t)).is_some_and(|t| t.shard == from))
+            .map(|ts| (ts.iter().filter_map(|t| self.tokens.get(t)).map(|t| t.rate).sum(), ts))
+            .collect();
+        if markets.len() < 2 {
+            return; // one market is as small as a shard gets
+        }
+        markets.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
+        // Hottest first until about half the rate has moved; at least one market stays.
+        let (mut moved, mut moved_rate) = (Vec::new(), 0.0);
+        for (r, ts) in &markets[..markets.len() - 1] {
+            if moved_rate >= rate[from] / 2.0 {
+                break;
+            }
+            moved_rate += r;
+            moved.extend(ts.iter().cloned());
+        }
+        let to = self.shards.len();
+        tracing::info!(shard = from, rate = rate[from], median, moved = moved.len(), moved_rate, "splitting hot shard");
+        for t in &moved {
+            self.tokens.get_mut(t).expect("listed above").shard = to;
+        }
+        self.shards.push(Shard { tokens: moved.clone(), conns: Vec::new(), closed: true });
+        for r in 0..self.cfg.replicas {
+            let id = self.open_conn(to, r, now, None, fx);
+            self.conns.get_mut(&id).expect("opened").awaiting = moved.iter().cloned().collect();
+        }
+        self.metrics.splits += 1;
+        self.metrics.split_tokens += moved.len() as u64;
+        self.split = Some(Split { from, to, moved, started: now });
+    }
+
+    fn maybe_finish_split(&mut self, recv: Ts, fx: &mut dyn Effects) {
+        let Some(sp) = &self.split else { return };
+        let conns = &self.shards[sp.to].conns;
+        if conns.len() == self.cfg.replicas && conns.iter().filter_map(|c| self.conns.get(c)).all(|c| c.awaiting.is_empty()) {
+            self.finish_split(recv, fx);
+        }
+    }
+
+    /// The new sockets have every book (or the grace ran out): the old ones drop the moved tokens.
+    fn finish_split(&mut self, recv: Ts, fx: &mut dyn Effects) {
+        let Some(sp) = self.split.take() else { return };
+        let old = self.shards[sp.from].conns.clone();
+        let moved: HashSet<&Sym> = sp.moved.iter().collect();
+        self.shards[sp.from].tokens.retain(|t| !moved.contains(t));
+        let mut live = Vec::new();
+        for t in &sp.moved {
+            let Some(tok) = self.tokens.get_mut(t) else { continue }; // resolved meanwhile
+            for c in &old {
+                tok.replicas.remove(c);
+            }
+            if tok.source.is_some_and(|s| old.contains(&s)) {
+                self.switch(t, recv);
+            }
+            live.push(t.clone());
+        }
+        for c in old {
+            fx.send(c, ConnCmd::Unsubscribe(live.clone()));
+        }
+        for c in &self.shards[sp.to].conns {
+            if let Some(cs) = self.conns.get_mut(c) {
+                cs.awaiting.clear();
+            }
+        }
     }
 }
 
@@ -1337,17 +1529,43 @@ mod tests {
         core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
         core.on_events(0, 1, &[book("b", 5, &[(400, 1)], &[])], now, &mut fx);
         let cut = |out: &[Rec]| out.iter().position(|r| matches!(r, Rec::Rotate { .. }));
+        let snaps = |out: &[Rec], t: &str| out.iter().filter(|r| matches!(r, Rec::Snapshot { sym, .. } if sym.starts_with(t))).count();
         core.out.clear();
         core.on_tick(now, 3_000_000, &mut fx);
         assert_eq!(core.out[0], Rec::Rotate { epoch: 0 });
-        assert_eq!(core.out[1..].iter().filter(|r| matches!(r, Rec::Snapshot { .. })).count(), 4);
-        core.out.clear();
+        assert_eq!(snaps(&core.out, ""), 2, "spread over half the period: one book per tick");
         core.on_tick(now + Duration::from_secs(1), 9_999_999, &mut fx);
-        assert_eq!(cut(&core.out), None, "same period");
+        assert_eq!(cut(&core.out[1..]), None, "same period");
+        assert_eq!(snaps(&core.out, "a"), 2);
+        assert_eq!(snaps(&core.out, "b"), 2);
+        core.out.clear();
         core.on_tick(now + Duration::from_secs(2), 10_000_000, &mut fx);
-        let i = cut(&core.out).unwrap();
-        assert_eq!(core.out[i], Rec::Rotate { epoch: 1 });
-        assert!(core.out[i + 1..].iter().filter(|r| matches!(r, Rec::Snapshot { .. })).count() >= 4);
+        assert_eq!(core.out[0], Rec::Rotate { epoch: 1 });
+        for s in 3..8 {
+            core.on_tick(now + Duration::from_secs(s), 10_000_000 + s as i64, &mut fx);
+        }
+        assert!(snaps(&core.out, "a") >= 2 && snaps(&core.out, "b") >= 2, "every book again in the new period");
+    }
+
+    #[test]
+    fn update_before_its_rotation_turn_snapshots_first() {
+        let (mut core, mut fx, now) = setup();
+        core.cfg.rotate_every = Some(Duration::from_secs(600));
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(0, 1, &[book("b", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_tick(now, 3_000_000, &mut fx);
+        core.on_tick(now, 600_000_000, &mut fx);
+        core.out.clear();
+        core.on_events(0, 600_000_001, &[lvl("a", 6, Side::Bid, 400, 2)], now, &mut fx);
+        core.on_events(0, 600_000_001, &[lvl("b", 6, Side::Bid, 400, 3)], now, &mut fx);
+        let kinds: Vec<&str> = core.out.iter().map(|r| match r { Rec::Snapshot { .. } => "S", Rec::Update { .. } => "U", _ => "?" }).collect();
+        // One of a/b was drained at the cut; the other is snapshotted right before its update.
+        assert!(kinds == ["U", "S", "S", "U"] || kinds == ["S", "S", "U", "U"], "{kinds:?}");
+        assert_eq!(core.metrics.rot_early, 1);
+        for s in 1..12 {
+            core.on_tick(now + Duration::from_secs(s), 600_000_000 + s as i64, &mut fx);
+        }
+        assert_eq!(core.metrics.rot_early, 1, "the drain skips books already written this period");
     }
 
     #[test]
@@ -1524,6 +1742,91 @@ mod tests {
         assert_ne!(new[0].1, new[1].1, "never both replicas of one shard");
         core.maybe_start_recycle(now + Duration::from_secs(12), &mut fx);
         assert_eq!(fx.spawned.len(), 8, "no more until one finishes");
+    }
+
+    /// Three shards of two replicas: [a..f] on 0/1, [g..h3] on 2/3, [i j] on 4/5, all up with
+    /// books on both replicas and 10 deltas a minute per token.
+    fn three_shards() -> (Core<()>, Fx, Instant) {
+        let mut core = Core::new(Config { tokens_per_conn: 6, split_min_rate: 100.0, ..Config::default() }, Box::new(NoCheck));
+        let mut fx = Fx::default();
+        let now = Instant::now();
+        core.add(vec![inst("m1", &["a", "b"]), inst("m2", &["c", "d"]), inst("m3", &["e", "f"])], &mut fx);
+        core.add(vec![inst("m4", &["g", "h"]), inst("m7", &["g2", "h2"]), inst("m8", &["g3", "h3"])], &mut fx);
+        core.add(vec![inst("m5", &["i", "j"])], &mut fx);
+        core.flush_pending(now, &mut fx);
+        for c in 0..6 {
+            core.on_up(c, now);
+            for t in &core.shards[c as usize / 2].tokens.clone() {
+                core.on_events(c, 1, &[book(t, 5, &[(400, 1)], &[])], now, &mut fx);
+            }
+        }
+        for t in core.tokens.keys().cloned().collect::<Vec<_>>() {
+            set_rate(&mut core, &t, 10.0);
+        }
+        (core, fx, now)
+    }
+
+    #[test]
+    fn hot_shard_splits_make_before_break() {
+        let (mut core, mut fx, now) = three_shards();
+        set_rate(&mut core, "a", 1000.0);
+        set_rate(&mut core, "b", 1000.0);
+        core.maybe_split(now, &mut fx);
+        assert_eq!(core.metrics.splits, 1);
+        let new: Vec<_> = fx.spawned[6..].iter().map(|(c, _, ts)| (*c, ts.clone())).collect();
+        assert_eq!(new, vec![(6, vec![Sym::from("a"), "b".into()]), (7, vec!["a".into(), "b".into()])], "only the hot market moves");
+        assert!(!fx.sent.iter().any(|(_, s)| s.starts_with("Unsubscribe")), "old sockets keep serving meanwhile");
+        assert_eq!(core.tokens["a"].source, Some(0));
+        core.out.clear();
+        for c in [6, 7] {
+            core.on_up(c, now);
+            core.on_events(c, 2, &[book("a", 6, &[(400, 1)], &[]), book("b", 6, &[(400, 1)], &[])], now, &mut fx);
+        }
+        let unsub: Vec<_> = fx.sent.iter().filter(|(_, s)| s.starts_with("Unsubscribe")).cloned().collect();
+        assert_eq!(unsub, vec![(0, r#"Unsubscribe(["a", "b"])"#.to_string()), (1, r#"Unsubscribe(["a", "b"])"#.to_string())]);
+        assert!(core.tokens["a"].source.is_some_and(|s| s >= 6), "source handed to the new socket");
+        assert_eq!(core.tokens["a"].replicas.len(), 2);
+        assert_eq!(core.shards[0].tokens.len(), 4);
+        assert!(core.out.is_empty(), "identical books: the split is invisible in the output");
+        // The old socket dropping no longer touches the moved tokens.
+        core.on_down(0, 3);
+        assert!(core.tokens["a"].source.is_some_and(|s| s >= 6));
+    }
+
+    #[test]
+    fn shard_near_the_median_does_not_split() {
+        let (mut core, mut fx, now) = three_shards();
+        set_rate(&mut core, "a", 25.0);
+        core.maybe_split(now, &mut fx);
+        assert_eq!(core.metrics.splits, 0, "75 a minute against a median of 60: under 3x");
+        core.cfg.split_min_rate = 10_000.0;
+        set_rate(&mut core, "a", 1000.0);
+        core.maybe_split(now, &mut fx);
+        assert_eq!(core.metrics.splits, 0, "under the absolute floor");
+    }
+
+    #[test]
+    fn split_hands_over_after_grace_and_survives_a_resolved_market() {
+        let (mut core, mut fx, now) = three_shards();
+        set_rate(&mut core, "a", 1000.0);
+        set_rate(&mut core, "c", 900.0);
+        core.maybe_split(now, &mut fx);
+        assert_eq!(core.split.as_ref().unwrap().moved.len(), 2, "m1 alone is half the rate");
+        core.remove_market("m1", 2, &mut fx);
+        assert_eq!(core.shards[0].tokens.len(), 4, "gone from both shards");
+        core.on_tick(now + Duration::from_secs(61), 3, &mut fx);
+        assert!(core.split.is_none(), "grace ran out");
+        assert_eq!(core.shards[0].tokens.len(), 4);
+    }
+
+    #[test]
+    fn late_markets_do_not_join_a_split_off_shard() {
+        let (mut core, mut fx, now) = three_shards();
+        set_rate(&mut core, "a", 1000.0);
+        set_rate(&mut core, "b", 1000.0);
+        core.maybe_split(now, &mut fx);
+        core.add(vec![inst("m6", &["k", "l"])], &mut fx);
+        assert_eq!(core.tokens["k"].shard, 2, "joins the last ordinary shard");
     }
 
     #[test]

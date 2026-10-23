@@ -53,6 +53,10 @@ struct Args {
     /// Make-before-break recycle connections older than this many minutes (0 = never).
     #[arg(long, default_value_t = 60)]
     recycle_mins: u64,
+    /// Split a shard off when its measured message rate passes this many times the median
+    /// shard's (0 = never).
+    #[arg(long, default_value_t = 3.0)]
+    split_ratio: f32,
     /// Cut output into files of this many minutes, named by period start (0 = one file).
     #[arg(long, default_value_t = 0)]
     rotate_mins: u64,
@@ -451,6 +455,7 @@ async fn main() -> anyhow::Result<()> {
             max_conn_age: (args.recycle_mins > 0).then(|| Duration::from_secs(args.recycle_mins * 60)),
             conn_id_base: (idx as ConnId) << CONN_ID_BITS,
             rotate_every: rotate,
+            split_ratio: (args.split_ratio > 0.0).then_some(args.split_ratio),
             ..Config::default()
         };
         let rt = Runtime {
