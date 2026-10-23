@@ -29,7 +29,7 @@ struct Args {
     #[arg(long, default_value_t = 2500)]
     tokens_per_conn: usize,
     /// Cap on steady-state websockets (shards × replicas); tokens beyond it are not collected.
-    #[arg(long, default_value_t = 200)]
+    #[arg(long, default_value_t = 600)]
     max_conns: usize,
     /// Independent websocket replicas per shard (pinned to different edges when possible).
     #[arg(long, default_value_t = 2)]
@@ -61,7 +61,7 @@ struct Runtime {
     edges: Vec<SocketAddr>,
     limiter: Arc<OpenLimiter>,
     inbound: mpsc::Sender<Inbound>,
-    found: mpsc::UnboundedSender<Vec<Instrument<Meta>>>,
+    lookups: mpsc::UnboundedSender<Sym>,
     cancel: CancellationToken,
 }
 
@@ -88,16 +88,37 @@ impl Effects for Runtime {
     }
 
     fn lookup(&mut self, market: Sym) {
-        let (a, tx) = (self.adapter.clone(), self.found.clone());
-        tokio::spawn(async move {
-            match a.lookup(&market).await {
-                Ok(v) => {
-                    let _ = tx.send(v);
-                }
-                Err(e) => tracing::warn!(%market, error = %e, "market lookup failed"),
-            }
-        });
+        let _ = self.lookups.send(market);
     }
+}
+
+/// Stream-announced markets wait this long for others to join their lookup request.
+const LOOKUP_LINGER: Duration = Duration::from_millis(500);
+const LOOKUP_BATCH: usize = 50;
+
+/// One worker serves every lookup: a burst of listings becomes a few batched requests in
+/// sequence rather than one concurrent request each, which is what tripped Gamma's rate limit.
+fn spawn_lookups(
+    adapter: Arc<Polymarket>,
+    found: mpsc::UnboundedSender<Vec<Instrument<Meta>>>,
+) -> mpsc::UnboundedSender<Sym> {
+    let (tx, mut rx) = mpsc::unbounded_channel::<Sym>();
+    tokio::spawn(async move {
+        while let Some(first) = rx.recv().await {
+            tokio::time::sleep(LOOKUP_LINGER).await;
+            let mut batch = vec![first];
+            if !rx.is_empty() {
+                rx.recv_many(&mut batch, LOOKUP_BATCH - 1).await;
+            }
+            match adapter.lookup(&batch).await {
+                Ok(v) => {
+                    let _ = found.send(v);
+                }
+                Err(e) => tracing::warn!(markets = batch.len(), error = %e, "market lookup failed"),
+            }
+        }
+    });
+    tx
 }
 
 fn load_cache(path: &PathBuf) -> Vec<Instrument<Meta>> {
@@ -204,7 +225,7 @@ async fn main() -> anyhow::Result<()> {
         edges,
         limiter: Arc::new(OpenLimiter::new(args.opens_per_sec)),
         inbound: itx,
-        found: ftx,
+        lookups: spawn_lookups(adapter.clone(), ftx),
         cancel: conn_cancel.clone(),
     };
     let cfg = Config {

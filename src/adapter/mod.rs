@@ -146,10 +146,10 @@ pub trait ExchangeAdapter: Send + Sync + 'static {
         &self,
         pages: mpsc::Sender<Vec<Instrument<Self::Meta>>>,
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
-    /// Looks up one market announced on the stream.
+    /// Looks up a batch of markets announced on the stream, in one request where the venue allows.
     fn lookup(
         &self,
-        market: &str,
+        markets: &[Sym],
     ) -> impl Future<Output = anyhow::Result<Vec<Instrument<Self::Meta>>>> + Send;
 
     fn integrity(&self) -> Box<dyn Integrity<Self::Meta>>;

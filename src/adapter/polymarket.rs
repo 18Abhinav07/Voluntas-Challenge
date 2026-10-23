@@ -6,7 +6,8 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
+use reqwest::{StatusCode, header::RETRY_AFTER};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc;
 
@@ -20,6 +21,10 @@ use crate::{
 
 const WS_URL: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
 const GAMMA: &str = "https://gamma-api.polymarket.com";
+/// Gamma requests are retried this many times in all; the wait doubles from `GAMMA_BACKOFF`.
+const GAMMA_ATTEMPTS: u32 = 8;
+const GAMMA_BACKOFF: Duration = Duration::from_millis(500);
+const GAMMA_BACKOFF_MAX: Duration = Duration::from_secs(30);
 
 /// Per-market metadata the `hash` covers and the stream does not always repeat.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -40,6 +45,36 @@ impl Polymarket {
             .timeout(Duration::from_secs(30))
             .build()?;
         Ok(Self { http })
+    }
+
+    /// Sends a Gamma GET built by `req`, backing off on 429, 5xx and transport errors
+    /// (honouring `Retry-After`) so a rate limit slows a pass down instead of ending it.
+    async fn gamma<T: DeserializeOwned>(
+        &self,
+        req: impl Fn() -> reqwest::RequestBuilder,
+    ) -> anyhow::Result<T> {
+        let mut wait = GAMMA_BACKOFF;
+        for attempt in 1..=GAMMA_ATTEMPTS {
+            let retry_after = match req().send().await {
+                Ok(r) if r.status() == StatusCode::TOO_MANY_REQUESTS || r.status().is_server_error() => {
+                    let after = r
+                        .headers()
+                        .get(RETRY_AFTER)
+                        .and_then(|v| v.to_str().ok()?.parse().ok())
+                        .map(Duration::from_secs);
+                    if attempt == GAMMA_ATTEMPTS {
+                        r.error_for_status()?;
+                    }
+                    after
+                }
+                Ok(r) => return Ok(r.error_for_status()?.json().await?),
+                Err(e) if attempt == GAMMA_ATTEMPTS => return Err(e.into()),
+                Err(_) => None,
+            };
+            tokio::time::sleep(retry_after.unwrap_or(wait).min(GAMMA_BACKOFF_MAX)).await;
+            wait = (wait * 2).min(GAMMA_BACKOFF_MAX);
+        }
+        unreachable!("the last attempt returns")
     }
 }
 
@@ -263,15 +298,19 @@ impl ExchangeAdapter for Polymarket {
     async fn discover(&self, pages: mpsc::Sender<Vec<Instrument<Meta>>>) -> anyhow::Result<()> {
         let mut cursor: Option<String> = None;
         loop {
-            let mut req = self.http.get(format!("{GAMMA}/markets/keyset")).query(&[
-                ("active", "true"),
-                ("closed", "false"),
-                ("limit", "100"),
-            ]);
-            if let Some(c) = &cursor {
-                req = req.query(&[("after_cursor", c)]);
-            }
-            let page: KeysetPage = req.send().await?.error_for_status()?.json().await?;
+            let page: KeysetPage = self
+                .gamma(|| {
+                    let req = self.http.get(format!("{GAMMA}/markets/keyset")).query(&[
+                        ("active", "true"),
+                        ("closed", "false"),
+                        ("limit", "100"),
+                    ]);
+                    match &cursor {
+                        Some(c) => req.query(&[("after_cursor", c)]),
+                        None => req,
+                    }
+                })
+                .await?;
             let batch: Vec<_> = page.markets.into_iter().filter_map(to_instrument).collect();
             if !batch.is_empty() && pages.send(batch).await.is_err() {
                 return Ok(());
@@ -283,15 +322,14 @@ impl ExchangeAdapter for Polymarket {
         }
     }
 
-    async fn lookup(&self, market: &str) -> anyhow::Result<Vec<Instrument<Meta>>> {
+    async fn lookup(&self, markets: &[Sym]) -> anyhow::Result<Vec<Instrument<Meta>>> {
+        let limit = markets.len().to_string();
         let ms: Vec<GammaMarket> = self
-            .http
-            .get(format!("{GAMMA}/markets"))
-            .query(&[("condition_ids", market)])
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .gamma(|| {
+                let ids = markets.iter().map(|m| ("condition_ids", m.as_ref()));
+                let q: Vec<_> = ids.chain([("limit", limit.as_str())]).collect();
+                self.http.get(format!("{GAMMA}/markets")).query(&q)
+            })
             .await?;
         Ok(ms.into_iter().filter_map(to_instrument).collect())
     }

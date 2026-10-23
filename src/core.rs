@@ -50,7 +50,7 @@ impl Default for Config {
             recycle_grace: Duration::from_secs(60),
             resnap_gap: Duration::from_secs(30),
             book_timeout: Duration::from_secs(120),
-            max_conns: 200,
+            max_conns: 600,
         }
     }
 }
