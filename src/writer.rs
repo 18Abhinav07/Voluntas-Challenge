@@ -5,6 +5,10 @@
 //! stream (`Rec::Rotate`) and follows it with a snapshot of every book it publishes, so each
 //! file replays on its own. A period's file is written as `.part` and renamed once every core
 //! has moved past it: a consumer can take any `.sbe` file as complete.
+//!
+//! Finishing a file (last chunk, fsync, rename) runs on a separate `finisher` thread. An fsync
+//! of a multi-GB file takes seconds; done inline it stopped the writer, which filled its
+//! channel and blocked every core and socket reader behind it.
 
 use std::{collections::BTreeMap, path::PathBuf, thread::JoinHandle, time::Duration};
 
@@ -106,6 +110,18 @@ pub fn spawn(
     // Open before the thread starts so a bad path fails the process at once.
     let mut files = BTreeMap::from([(start, open(start)?)]);
     let (tx, mut rx) = mpsc::channel::<Tagged>(cap);
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<Part>();
+    let finisher = std::thread::Builder::new().name("finisher".into()).spawn(move || -> anyhow::Result<()> {
+        let mut res = Ok(());
+        for p in done_rx {
+            let fin = p.fin.clone();
+            if let Err(e) = p.finish() {
+                tracing::error!(file = %fin.display(), error = %e, "finishing rotated file failed");
+                res = res.and(Err(e));
+            }
+        }
+        res
+    })?;
     let h = std::thread::Builder::new().name("writer".into()).spawn(move || {
         let mut stats = Stats::default();
         // The period each source is currently writing into.
@@ -125,7 +141,8 @@ pub fn spawn(
                         at[src] = epoch;
                         let low = *at.iter().min().unwrap_or(&epoch);
                         while files.first_key_value().is_some_and(|(&e, _)| e < low) {
-                            files.pop_first().map(|(_, p)| p.finish()).transpose()?;
+                            let (_, p) = files.pop_first().expect("checked above");
+                            done_tx.send(p).map_err(|_| anyhow::anyhow!("finisher thread exited"))?;
                         }
                     }
                     continue;
@@ -178,9 +195,12 @@ pub fn spawn(
                 }
             }
         }
+        drop(done_tx);
+        let finished = finisher.join().map_err(|_| anyhow::anyhow!("finisher thread panicked"))?;
         for (_, p) in files {
             p.finish()?;
         }
+        finished?;
         Ok(stats)
     })?;
     Ok((tx, h))

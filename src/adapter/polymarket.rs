@@ -361,7 +361,8 @@ pub struct HashCheck {
 struct MarketState {
     ltp: String,
     cand: BTreeSet<String>,
-    recent: VecDeque<String>,
+    /// Prices touched lately (and their complements), formatted only when a sweep needs them.
+    recent: VecDeque<Fx>,
     deferred: Vec<Deferred>,
 }
 
@@ -441,11 +442,10 @@ impl HashCheck {
             return false;
         };
         let st = self.mkts.entry((conn, market.clone())).or_default();
-        let hit = std::iter::once(&st.ltp)
-            .chain(&st.cand)
-            .chain(st.recent.iter().filter(|_| sweep))
-            .find(|o| Self::finish(pre.clone(), o) == want)
-            .cloned();
+        let mut hit = std::iter::once(&st.ltp).chain(&st.cand).find(|o| Self::finish(pre.clone(), o) == want).cloned();
+        if hit.is_none() && sweep {
+            hit = st.recent.iter().map(|&p| q3(p)).find(|o| Self::finish(pre.clone(), o) == want);
+        }
         let Some(o) = hit else { return false };
         if o != st.ltp {
             st.ltp = o;
@@ -617,8 +617,8 @@ impl Integrity<Meta> for HashCheck {
             } => {
                 let st = self.mkts.entry((conn, market.clone())).or_default();
                 for c in changes {
-                    st.recent.push_back(q3(c.px));
-                    st.recent.push_back(q3(SCALE - c.px));
+                    st.recent.push_back(c.px);
+                    st.recent.push_back(SCALE - c.px);
                 }
                 while st.recent.len() > RECENT {
                     st.recent.pop_front();
@@ -698,6 +698,47 @@ mod tests {
             (changes[0].side, changes[0].px, changes[0].qty),
             (Side::Bid, 900_000, 3_123_900_000)
         );
+    }
+
+    /// The bytes `prefix` + `finish` digest, for timing SHA1 on its own.
+    fn digest_input(book: &Book) -> Vec<u8> {
+        let lv = |it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+            it.map(|(p, q)| format!("{{\"price\":\"{}\",\"size\":\"{}\"}}", fixed::to_string(*p), fixed::to_string(*q)))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        format!(
+            "{{\"market\":\"0xm\",\"asset_id\":\"7\",\"timestamp\":\"1792742997166\",\"hash\":\"\",\"bids\":[{}],\"asks\":[{}],\"min_order_size\":\"5\",\"tick_size\":\"0.01\",\"neg_risk\":false,\"last_trade_price\":\"0.5\"}}",
+            lv(&mut book.bids.iter()),
+            lv(&mut book.asks.iter().rev())
+        )
+        .into_bytes()
+    }
+
+    /// Cost of one book digest. `cargo test --release bench_digest -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn bench_digest() {
+        let mut hc = HashCheck::default();
+        let meta = Meta { neg_risk: false, tick: "0.01".into(), min_size: "5".into() };
+        hc.register(&Instrument { market: "0xm".into(), tokens: vec!["7".into()], meta });
+        for depth in [5i64, 20, 60] {
+            let side = |base: i64| (0..depth).map(|i| (base + i * 10_000, 1_234_560_000 + i * 7)).collect();
+            let book = Book { bids: side(10_000), asks: side(400_000) };
+            let n = 200_000;
+            let t = Instant::now();
+            for i in 0..n {
+                std::hint::black_box(HashCheck::finish(hc.prefix("7", "0xm", 1_792_742_997_166_000 + i, &book).unwrap(), "0.5"));
+            }
+            let full = t.elapsed().as_nanos() as f64 / n as f64;
+            let json = digest_input(&book);
+            let t = Instant::now();
+            for _ in 0..n {
+                std::hint::black_box(Sha1::digest(std::hint::black_box(&json[..])));
+            }
+            let sha = t.elapsed().as_nanos() as f64 / n as f64;
+            println!("depth {depth}/side, {} B: {full:.0} ns per digest, of which SHA1 {sha:.0} ns", json.len());
+        }
     }
 
     /// The streamed digest must equal SHA1 over the JSON written out in full.
