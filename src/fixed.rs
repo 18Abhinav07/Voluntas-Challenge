@@ -37,17 +37,47 @@ pub fn parse(s: &str) -> Option<Fx> {
 
 /// Formats with trailing zeros trimmed, the exchange's canonical form (`500_000` -> `"0.5"`).
 pub fn format(v: Fx, out: &mut String) {
-    use std::fmt::Write;
-    let (i, f) = (v / SCALE, v % SCALE);
-    if f == 0 {
-        let _ = write!(out, "{i}");
-        return;
+    let mut b = [0; 24];
+    out.push_str(std::str::from_utf8(encode(v, &mut b)).expect("ascii digits"));
+}
+
+/// [`format`] into a stack buffer, returning the used tail. No `fmt` and no allocation:
+/// the hash check runs this for every level of every book it digests.
+pub fn encode(v: Fx, buf: &mut [u8; 24]) -> &[u8] {
+    debug_assert!(v >= 0, "prices and sizes are non-negative");
+    let (i, mut f) = ((v / SCALE) as u64, (v % SCALE) as u64);
+    let mut p = buf.len();
+    if f != 0 {
+        let mut n = DP;
+        while f % 10 == 0 {
+            f /= 10;
+            n -= 1;
+        }
+        for _ in 0..n {
+            p -= 1;
+            buf[p] = b'0' + (f % 10) as u8;
+            f /= 10;
+        }
+        p -= 1;
+        buf[p] = b'.';
     }
-    let mut frac = format!("{f:06}");
-    while frac.ends_with('0') {
-        frac.pop();
+    let used = encode_int(i, &mut buf[..p]);
+    let start = p - used;
+    &buf[start..]
+}
+
+/// Writes `v`'s decimal digits at the end of `buf`, returning how many were written.
+pub fn encode_int(mut v: u64, buf: &mut [u8]) -> usize {
+    let mut p = buf.len();
+    loop {
+        p -= 1;
+        buf[p] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
     }
-    let _ = write!(out, "{i}.{frac}");
+    buf.len() - p
 }
 
 pub fn to_string(v: Fx) -> String {
@@ -80,6 +110,9 @@ mod tests {
         assert_eq!(to_string(30_000_000), "30");
         assert_eq!(format_3dp(500_000), "0.500");
         assert_eq!(format_3dp(1_000_000), "1.000");
+        assert_eq!(to_string(0), "0");
+        assert_eq!(to_string(1), "0.000001");
+        assert_eq!(to_string(i64::MAX), "9223372036854.775807");
     }
 
     proptest! {

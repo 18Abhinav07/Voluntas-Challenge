@@ -383,49 +383,46 @@ const DEFER: Duration = Duration::from_secs(5);
 const RECENT: usize = 40;
 
 impl HashCheck {
-    fn digest(
-        &self,
-        token: &str,
-        market: &str,
-        ts_us: i64,
-        book: &Book,
-        ltp: &str,
-    ) -> Option<String> {
+    /// SHA1 state after everything but `last_trade_price`, which is the final field. Candidate
+    /// prices differ only there, so each costs a state clone and a few bytes, not a re-hash.
+    fn prefix(&self, token: &str, market: &str, ts_us: i64, book: &Book) -> Option<Sha1> {
         let (_, meta) = self.meta.get(token)?;
         let tick = self.tick.get(token).unwrap_or(&meta.tick);
-        let mut s = String::with_capacity(64 * (book.bids.len() + book.asks.len()) + 256);
-        s.push_str("{\"market\":\"");
-        s.push_str(market);
-        s.push_str("\",\"asset_id\":\"");
-        s.push_str(token);
-        s.push_str("\",\"timestamp\":\"");
-        s.push_str(&(ts_us / 1000).to_string());
-        s.push_str("\",\"hash\":\"\",\"bids\":[");
-        let lv = |s: &mut String, it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+        let mut h = Sha1::new();
+        let mut b = [0u8; 24];
+        h.update(b"{\"market\":\"");
+        h.update(market);
+        h.update(b"\",\"asset_id\":\"");
+        h.update(token);
+        h.update(b"\",\"timestamp\":\"");
+        let n = fixed::encode_int((ts_us / 1000) as u64, &mut b);
+        h.update(&b[b.len() - n..]);
+        h.update(b"\",\"hash\":\"\",\"bids\":[");
+        let mut lv = |h: &mut Sha1, it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
             for (i, (p, q)) in it.enumerate() {
-                if i > 0 {
-                    s.push(',');
-                }
-                s.push_str("{\"price\":\"");
-                fixed::format(*p, s);
-                s.push_str("\",\"size\":\"");
-                fixed::format(*q, s);
-                s.push_str("\"}");
+                h.update(if i > 0 { &b",{\"price\":\""[..] } else { &b"{\"price\":\""[..] });
+                h.update(fixed::encode(*p, &mut b));
+                h.update(b"\",\"size\":\"");
+                h.update(fixed::encode(*q, &mut b));
+                h.update(b"\"}");
             }
         };
-        lv(&mut s, &mut book.bids.iter());
-        s.push_str("],\"asks\":[");
-        lv(&mut s, &mut book.asks.iter().rev());
-        s.push_str("],\"min_order_size\":\"");
-        s.push_str(&meta.min_size);
-        s.push_str("\",\"tick_size\":\"");
-        s.push_str(tick);
-        s.push_str("\",\"neg_risk\":");
-        s.push_str(if meta.neg_risk { "true" } else { "false" });
-        s.push_str(",\"last_trade_price\":\"");
-        s.push_str(ltp);
-        s.push_str("\"}");
-        Some(hex::encode(Sha1::digest(s.as_bytes())))
+        lv(&mut h, &mut book.bids.iter());
+        h.update(b"],\"asks\":[");
+        lv(&mut h, &mut book.asks.iter().rev());
+        h.update(b"],\"min_order_size\":\"");
+        h.update(&meta.min_size);
+        h.update(b"\",\"tick_size\":\"");
+        h.update(tick);
+        h.update(if meta.neg_risk { &b"\",\"neg_risk\":true"[..] } else { &b"\",\"neg_risk\":false"[..] });
+        h.update(b",\"last_trade_price\":\"");
+        Some(h)
+    }
+
+    fn finish(mut h: Sha1, ltp: &str) -> [u8; 20] {
+        h.update(ltp);
+        h.update(b"\"}");
+        h.finalize().into()
     }
 
     /// Tries the market's candidate last-trade prices; on a hit, calibrates `ltp` to it.
@@ -440,27 +437,21 @@ impl HashCheck {
         hash: &str,
         sweep: bool,
     ) -> bool {
+        let (Some(want), Some(pre)) = (unhex(hash), self.prefix(token, market, ts, book)) else {
+            return false;
+        };
         let st = self.mkts.entry((conn, market.clone())).or_default();
-        let mut opts: Vec<String> = Vec::with_capacity(4 + st.cand.len());
-        opts.push(st.ltp.clone());
-        opts.extend(st.cand.iter().cloned());
-        if sweep {
-            opts.extend(st.recent.iter().cloned());
+        let hit = std::iter::once(&st.ltp)
+            .chain(&st.cand)
+            .chain(st.recent.iter().filter(|_| sweep))
+            .find(|o| Self::finish(pre.clone(), o) == want)
+            .cloned();
+        let Some(o) = hit else { return false };
+        if o != st.ltp {
+            st.ltp = o;
+            st.cand.clear();
         }
-        for o in opts {
-            if self.digest(token, market, ts, book, &o).as_deref() == Some(hash) {
-                let st = self
-                    .mkts
-                    .get_mut(&(conn, market.clone()))
-                    .expect("inserted above");
-                if o != st.ltp {
-                    st.ltp = o;
-                    st.cand.clear();
-                }
-                return true;
-            }
-        }
-        false
+        true
     }
 
     /// Retries deferred checks of `market` (only `token`'s, if given); whatever still fails is a miss.
@@ -526,6 +517,12 @@ impl HashCheck {
             }
         }
     }
+}
+
+fn unhex(h: &str) -> Option<[u8; 20]> {
+    let mut out = [0; 20];
+    hex::decode_to_slice(h, &mut out).ok()?;
+    Some(out)
 }
 
 fn q3(p: Fx) -> String {
@@ -599,7 +596,8 @@ impl Integrity<Meta> for HashCheck {
                     return;
                 };
                 let ltp = st.ltp.clone();
-                if self.digest(token, market, *exch_ts, book, &ltp).as_deref() == Some(&**h) {
+                let got = self.prefix(token, market, *exch_ts, book).map(|p| Self::finish(p, &ltp));
+                if got.is_some() && got == unhex(h) {
                     out.push(Verdict::Ok {
                         conn,
                         token: token.clone(),
@@ -700,5 +698,30 @@ mod tests {
             (changes[0].side, changes[0].px, changes[0].qty),
             (Side::Bid, 900_000, 3_123_900_000)
         );
+    }
+
+    /// The streamed digest must equal SHA1 over the JSON written out in full.
+    #[test]
+    fn streamed_digest_matches_plain_json() {
+        use proptest::prelude::*;
+        let levels = || proptest::collection::btree_map(1i64..1_000_000, 0i64..i64::MAX / 4, 0..30);
+        proptest!(|(bids in levels(), asks in levels(), ts in 0i64..i64::MAX / 2, ltp in 0i64..1_000_000, neg in any::<bool>())| {
+            let mut hc = HashCheck::default();
+            let meta = Meta { neg_risk: neg, tick: "0.01".into(), min_size: "5".into() };
+            hc.register(&Instrument { market: "0xm".into(), tokens: vec!["7".into()], meta });
+            let book = Book { bids: bids.clone(), asks: asks.clone() };
+            let ltp = q3(ltp);
+            let lv = |it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+                it.map(|(p, q)| format!("{{\"price\":\"{}\",\"size\":\"{}\"}}", fixed::to_string(*p), fixed::to_string(*q)))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            let json = format!(
+                "{{\"market\":\"0xm\",\"asset_id\":\"7\",\"timestamp\":\"{}\",\"hash\":\"\",\"bids\":[{}],\"asks\":[{}],\"min_order_size\":\"5\",\"tick_size\":\"0.01\",\"neg_risk\":{},\"last_trade_price\":\"{}\"}}",
+                ts / 1000, lv(&mut bids.iter()), lv(&mut asks.iter().rev()), neg, ltp
+            );
+            let want: [u8; 20] = Sha1::digest(json.as_bytes()).into();
+            prop_assert_eq!(HashCheck::finish(hc.prefix("7", "0xm", ts, &book).unwrap(), &ltp), want);
+        });
     }
 }
