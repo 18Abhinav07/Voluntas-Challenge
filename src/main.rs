@@ -526,6 +526,7 @@ async fn main() -> anyhow::Result<()> {
                 let per_core: Vec<usize> = latest.iter().map(|s| s.as_ref().map_or(0, |s| s.tokens)).collect();
                 let stalls = conn::STALLS.load(std::sync::atomic::Ordering::Relaxed);
                 tracing::info!(tokens, sourced, conns, ?per_core, stalls, m = ?m, "status");
+                tracing::info!(window = %conn::top_conns(5), "conn stats");
             }
             _ = rediscover.tick(), if !discovering => {
                 discovering = true;

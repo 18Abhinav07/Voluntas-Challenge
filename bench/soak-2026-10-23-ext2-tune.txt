@@ -1,0 +1,393 @@
+info: downloading installer
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+info: downloading 3 components
+info: default toolchain set to stable-x86_64-unknown-linux-gnu
+
+  stable-x86_64-unknown-linux-gnu installed - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env"           # For sh/ash/dash/pdksh/bash/zsh
+source "$HOME/.cargo/env.fish" # For fish
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+== host
+4
+               total        used        free      shared  buff/cache   available
+Mem:           15993        1379         435          61       14587       14613
+Swap:              0           0           0
+/dev/loop4       32G   12G   19G  39% /workspaces
+fc4eeac Tune Ext 2 and surface reader stalls
+== build
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded backtrace-ext v0.2.1
+  Downloaded atomic-waker v1.1.2
+  Downloaded anstyle-query v1.1.5
+  Downloaded block-buffer v0.10.4
+  Downloaded cfg-if v1.0.5
+  Downloaded adler2 v2.0.1
+  Downloaded rustls-pki-types v1.15.1
+  Downloaded block-buffer v0.12.1
+  Downloaded cpufeatures v0.2.17
+  Downloaded cpufeatures v0.3.1
+  Downloaded rand v0.10.3
+  Downloaded proc-macro2 v1.0.107
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded rand_pcg v0.10.2
+  Downloaded rustc-hash v2.1.3
+  Downloaded serde_core v1.0.229
+  Downloaded signal-hook-registry v1.4.8
+  Downloaded thiserror v1.0.69
+  Downloaded matchers v0.2.0
+  Downloaded potential_utf v0.1.6
+  Downloaded quote v1.0.47
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded subtle v2.6.1
+  Downloaded sync_wrapper v1.0.2
+  Downloaded rand_core v0.6.4
+  Downloaded stable_deref_trait v1.2.1
+  Downloaded percent-encoding v2.3.2
+  Downloaded rand_chacha v0.3.1
+  Downloaded supports-unicode v3.0.0
+  Downloaded crossbeam v0.8.5
+  Downloaded crypto-common v0.1.7
+  Downloaded supports-color v3.0.2
+  Downloaded zerofrom-derive v0.1.8
+  Downloaded crypto-common v0.2.2
+  Downloaded equivalent v1.0.3
+  Downloaded errno v0.3.14
+  Downloaded futures-core v0.3.34
+  Downloaded futures-sink v0.3.34
+  Downloaded hex v0.4.3
+  Downloaded lru-slab v0.1.3
+  Downloaded shlex v2.0.1
+  Downloaded synstructure v0.14.0
+  Downloaded thread_local v1.1.10
+  Downloaded tower-layer v0.3.3
+  Downloaded webpki-roots v0.26.11
+  Downloaded zerofrom v0.1.8
+  Downloaded form_urlencoded v1.2.2
+  Downloaded futures-task v0.3.34
+  Downloaded icu_locale_fallback_data v2.3.0
+  Downloaded is_terminal_polyfill v1.70.2
+  Downloaded strsim v0.11.1
+  Downloaded supports-hyperlinks v3.2.0
+  Downloaded colorchoice v1.0.5
+  Downloaded compression-core v0.4.34
+  Downloaded idna_adapter v1.2.2
+  Downloaded itoa v1.0.18
+  Downloaded lazy_static v1.5.1
+  Downloaded rand_core v0.10.1
+  Downloaded rustc-demangle v0.1.28
+  Downloaded sha1 v0.10.7
+  Downloaded sharded-slab v0.1.7
+  Downloaded slab v0.4.12
+  Downloaded smallvec v1.16.3
+  Downloaded tempfile v3.27.0
+  Downloaded terminal_size v0.4.4
+  Downloaded thiserror v2.0.21
+  Downloaded tokio-macros v2.7.2
+  Downloaded tokio-rustls v0.26.6
+  Downloaded tower-service v0.3.3
+  Downloaded utf-8 v0.7.6
+  Downloaded utf8_iter v1.0.4
+  Downloaded utf8parse v0.2.2
+  Downloaded version_check v0.9.5
+  Downloaded want v0.3.2
+  Downloaded writeable v0.6.4
+  Downloaded yoke-derive v0.8.4
+  Downloaded zmij v1.0.23
+  Downloaded autocfg v1.5.1
+  Downloaded cfg_aliases v0.2.2
+  Downloaded generic-array v0.14.7
+  Downloaded http-body v1.1.0
+  Downloaded is_ci v1.2.0
+  Downloaded miette-derive v7.6.0
+  Downloaded owo-colors v4.4.0
+  Downloaded pin-project-lite v0.2.17
+  Downloaded sha2 v0.11.1
+  Downloaded simd-adler32 v0.3.10
+  Downloaded thiserror-impl v1.0.69
+  Downloaded tokio-tungstenite v0.24.0
+  Downloaded untrusted v0.9.0
+  Downloaded zeroize v1.9.1
+  Downloaded zerovec-derive v0.11.6
+  Downloaded anstyle v1.0.14
+  Downloaded anstyle-parse v1.0.0
+  Downloaded clap_lex v1.1.1
+  Downloaded crossbeam-deque v0.8.8
+  Downloaded crossbeam-queue v0.3.14
+  Downloaded displaydoc v0.2.7
+  Downloaded fastrand v2.5.0
+  Downloaded heck v0.5.0
+  Downloaded http-body-util v0.1.5
+  Downloaded hyper-rustls v0.27.10
+  Downloaded icu_locale_fallback v2.3.0
+  Downloaded ipnet v2.12.2
+  Downloaded nu-ansi-term v0.50.3
+  Downloaded once_cell v1.21.4
+  Downloaded quinn-udp v0.5.16
+  Downloaded rand v0.8.8
+  Downloaded roxmltree v0.21.1
+  Downloaded ryu v1.0.23
+  Downloaded serde_derive v1.0.229
+  Downloaded socket2 v0.6.5
+  Downloaded thiserror-impl v2.0.21
+  Downloaded tinystr v0.8.4
+  Downloaded tinyvec v1.13.3
+  Downloaded tracing-attributes v0.1.31
+  Downloaded try-lock v0.2.5
+  Downloaded unicode-ident v1.0.27
+  Downloaded yoke v0.8.3
+  Downloaded addr2line v0.25.1
+  Downloaded byteorder v1.5.0
+  Downloaded chacha20 v0.10.2
+  Downloaded compression-codecs v0.4.46
+  Downloaded crossbeam-epoch v0.9.21
+  Downloaded crossbeam-utils v0.8.23
+  Downloaded data-encoding v2.11.1
+  Downloaded digest v0.10.7
+  Downloaded digest v0.11.3
+  Downloaded find-msvc-tools v0.1.15
+  Downloaded futures-channel v0.3.34
+  Downloaded getrandom v0.2.17
+  Downloaded httparse v1.10.1
+  Downloaded hybrid-array v0.4.15
+  Downloaded litemap v0.8.3
+  Downloaded miniz_oxide v0.8.9
+  Downloaded miniz_oxide v0.9.1
+  Downloaded num-traits v0.2.19
+  Downloaded serde_yaml_ng v0.9.36
+  Downloaded textwrap v0.16.4
+  Downloaded tracing-log v0.2.0
+  Downloaded anyhow v1.0.104
+  Downloaded bitflags v2.13.2
+  Downloaded clap_derive v4.6.7
+  Downloaded const-oid v0.10.2
+  Downloaded crc32fast v1.5.3
+  Downloaded getrandom v0.4.3
+  Downloaded iana-time-zone v0.1.65
+  Downloaded icu_provider v2.3.1
+  Downloaded log v0.4.34
+  Downloaded prettyplease v0.3.0
+  Downloaded quinn v0.11.12
+  Downloaded rustls-webpki v0.103.16
+  Downloaded serde v1.0.229
+  Downloaded syn v3.0.9
+  Downloaded tungstenite v0.24.0
+  Downloaded unsafe-libyaml v0.2.11
+  Downloaded zerotrie v0.2.5
+  Downloaded anstream v1.0.0
+  Downloaded clap v4.6.7
+  Downloaded icu_locale_core v2.3.0
+  Downloaded icu_normalizer_data v2.3.0
+  Downloaded memchr v2.8.3
+  Downloaded miette v7.6.0
+  Downloaded mio v1.2.4
+  Downloaded tower v0.5.3
+  Downloaded tracing-core v0.1.36
+  Downloaded url v2.5.8
+  Downloaded backtrace v0.3.76
+  Downloaded base64 v0.22.1
+  Downloaded base64 v0.23.1
+  Downloaded bytes v1.12.1
+  Downloaded crossbeam-channel v0.5.17
+  Downloaded flate2 v1.1.10
+  Downloaded http v1.5.0
+  Downloaded icu_collections v2.3.0
+  Downloaded icu_properties v2.3.0
+  Downloaded serde_json v1.0.154
+  Downloaded zerovec v0.11.8
+  Downloaded async-compression v0.4.51
+  Downloaded indexmap v2.14.2
+  Downloaded reqwest v0.12.28
+  Downloaded tokio-util v0.7.20
+  Downloaded tower-http v0.6.11
+  Downloaded typenum v1.20.1
+  Downloaded hyper-util v0.1.21
+  Downloaded idna v1.1.0
+  Downloaded cc v1.9.0
+  Downloaded hashbrown v0.17.1
+  Downloaded aho-corasick v1.1.5
+  Downloaded futures-util v0.3.34
+  Downloaded icu_properties_data v2.3.0
+  Downloaded webpki-roots v1.0.11
+  Downloaded zlib-rs v0.6.8
+  Downloaded clap_builder v4.6.7
+  Downloaded hyper v1.12.0
+  Downloaded quinn-proto v0.11.19
+  Downloaded ergo-sbe v0.1.16
+  Downloaded chrono v0.4.45
+  Downloaded tracing-subscriber v0.3.23
+  Downloaded syn v2.0.119
+  Downloaded unicode-width v0.1.14
+  Downloaded unicode-width v0.2.2
+  Downloaded regex-syntax v0.8.11
+  Downloaded gimli v0.32.3
+  Downloaded zerocopy v0.8.63
+  Downloaded rustls v0.23.46
+  Downloaded object v0.37.3
+  Downloaded rustix v1.1.5
+  Downloaded tracing v0.1.44
+  Downloaded icu_normalizer v2.3.0
+  Downloaded regex-automata v0.4.18
+  Downloaded libc v0.2.191
+  Downloaded tokio v1.54.1
+  Downloaded ring v0.17.14
+  Downloaded linux-raw-sys v0.12.1
+  Downloaded icu_segmenter_data v2.3.0
+  Downloaded icu_segmenter v2.3.0
+    Finished `release` profile [optimized + debuginfo] target(s) in 1m 48s
+== collect 1800 s
+-- verify ob.20261023T1420Z.sbe 128M
+span:      10.4s, 260000 symbols
+messages:  281334 snapshots, 86064 updates (8311/s)
+replay:    21334 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 7 p50 11 p90 19 p99 107 p99.9 311 max 6015
+OK
+== t=301s rss 3167232 kB hwm 3167232 kB fds 469 disk 15G
+   5805 codespa+   5 -15 3613504   3.0g   7656 R  40.0  19.3   2:27.00 core-1
+   5795 codespa+   5 -15 3613504   3.0g   7656 S  30.0  19.3   1:03.78 tokio-r+
+   5798 codespa+   5 -15 3613504   3.0g   7656 R  30.0  19.3   1:03.17 tokio-r+
+   5804 codespa+   5 -15 3613504   3.0g   7656 S  30.0  19.3   2:31.54 core-0
+   5796 codespa+   5 -15 3613504   3.0g   7656 S  20.0  19.3   1:03.16 tokio-r+
+   5797 codespa+   5 -15 3613504   3.0g   7656 R  20.0  19.3   1:03.28 tokio-r+
+   5799 codespa+   5 -15 3613504   3.0g   7656 S  20.0  19.3   0:21.48 writer
+2026-10-23T14:34:49.082891Z  INFO collector: status tokens=559516 sourced=559401 conns=450 per_core=[280054, 279462] stalls=0 m=Metrics { updates: 9468456, snapshots: 6208902, switches: 15984, lag_switches: 614, hash_ok: 19586720, hash_miss: 103730, hash_healed: 111488, divergent: 311, hash_agreed: 86733, resnapshots: 23624, book_miss: 1392, book_diffs: 95, disconnects: 15, recycles: 0, markets_added: 279818, markets_removed: 60, quiet_resubs: 192, quiet_caught: 3, quiet_reconnects: 6, unplaced: 0, wire: n=9316437 p50<=16.4ms p99<=65.5ms max=13128.0ms, queue: n=9371111 p50<=0.1ms p99<=262.1ms max=2357.7ms }
+== FAULT 1 t=601s: killing 225 sockets to edge 172.64.153.51
+ss -K exit 0
+== t=601s rss 3274508 kB hwm 3275096 kB fds 292 disk 13G
+   5804 codespa+   5 -15 3609412   3.1g   7656 R  99.9  20.0   5:12.92 core-0
+   5805 codespa+   5 -15 3609412   3.1g   7656 R  90.0  20.0   5:02.58 core-1
+   5795 codespa+   5 -15 3609412   3.1g   7656 S  20.0  20.0   2:09.02 tokio-r+
+   5796 codespa+   5 -15 3609412   3.1g   7656 S  20.0  20.0   2:08.33 tokio-r+
+   5797 codespa+   5 -15 3609412   3.1g   7656 S  20.0  20.0   2:08.55 tokio-r+
+   5798 codespa+   5 -15 3609412   3.1g   7656 R  10.0  20.0   2:07.98 tokio-r+
+   5793 codespa+   5 -15 3609412   3.1g   7656 S   0.0  20.0   0:01.28 collect+
+2026-10-23T14:39:49.082859Z  INFO collector: status tokens=559496 sourced=559385 conns=450 per_core=[280044, 279452] stalls=0 m=Metrics { updates: 20124285, snapshots: 11802994, switches: 24375, lag_switches: 617, hash_ok: 40702943, hash_miss: 214581, hash_healed: 246546, divergent: 634, hash_agreed: 182131, resnapshots: 47190, book_miss: 2683, book_diffs: 283, disconnects: 16, recycles: 0, markets_added: 279831, markets_removed: 83, quiet_resubs: 2210, quiet_caught: 109, quiet_reconnects: 6, unplaced: 0, wire: n=19981073 p50<=16.4ms p99<=65.5ms max=13128.0ms, queue: n=20103989 p50<=0.1ms p99<=131.1ms max=2357.7ms }
+-- verify ob.20261023T1430Z.sbe 4.9G
+span:      600.0s, 1119202 symbols
+messages:  11875944 snapshots, 20814470 updates (34688/s)
+replay:    10756742 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 8 p50 13 p90 24 p99 66 p99.9 358 max 552808
+OK
+== t=903s rss 3342672 kB hwm 3437892 kB fds 469 disk 15G
+   5805 codespa+   5 -15 3609400   3.2g   7656 S  45.5  20.4   7:42.80 core-1
+   5804 codespa+   5 -15 3609400   3.2g   7656 S  36.4  20.4   8:10.06 core-0
+   5797 codespa+   5 -15 3609400   3.2g   7656 R  27.3  20.4   3:18.81 tokio-r+
+   5798 codespa+   5 -15 3609400   3.2g   7656 R  27.3  20.4   3:17.39 tokio-r+
+   5795 codespa+   5 -15 3609400   3.2g   7656 S  18.2  20.4   3:20.06 tokio-r+
+   5796 codespa+   5 -15 3609400   3.2g   7656 S  18.2  20.4   3:18.61 tokio-r+
+   5793 codespa+   5 -15 3609400   3.2g   7656 S   0.0  20.4   0:02.40 collect+
+2026-10-23T14:44:49.082867Z  INFO collector: status tokens=559756 sourced=559666 conns=450 per_core=[280154, 279602] stalls=0 m=Metrics { updates: 30893955, snapshots: 18424526, switches: 376431, lag_switches: 681, hash_ok: 62172750, hash_miss: 327599, hash_healed: 383146, divergent: 3606, hash_agreed: 276469, resnapshots: 71995, book_miss: 4032, book_diffs: 532, disconnects: 243, recycles: 0, markets_added: 279979, markets_removed: 101, quiet_resubs: 5068, quiet_caught: 239, quiet_reconnects: 6, unplaced: 0, wire: n=30551361 p50<=16.4ms p99<=131.1ms max=13128.0ms, queue: n=30815651 p50<=0.3ms p99<=1048.6ms max=3456.1ms }
+== FAULT 2 t=1200s: SIGSTOP 15s
+== t=1200s rss 3410052 kB hwm 3437892 kB fds 471 disk 13G
+   5804 codespa+   5 -15 3871552   3.4g   7656 R  99.9  21.5  10:51.63 core-0
+   5805 codespa+   5 -15 3871552   3.4g   7656 R  90.0  21.5  10:39.95 core-1
+   5795 codespa+   5 -15 3871552   3.4g   7656 R  70.0  21.5   4:28.84 tokio-r+
+   5798 codespa+   5 -15 3871552   3.4g   7656 R  50.0  21.5   4:25.79 tokio-r+
+   5796 codespa+   5 -15 3871552   3.4g   7656 R  40.0  21.5   4:27.54 tokio-r+
+   5797 codespa+   5 -15 3871552   3.4g   7656 R  30.0  21.5   4:26.38 tokio-r+
+   5793 codespa+   5 -15 3871552   3.4g   7656 S   0.0  21.5   0:02.41 collect+
+2026-10-23T14:49:49.086197Z  INFO collector: status tokens=560466 sourced=560369 conns=452 per_core=[280510, 279956] stalls=0 m=Metrics { updates: 41898506, snapshots: 24023440, switches: 405049, lag_switches: 690, hash_ok: 83895306, hash_miss: 427225, hash_healed: 570612, divergent: 4322, hash_agreed: 360390, resnapshots: 93713, book_miss: 5549, book_diffs: 812, disconnects: 257, recycles: 0, markets_added: 280377, markets_removed: 144, quiet_resubs: 8065, quiet_caught: 410, quiet_reconnects: 6, unplaced: 0, wire: n=41537333 p50<=16.4ms p99<=131.1ms max=13128.0ms, queue: n=42035451 p50<=0.3ms p99<=262.1ms max=3456.1ms }
+-- verify ob.20261023T1440Z.sbe 5.0G
+span:      589.7s, 1121010 symbols
+messages:  12053778 snapshots, 21404971 updates (36297/s)
+replay:    10932768 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 9 p50 14 p90 27 p99 145 p99.9 511 max 750125
+OK
+== t=1502s rss 3673288 kB hwm 3766824 kB fds 471 disk 15G
+   5804 codespa+   5 -15 4068152   3.5g   5692 R  50.0  22.4  13:28.81 core-0
+   5805 codespa+   5 -15 4068152   3.5g   5692 R  40.0  22.4  13:38.52 core-1
+   5795 codespa+   5 -15 4068152   3.5g   5692 S  30.0  22.4   5:36.08 tokio-r+
+   5796 codespa+   5 -15 4068152   3.5g   5692 S  30.0  22.4   5:34.02 tokio-r+
+   5797 codespa+   5 -15 4068152   3.5g   5692 R  30.0  22.4   5:34.15 tokio-r+
+   5798 codespa+   5 -15 4068152   3.5g   5692 R  30.0  22.4   5:32.55 tokio-r+
+   5799 codespa+   5 -15 4068152   3.5g   5692 R  10.0  22.4   1:45.85 writer
+2026-10-23T14:54:49.082895Z  INFO collector: status tokens=560676 sourced=560571 conns=452 per_core=[280598, 280078] stalls=286206 m=Metrics { updates: 52818814, snapshots: 30441004, switches: 429711, lag_switches: 2272, hash_ok: 105237357, hash_miss: 544742, hash_healed: 711479, divergent: 4807, hash_agreed: 461462, resnapshots: 118202, book_miss: 6926, book_diffs: 1023, disconnects: 272, recycles: 0, markets_added: 280517, markets_removed: 179, quiet_resubs: 10915, quiet_caught: 550, quiet_reconnects: 6, unplaced: 0, wire: n=52370400 p50<=16.4ms p99<=8388.6ms max=21765.5ms, queue: n=52983704 p50<=0.3ms p99<=2097.2ms max=15653.4ms }
+== t=1803s rss 3184504 kB hwm 3766824 kB fds 11 disk 13G
+   5793 codespa+   5 -15 3542800   3.0g   5812 D   0.0  19.2   0:04.07 collect+
+   5795 codespa+   5 -15 3542800   3.0g   5812 S   0.0  19.2   6:47.64 tokio-r+
+   5796 codespa+   5 -15 3542800   3.0g   5812 S   0.0  19.2   6:45.97 tokio-r+
+   5797 codespa+   5 -15 3542800   3.0g   5812 S   0.0  19.2   6:45.72 tokio-r+
+   5798 codespa+   5 -15 3542800   3.0g   5812 S   0.0  19.2   6:42.67 tokio-r+
+   5799 codespa+   5 -15 3542800   3.0g   5812 D   0.0  19.2   2:08.49 writer
+  12212 codespa+   5 -15 3542800   3.0g   5812 S   0.0  19.2   0:00.00 tokio-r+
+2026-10-23T14:59:19.082834Z  INFO collector: status tokens=560460 sourced=560369 conns=452 per_core=[280488, 279972] stalls=286206 m=Metrics { updates: 62709864, snapshots: 35485972, switches: 444776, lag_switches: 2278, hash_ok: 124866419, hash_miss: 641259, hash_healed: 816993, divergent: 5116, hash_agreed: 543812, resnapshots: 139692, book_miss: 7961, book_diffs: 1236, disconnects: 281, recycles: 0, markets_added: 280525, markets_removed: 295, quiet_resubs: 13615, quiet_caught: 710, quiet_reconnects: 6, unplaced: 0, wire: n=62263628 p50<=16.4ms p99<=4194.3ms max=21765.5ms, queue: n=62929331 p50<=0.3ms p99<=2097.2ms max=15653.4ms }
+collector exit 0
+-- verify ob.20261023T1450Z.sbe 5.0G
+span:      599.3s, 1121466 symbols
+messages:  12002912 snapshots, 21692384 updates (36195/s)
+replay:    10881446 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 10 p50 14 p90 28 p99 13090 p99.9 20283 max 1491059
+OK
+      1 2026-10-23T14:59:14.933118Z  WARN engineering_challenge::conn: connection lost conn=109 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:59:12.758762Z  WARN engineering_challenge::conn: connection lost conn=103 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:58:51.866247Z  WARN engineering_challenge::conn: connection lost conn=16777307 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:58:51.764219Z  WARN engineering_challenge::conn: connection lost conn=16777407 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:57:11.948702Z  WARN engineering_challenge::conn: connection lost conn=16777422 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:57:11.145331Z  WARN engineering_challenge::conn: connection lost conn=206 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:57:11.125629Z  WARN engineering_challenge::conn: connection lost conn=16777422 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:55:53.352761Z  WARN engineering_challenge::conn: connection lost conn=206 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:55:53.302281Z  WARN engineering_challenge::conn: connection lost conn=207 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:55:48.855210Z  WARN engineering_challenge::conn: connection lost conn=16777298 reason=read: IO error: Connection reset by peer (os error 104)
+      1 2026-10-23T14:55:46.937852Z  WARN engineering_challenge::conn: connection lost conn=16777283 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:53:38.043343Z  WARN engineering_challenge::conn: connection lost conn=106 reason=read: IO error: Connection reset by peer (os error 104)
+      1 2026-10-23T14:53:33.842107Z  WARN engineering_challenge::conn: connection lost conn=16777360 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:53:14.656233Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:52:27.591217Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:52:23.029854Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:52:06.870698Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:51:59.437291Z  WARN engineering_challenge::conn: connection lost conn=16777310 reason=read: WebSocket protocol error: Connection reset without closing handshake
+      1 2026-10-23T14:51:43.778867Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T14:51:38.309563Z  WARN engineering_challenge::conn: connection lost conn=16777346 reason=read: WebSocket protocol error: Connection reset without closing handshake
+2026-10-23T14:59:18.184811Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:19.082834Z  INFO collector: status tokens=560460 sourced=560369 conns=452 per_core=[280488, 279972] stalls=286206 m=Metrics { updates: 62709864, snapshots: 35485972, switches: 444776,
+2026-10-23T14:59:22.210243Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:23.211735Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:27.184962Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:28.183169Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:32.268031Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:33.234050Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:37.180252Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:38.202006Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:42.240219Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:43.210637Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:47.215129Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:48.174591Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=25
+2026-10-23T14:59:56.082700Z  INFO collector: done updates=63997889 snapshots=36213968 m=Metrics { updates: 63997889, snapshots: 36213968, switches: 445827, lag_switches: 2278, hash_ok: 127428873, hash
+slow consumer closes: 36
+2026-10-23T14:59:49.051740Z  INFO collector: closing connections
+2026-10-23T14:59:56.082502Z  INFO engineering_challenge::writer: rotated output file complete file=out/ob.20261023T1450Z.sbe
+2026-10-23T14:59:56.082700Z  INFO collector: done updates=63997889 snapshots=36213968 m=Metrics { updates: 63997889, snapshots: 36213968, switches: 445827, lag_switches: 2278, hash_ok: 127428873, hash_miss: 655857, hash_healed: 825995, divergent: 5159, hash_agreed: 556631, resnapshots: 142777, book_miss: 8153, book_diffs: 1251, disconnects: 283, recycles: 0, markets_added: 280549, markets_removed: 295, quiet_resubs: 14015, quiet_caught: 724, quiet_reconnects: 6, unplaced: 0, wire: n=63552512 p50<=16.4ms p99<=4194.3ms max=21765.5ms, queue: n=64234299 p50<=0.3ms p99<=2097.2ms max=15653.4ms }
+RUN_DONE

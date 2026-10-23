@@ -1,0 +1,158 @@
+== t=2401s rss 3646636 kB hwm 3780260 kB fds 469 disk 14G
+   5801 codespa+   5 -15 4105156   3.5g   5716 S  60.0  22.3  19:01.58 core-1
+   5800 codespa+   5 -15 4105156   3.5g   5716 R  50.0  22.3  20:34.24 core-0
+   5792 codespa+   5 -15 4105156   3.5g   5716 S  30.0  22.3   8:40.99 tokio-r+
+   5793 codespa+   5 -15 4105156   3.5g   5716 S  30.0  22.3   8:41.83 tokio-r+
+   5794 codespa+   5 -15 4105156   3.5g   5716 R  30.0  22.3   8:41.26 tokio-r+
+   5795 codespa+   5 -15 4105156   3.5g   5716 S  20.0  22.3   8:42.08 tokio-r+
+   5796 codespa+   5 -15 4105156   3.5g   5716 S  20.0  22.3   3:06.54 writer
+2026-10-23T12:56:51.559321Z  INFO collector: status tokens=559228 sourced=559203 conns=450 per_core=[279910, 279318] m=Metrics { updates: 81245656, snapshots: 49288562, switches: 509912, lag_switches: 1224, hash_ok: 161848315, hash_miss: 887635, hash_healed: 1048529, divergent: 5042, hash_agreed: 753493, resnapshots: 190493, book_miss: 10650, book_diffs: 5739, disconnects: 294, recycles: 0, markets_added: 280122, markets_removed: 508, quiet_resubs: 162170, quiet_reconnects: 3, unplaced: 0, wire: n=80804408 p50<=0.0ms p99<=262.1ms max=13338.3ms, queue: n=81978525 p50<=0.1ms p99<=262.1ms max=4643.8ms }
+-- verify ob.20261023T1250Z.sbe 4.9G
+span:      600.0s, 1119760 symbols
+messages:  12218720 snapshots, 20588842 updates (34315/s)
+replay:    11098960 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -55 p50 -47 p90 -36 p99 830 p99.9 3304 max 1897787
+OK
+== t=3003s rss 3651384 kB hwm 3785140 kB fds 469 disk 14G
+   5800 codespa+   5 -15 4105552   3.5g   5724 S  80.0  22.3  25:38.73 core-0
+   5801 codespa+   5 -15 4105552   3.5g   5724 S  80.0  22.3  24:00.15 core-1
+   5793 codespa+   5 -15 4105552   3.5g   5724 R  30.0  22.3  10:40.32 tokio-r+
+   5792 codespa+   5 -15 4105552   3.5g   5724 S  20.0  22.3  10:40.19 tokio-r+
+   5794 codespa+   5 -15 4105552   3.5g   5724 S  20.0  22.3  10:40.46 tokio-r+
+   5795 codespa+   5 -15 4105552   3.5g   5724 S  20.0  22.3  10:41.56 tokio-r+
+   5790 codespa+   5 -15 4105552   3.5g   5724 S   0.0  22.3   0:05.28 collect+
+2026-10-23T13:06:51.559358Z  INFO collector: status tokens=558864 sourced=558839 conns=450 per_core=[279728, 279136] m=Metrics { updates: 101740958, snapshots: 61493744, switches: 545862, lag_switches: 1385, hash_ok: 202428245, hash_miss: 1126948, hash_healed: 1321614, divergent: 6176, hash_agreed: 958229, resnapshots: 241527, book_miss: 13750, book_diffs: 7339, disconnects: 310, recycles: 0, markets_added: 280167, markets_removed: 735, quiet_resubs: 209770, quiet_reconnects: 3, unplaced: 0, wire: n=101304926 p50<=0.0ms p99<=524.3ms max=13338.3ms, queue: n=102644211 p50<=0.1ms p99<=262.1ms max=4763.4ms }
+-- verify ob.20261023T1300Z.sbe 4.9G
+span:      600.0s, 1118148 symbols
+messages:  12221156 snapshots, 20338744 updates (33898/s)
+replay:    11103008 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -64 p50 -57 p90 -47 p99 2406 p99.9 5534 max 548168
+OK
+== FAULT 2 t=3603s: SIGSTOP 15s
+== t=3603s rss 3722148 kB hwm 3814024 kB fds 470 disk 14G
+   5801 codespa+   5 -15 4101448   3.5g   5680 R  81.8  22.7  28:42.52 core-1
+   5800 codespa+   5 -15 4101448   3.5g   5680 R  72.7  22.7  30:43.05 core-0
+   5795 codespa+   5 -15 4101448   3.5g   5680 R  36.4  22.7  12:44.87 tokio-r+
+   5792 codespa+   5 -15 4101448   3.5g   5680 R  27.3  22.7  12:43.49 tokio-r+
+   5793 codespa+   5 -15 4101448   3.5g   5680 R  27.3  22.7  12:42.28 tokio-r+
+   5794 codespa+   5 -15 4101448   3.5g   5680 R  27.3  22.7  12:43.53 tokio-r+
+   5796 codespa+   5 -15 4101448   3.5g   5680 S   9.1  22.7   4:30.85 writer
+2026-10-23T13:16:51.560062Z  INFO collector: status tokens=558660 sourced=558637 conns=450 per_core=[279624, 279036] m=Metrics { updates: 121519833, snapshots: 73748558, switches: 570690, lag_switches: 1556, hash_ok: 241697024, hash_miss: 1350543, hash_healed: 1535443, divergent: 6917, hash_agreed: 1151801, resnapshots: 287978, book_miss: 16719, book_diffs: 8888, disconnects: 319, recycles: 0, markets_added: 280204, markets_removed: 874, quiet_resubs: 257770, quiet_reconnects: 3, unplaced: 0, wire: n=121087332 p50<=0.0ms p99<=524.3ms max=13338.3ms, queue: n=122577781 p50<=0.1ms p99<=262.1ms max=4763.4ms }
+-- verify ob.20261023T1310Z.sbe 4.7G
+span:      600.0s, 1117696 symbols
+messages:  11992730 snapshots, 19721227 updates (32869/s)
+replay:    10875034 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -73 p50 -65 p90 -54 p99 12097 p99.9 19858 max 8139673
+OK
+== t=4201s rss 3763880 kB hwm 3898964 kB fds 469 disk 14G
+   5800 codespa+   5 -15 4101448   3.6g   5576 R  60.0  23.0  35:45.89 core-0
+   5801 codespa+   5 -15 4101448   3.6g   5576 R  60.0  23.0  33:42.04 core-1
+   5792 codespa+   5 -15 4101448   3.6g   5576 S  20.0  23.0  14:45.45 tokio-r+
+   5793 codespa+   5 -15 4101448   3.6g   5576 S  20.0  23.0  14:42.39 tokio-r+
+   5794 codespa+   5 -15 4101448   3.6g   5576 S  20.0  23.0  14:45.10 tokio-r+
+   5795 codespa+   5 -15 4101448   3.6g   5576 R  20.0  23.0  14:46.88 tokio-r+
+   5796 codespa+   5 -15 4101448   3.6g   5576 S  10.0  23.0   5:11.53 writer
+2026-10-23T13:26:51.559371Z  INFO collector: status tokens=558542 sourced=558520 conns=450 per_core=[279566, 278976] m=Metrics { updates: 140976124, snapshots: 85719722, switches: 1680302, lag_switches: 1660, hash_ok: 281351227, hash_miss: 1575442, hash_healed: 1794606, divergent: 7611, hash_agreed: 1340413, resnapshots: 339149, book_miss: 19591, book_diffs: 10305, disconnects: 330, recycles: 448, markets_added: 280224, markets_removed: 953, quiet_resubs: 304170, quiet_reconnects: 4, unplaced: 0, wire: n=140661979 p50<=0.0ms p99<=2097.2ms max=20965.1ms, queue: n=142306506 p50<=0.1ms p99<=262.1ms max=15005.7ms }
+-- verify ob.20261023T1320Z.sbe 4.8G
+span:      600.0s, 1117384 symbols
+messages:  12232286 snapshots, 19642832 updates (32738/s)
+replay:    11114902 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -82 p50 -75 p90 -66 p99 145 p99.9 3310 max 1543012
+OK
+== t=4803s rss 3764316 kB hwm 3900632 kB fds 472 disk 14G
+   5800 codespa+   5 -15 4101448   3.6g   5520 R  90.0  23.0  41:19.69 core-0
+   5801 codespa+   5 -15 4101448   3.6g   5520 R  90.0  23.0  39:10.07 core-1
+   5792 codespa+   5 -15 4101448   3.6g   5520 S  30.0  23.0  16:56.51 tokio-r+
+   5793 codespa+   5 -15 4101448   3.6g   5520 R  30.0  23.0  16:53.69 tokio-r+
+   5794 codespa+   5 -15 4101448   3.6g   5520 S  30.0  23.0  16:56.02 tokio-r+
+   5795 codespa+   5 -15 4101448   3.6g   5520 R  20.0  23.0  16:58.17 tokio-r+
+   5796 codespa+   5 -15 4101448   3.6g   5520 S  10.0  23.0   5:53.72 writer
+2026-10-23T13:36:51.559333Z  INFO collector: status tokens=558614 sourced=558603 conns=452 per_core=[279620, 278994] m=Metrics { updates: 162964394, snapshots: 97979748, switches: 1712004, lag_switches: 1662, hash_ok: 324946169, hash_miss: 1819040, hash_healed: 2110210, divergent: 8158, hash_agreed: 1547143, resnapshots: 390327, book_miss: 22710, book_diffs: 12012, disconnects: 347, recycles: 448, markets_added: 280316, markets_removed: 1009, quiet_resubs: 352170, quiet_reconnects: 8, unplaced: 0, wire: n=162653944 p50<=0.0ms p99<=1048.6ms max=20965.1ms, queue: n=164497762 p50<=0.1ms p99<=262.1ms max=15005.7ms }
+-- verify ob.20261023T1330Z.sbe 5.2G
+span:      600.1s, 1118124 symbols
+messages:  12261544 snapshots, 22801064 updates (37998/s)
+replay:    11143420 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -91 p50 -81 p90 -66 p99 61 p99.9 879 max 742082
+OK
+== t=5404s rss 3245884 kB hwm 3900756 kB fds 12 disk 14G
+   5790 codespa+   5 -15 3458964   3.0g   5692 R  99.9  19.1   0:10.30 collect+
+   5792 codespa+   5 -15 3458964   3.0g   5692 S  40.0  19.1  19:07.43 tokio-r+
+   5793 codespa+   5 -15 3458964   3.0g   5692 S  20.0  19.1  19:05.47 tokio-r+
+   5794 codespa+   5 -15 3458964   3.0g   5692 S   0.0  19.1  19:05.59 tokio-r+
+   5795 codespa+   5 -15 3458964   3.0g   5692 R   0.0  19.1  19:07.62 tokio-r+
+  25196 codespa+   5 -15 3458964   3.0g   5692 S   0.0  19.1   0:00.00 tokio-r+
+2026-10-23T13:46:51.559298Z  INFO collector: status tokens=559094 sourced=559078 conns=452 per_core=[279866, 279228] m=Metrics { updates: 184562569, snapshots: 110202868, switches: 1743056, lag_switches: 2782, hash_ok: 367745395, hash_miss: 2051032, hash_healed: 2388006, divergent: 8745, hash_agreed: 1744442, resnapshots: 438849, book_miss: 25349, book_diffs: 13598, disconnects: 362, recycles: 448, markets_added: 280637, markets_removed: 1090, quiet_resubs: 399770, quiet_reconnects: 8, unplaced: 0, wire: n=184234520 p50<=0.0ms p99<=1048.6ms max=20965.1ms, queue: n=186399663 p50<=0.3ms p99<=262.1ms max=15005.7ms }
+-- verify ob.20261023T1340Z.sbe 3.5G
+span:      411.4s, 1118368 symbols
+messages:  8721036 snapshots, 14491217 updates (35226/s)
+replay:    7602668 snapshots matched the rebuilt book, 0 did not
+latency:   recv-exch ms p1 -98 p50 -92 p90 -81 p99 982 p99.9 3847 max 609350
+OK
+collector exit 0
+      1 2026-10-23T13:45:10.627774Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:45:09.922359Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:45:05.602360Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:45:01.401445Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:40:30.874557Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:40:07.992372Z  WARN engineering_challenge::conn: connection lost conn=16777646 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:40:07.081386Z  WARN engineering_challenge::conn: connection lost conn=16777646 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:40:04.732350Z  WARN collector: writer backpressure waited=3.183309319s
+      1 2026-10-23T13:40:04.732276Z  WARN collector: writer backpressure waited=3.183689421s
+      1 2026-10-23T13:40:00.157683Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:39:50.417199Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:39:40.814119Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:39:29.667630Z  WARN engineering_challenge::conn: connection lost conn=431 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:39:29.432144Z  WARN engineering_challenge::conn: connection lost conn=16777647 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:37:58.338322Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:37:33.327809Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:37:32.590879Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:35:40.340815Z  WARN engineering_challenge::conn: connection lost conn=432 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: send buffer full" })
+      1 2026-10-23T13:34:30.691628Z  WARN engineering_challenge::conn: connection lost conn=393 reason=reconnect requested
+      1 2026-10-23T13:34:30.690716Z  WARN engineering_challenge::conn: connection lost conn=392 reason=reconnect requested
+2026-10-23T13:46:21.560165Z  INFO collector: status tokens=559094 sourced=559074 conns=452 per_core=[279866, 279228] m=Metrics { updates: 183467083, snapshots: 109643784, switches: 1742161, lag_switch
+2026-10-23T13:46:23.665476Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:24.676480Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:28.666654Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:29.671309Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:33.688657Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:34.740172Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:38.649305Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:39.713782Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:43.679882Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:44.690708Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:48.656733Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:49.692009Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:46:51.559298Z  INFO collector: status tokens=559094 sourced=559078 conns=452 per_core=[279866, 279228] m=Metrics { updates: 184562569, snapshots: 110202868, switches: 1743056, lag_switch
+2026-10-23T13:46:57.323455Z  INFO collector: done updates=184954502 snapshots=110389086 m=Metrics { updates: 184954502, snapshots: 110389086, switches: 1743401, lag_switches: 2798, hash_ok: 368526034,
+2026-10-23T13:46:51.840892Z  INFO collector: closing connections
+2026-10-23T13:46:57.323222Z  INFO engineering_challenge::writer: rotated output file complete file=out/ob.20261023T1340Z.sbe
+2026-10-23T13:46:57.323455Z  INFO collector: done updates=184954502 snapshots=110389086 m=Metrics { updates: 184954502, snapshots: 110389086, switches: 1743401, lag_switches: 2798, hash_ok: 368526034, hash_miss: 2055285, hash_healed: 2392509, divergent: 8753, hash_agreed: 1748009, resnapshots: 439699, book_miss: 25405, book_diffs: 13623, disconnects: 362, recycles: 448, markets_added: 280637, markets_removed: 1090, quiet_resubs: 400570, quiet_reconnects: 8, unplaced: 0, wire: n=184626298 p50<=0.0ms p99<=1048.6ms max=20965.1ms, queue: n=186794843 p50<=0.3ms p99<=262.1ms max=15005.7ms }
+RUN_DONE
+==== FAULTWINDOW
+12:46:40 2026-10-23T12:46:40.671700Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:40 2026-10-23T12:46:40.677904Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:41 2026-10-23T12:46:41.702313Z  WARN engineering_challenge::conn: connection lost conn=16777423 reason=server closed: Some(CloseFrame { code: Again, reason: "slow consumer: 
+12:46:45 2026-10-23T12:46:45.633142Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:45 2026-10-23T12:46:45.649550Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:48 2026-10-23T12:46:48.802027Z  INFO collector: new market listed market=0x33deb74e8424ca58c70ef468fd9d9d592abbda02d785021ee5c235b9f30e7fd8
+12:46:48 2026-10-23T12:46:48.802095Z  INFO collector: new market listed market=0x6e7cce39790e7a3c1e477314f3faaa789a4e94b6fd4df41049986d97cc6c173c
+12:46:50 2026-10-23T12:46:50.667053Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:50 2026-10-23T12:46:50.668809Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+12:46:53 2026-10-23T12:46:53.385828Z  WARN engineering_challenge::conn: connection lost conn=29 reason=read: IO error: Software caused connection abort (os error 103)
+12:46:55 2026-10-23T12:46:55.301031Z  WARN engineering_challenge::conn: connection lost conn=87 reason=read: IO error: Software caused connection abort (os error 103)
+12:46:55 2026-10-23T12:46:55.301149Z  WARN engineering_challenge::conn: connection lost conn=16777363 reason=read: IO error: Software caused connection abort (os error 103)
+12:48:26 2026-10-23T12:48:26.744610Z  INFO collector: discovery pass complete markets=279188
+0
+==== FREEZE
+2026-10-23T13:16:01.727775Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:01.733267Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:06.472250Z  INFO collector: discovery pass complete markets=280204
+2026-10-23T13:16:06.677370Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:06.677879Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:11.685435Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:11.692585Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:16.635049Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:16.662638Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:21.655153Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:21.659499Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200
+2026-10-23T13:16:26.647803Z  INFO engineering_challenge::core: quiet subscriptions; resubscribing tokens=200

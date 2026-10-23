@@ -268,6 +268,8 @@ struct Tok {
     quiet_strikes: u8,
     /// A quiet resubscribe is out: the source's next book says whether it caught a miss.
     quiet_probe: bool,
+    /// Listed in `Core::lag_cands`: a non-source replica advanced since the last lag check.
+    lag_cand: bool,
 }
 
 impl Tok {
@@ -319,10 +321,15 @@ pub struct Core<M> {
     epoch: Option<i64>,
     tick_no: u64,
     verdicts: Vec<Verdict>,
+    /// Tokens the lag check must look at: only these can have a peer ahead of their source.
+    lag_cands: Vec<Sym>,
     pub out: Vec<Rec>,
     pub metrics: Metrics,
 }
 
+/// What the integrity checker may verify: `conn`'s book, but only where `conn` is the token's
+/// source. Standby replicas are not hashed; a peer is compared book-to-book when the source
+/// misses, and a standby is checked from the moment it becomes source.
 struct View<'a> {
     tokens: &'a HashMap<Sym, Tok>,
     conn: ConnId,
@@ -330,7 +337,11 @@ struct View<'a> {
 
 impl BookView for View<'_> {
     fn book(&self, token: &str) -> Option<&Book> {
-        self.tokens.get(token)?.replicas.get(&self.conn).filter(|r| r.valid).map(|r| &r.book)
+        let tok = self.tokens.get(token)?;
+        if tok.source != Some(self.conn) {
+            return None;
+        }
+        tok.replicas.get(&self.conn).filter(|r| r.valid).map(|r| &r.book)
     }
 }
 
@@ -358,6 +369,7 @@ impl<M> Core<M> {
             epoch: None,
             tick_no: 0,
             verdicts: Vec::new(),
+            lag_cands: Vec::new(),
             out: Vec::new(),
             metrics: Metrics::default(),
         }
@@ -410,6 +422,7 @@ impl<M> Core<M> {
                         quiet_at: None,
                         quiet_strikes: 0,
                         quiet_probe: false,
+                        lag_cand: false,
                     },
                 );
                 let b = bucket_of(t, self.buckets.len());
@@ -614,6 +627,10 @@ impl<M> Core<M> {
                     if *exch_ts > rep.last_delta {
                         rep.last_delta = *exch_ts;
                         rep.adv_at = now;
+                        if tok.source != Some(conn) && !tok.lag_cand {
+                            tok.lag_cand = true;
+                            self.lag_cands.push(c.token.clone());
+                        }
                     }
                     if tok.source == Some(conn) && tok.emitted.apply(c.side, c.px, c.qty) {
                         tok.emitted_exch = *exch_ts;
@@ -935,17 +952,28 @@ impl<M> Core<M> {
     fn check_lag(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
         let lag = self.cfg.lag;
         let mut lagging = Vec::new();
-        for (t, tok) in &self.tokens {
-            let Some(src) = tok.source.and_then(|s| tok.replicas.get(&s).map(|r| (s, r))) else { continue };
+        // Only tokens whose standby advanced are looked at. A candidate stays listed while a
+        // peer is ahead of its source and the lag window has not run out.
+        let tokens = &mut self.tokens;
+        self.lag_cands.retain(|t| {
+            let Some(tok) = tokens.get_mut(t) else { return false };
+            let Some(src) = tok.source.and_then(|s| tok.replicas.get(&s).map(|r| (s, r.seen()))) else {
+                tok.lag_cand = false;
+                return false;
+            };
             // Only a peer's delta proves the source missed something; see `Replica::last_delta`.
-            let behind = tok
-                .replicas
-                .iter()
-                .any(|(c, r)| *c != src.0 && r.valid && r.last_delta > src.1.seen() && now.duration_since(r.adv_at) >= lag);
+            let ahead = tok.replicas.iter().filter(|(c, r)| **c != src.0 && r.valid && r.last_delta > src.1);
+            let (mut pending, mut behind) = (false, false);
+            for (_, r) in ahead {
+                pending = true;
+                behind |= now.duration_since(r.adv_at) >= lag;
+            }
             if behind {
                 lagging.push((t.clone(), src.0));
             }
-        }
+            tok.lag_cand = pending && !behind;
+            tok.lag_cand
+        });
         for (t, c) in lagging {
             tracing::info!(conn = c, token = %t, "source lagging a peer; switching");
             self.metrics.lag_switches += 1;
@@ -1232,6 +1260,29 @@ mod tests {
         core.on_events(1, 2, &[lvl("a", 6, Side::Bid, 410, 1)], now, &mut fx);
         miss(&mut core, &mut fx, now, 0);
         assert_eq!((core.metrics.hash_agreed, core.metrics.divergent, resnaps(&fx)), (1, 0, 0));
+    }
+
+    #[test]
+    fn only_the_source_is_offered_for_hashing() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        assert!(View { tokens: &core.tokens, conn: 0 }.book("a").is_some());
+        assert!(View { tokens: &core.tokens, conn: 1 }.book("a").is_none(), "standby is not hashed");
+    }
+
+    #[test]
+    fn caught_up_source_leaves_the_lag_candidates() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 2, &[lvl("a", 6, Side::Bid, 400, 2)], now, &mut fx);
+        assert_eq!(core.lag_cands.len(), 1);
+        core.on_events(0, 2, &[lvl("a", 6, Side::Bid, 400, 2)], now, &mut fx);
+        core.on_tick(now + Duration::from_secs(1), 3, &mut fx);
+        assert!(core.lag_cands.is_empty() && !core.tokens["a"].lag_cand);
+        core.on_tick(now + Duration::from_secs(10), 4, &mut fx);
+        assert_eq!(core.metrics.lag_switches, 0);
     }
 
     #[test]

@@ -1,0 +1,395 @@
+==== steady by thread
+    42.12%  tokio-rt-worker
+    27.77%  core-1         
+    27.66%  core-0         
+     2.45%  writer         
+---- steady [core-0,core-1] self
+     7.89%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE7on_tickCsh99FWABMwVn_9collector    
+     6.95%  [k] handle_softirqs                                                                                                                       
+     5.91%  [.] _RNvNtCs5bqHQzP3GFE_21engineering_challenge5fixed6encode                                                                              
+     5.19%  [.] _RNvNtNtCsfz4pEfLcYMC_4sha18compress3x8613digest_blocks                                                                               
+     3.25%  [k] _raw_spin_unlock_irqrestore                                                                                                           
+     2.68%  [.] _RNCNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB7_9HashCheck6prefix0Bb_                                     
+     1.72%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck6prefix                                           
+     1.58%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9on_eventsCsh99FWABMwVn_9collector  
+     1.48%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck9try_match                                        
+     1.39%  [.] cfree@GLIBC_2.2.5                                                                                                                     
+     1.29%  [.] malloc                                                                                                                                
+     1.15%  [.] __memcmp_avx2_movbe                                                                                                                   
+     1.07%  [.] _RNvXsk_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_4IterxxENtNtNtNtCskADBYZwJmSU_4core4iter6traits8iterator8Iterator4nextC
+     1.00%  [.] _RNvXsm_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_4IterxxENtNtNtNtCskADBYZwJmSU_4core4iter6traits12double_ended19DoubleEn
+     0.91%  [.] _RNvMsi_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_8BTreeMapxxE6insertCs5bqHQzP3GFE_21engineering_challenge               
+     0.72%  [.] _RNvXs1_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheckINtB7_9IntegrityNtB5_4MetaE8on_event              
+     0.66%  [.] _RNvMNtCs3BTM885nGDo_9hashbrown11rustc_entryINtNtB4_3map7HashMapTmINtNtCsgFX3jaOk65H_5alloc4sync3ArceEENtNtNtCs5bqHQzP3GFE_21engineeri
+     0.60%  [.] _RNvXs3_NtNtCskADBYZwJmSU_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsh99FWABMwVn_9collector.llvm.12013520129038
+     0.57%  [.] _RNvXs3_NtNtCskADBYZwJmSU_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCs5bqHQzP3GFE_21engineering_challenge.llvm.4
+     0.51%  [.] _RINvMs_NtCsgFX3jaOk65H_5alloc3vecINtB5_3VecNtNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarket8DeferredE6retainNCNvXs1_BH
+     0.46%  [.] _RNvNtCsfz4pEfLcYMC_4sha18compress8compress                                                                                           
+     0.35%  [.] 0x0000000000000b5c                                                                                                                    
+---- steady [core-0,core-1] inclusive
+    55.41%     0.00%  [.] _RINvMNtNtCsay9L4KuU9nh_5tokio7runtime7runtimeNtB3_7Runtime14block_on_innerNCNvCsh99FWABMwVn_9collector9core_loop0EB1e_ (inl
+    55.41%     0.00%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB3_13CurrentThread8block_onNCNvCsh99FWABMwVn_9collector9
+    55.41%     0.00%  [.] _RINvMs2_NtNtCs8ZKwes1zzDd_3std6thread5localINtB6_8LocalKeyNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7ContextE4withNCINvBW_1
+    55.41%     0.00%  [.] _RINvMs2_NtNtCs8ZKwes1zzDd_3std6thread5localINtB6_8LocalKeyNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7ContextE8try_withNCINv
+    55.41%     0.00%  [.] _RINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_9CoreGuard5enterNCINvB2_8block_onNCNvCsh99FWABMwVn
+    55.41%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio7runtime7context13set_schedulerTINtNtCsgFX3jaOk65H_5alloc5boxed3BoxNtNtNtB4_9scheduler14current
+    55.41%     0.00%  [.] _RNCINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB5_13CurrentThread8block_onNCNvCsh99FWABMwVn_9collecto
+    55.41%     0.00%  [.] _RNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB8_9CoreGuard5enterNCINvB4_8block_onNCNvCsh99FWABMw
+    55.41%     0.00%  [.] _RNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB8_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collector9
+    55.41%     0.00%  [.] _RNCINvNtNtCsay9L4KuU9nh_5tokio7runtime7context13set_schedulerTINtNtCsgFX3jaOk65H_5alloc5boxed3BoxNtNtNtB6_9scheduler14curre
+    55.40%     0.00%  [.] _RINvMNtNtCsay9L4KuU9nh_5tokio7runtime7runtimeNtB3_7Runtime8block_onNCNvCsh99FWABMwVn_9collector9core_loop0EB17_            
+    55.40%     0.00%  [.] _RINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collector9co
+    55.40%     0.00%  [.] _RINvNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7runtime13enter_runtimeNCINvMNtNtB6_9scheduler14current_threadNtB1b_13Current
+    55.07%     0.13%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime7context6scopedINtB3_6ScopedNtNtB7_9scheduler7ContextE3setNCINvMs7_NtB15_14current_t
+    54.68%     0.00%  [.] _RINvMs1_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_7Context5enterINtNtNtCskADBYZwJmSU_4core4task4poll
+    54.65%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio4task4coop11with_budgetINtNtNtCskADBYZwJmSU_4core4task4poll4PollINtNtBU_6result6ResultNtNtCs5bq
+    54.65%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio4task4coop6budgetINtNtNtCskADBYZwJmSU_4core4task4poll4PollINtNtBO_6result6ResultNtNtCs5bqHQzP3G
+    54.65%     0.00%  [.] _RNCNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtBa_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collecto
+    54.63%     0.00%  [.] _RNCNCNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtBc_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collec
+    54.63%     0.00%  [.] _RNCNCNvCsh99FWABMwVn_9collector9core_loop00B5_ (inlined)                                                                   
+    54.63%     0.00%  [.] _RNCNvCsh99FWABMwVn_9collector9core_loop0B3_ (inlined)                                                                      
+    40.06%     1.58%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9on_eventsCsh99FWABMwVn_9c
+    34.50%     0.01%  [.] _RNvCsh99FWABMwVn_9collector5apply                                                                                          
+    32.09%     0.72%  [.] _RNvXs1_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheckINtB7_9IntegrityNtB5_4MetaE8on_event    
+    28.78%     1.48%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck9try_match                              
+    25.29%     1.72%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck6prefix                                 
+    20.60%     2.68%  [.] _RNCNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB7_9HashCheck6prefix0Bb_                           
+    14.54%     6.95%  [k] handle_softirqs                                                                                                             
+    14.41%     0.00%  [k] asm_sysvec_hyperv_callback                                                                                                  
+    14.41%     0.00%  [k] sysvec_hyperv_callback                                                                                                      
+    14.41%     0.00%  [k] __irq_exit_rcu                                                                                                              
+    14.41%     0.00%  [k] irq_exit_rcu                                                                                                                
+    11.04%     7.89%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE7on_tickCsh99FWABMwVn_9col
+     9.50%     0.00%  [.] _RINvMs3_Cs1TJjh97uPyU_12block_bufferINtB6_11BlockBufferINtNtCs68xsGthrypq_7typenum4uint4UIntIBS_IBS_IBS_IBS_IBS_IBS_NtBU_5U
+     9.50%     0.00%  [.] _RNvXs5_NtNtCs5MbYG4WdgjZ_6digest8core_api7wrapperINtB5_11CoreWrapperNtCsfz4pEfLcYMC_4sha18Sha1CoreENtB9_6Update6updateCs5bq
+     8.85%     0.00%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9check_lagCsh99FWABMwVn_9c
+     7.14%     0.00%  [.] _RINvXNtCs5MbYG4WdgjZ_6digest6digestINtNtNtB5_8core_api7wrapper11CoreWrapperNtCsfz4pEfLcYMC_4sha18Sha1CoreENtB3_6Digest6upda
+     7.11%     0.00%  [.] _RINvMNtCskADBYZwJmSU_4core6optionINtB3_6OptionmE8and_thenTmRNtNtCs5bqHQzP3GFE_21engineering_challenge4core7ReplicaENCNvMs6_
+     7.05%     0.00%  [.] _RINvMs1_NtCs3BTM885nGDo_9hashbrown3mapINtB6_7HashMapmNtNtCs5bqHQzP3GFE_21engineering_challenge4core7ReplicaNtNtNtCs8ZKwes1z
+     7.05%     0.00%  [.] _RINvMs2_NtNtNtCs8ZKwes1zzDd_3std11collections4hash3mapINtB6_7HashMapmNtNtCs5bqHQzP3GFE_21engineering_challenge4core7Replica
+---- steady [tokio-rt-worker] self
+     2.95%  [.] _int_malloc                                                                                                                           
+     1.63%  [.] _RINvXsj_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentNtB6_14ContentVisitorNtNtCsetwEpVRaCLp_10serde_core2de7Visitor9visit_mapINtNtCs8
+     0.98%  [.] _RNvMs3_NtCs8Sf28LPfCwh_10serde_json4readNtB5_9SliceRead14skip_to_escape                                                              
+     0.96%  [k] __raw_spin_unlock_irq                                                                                                                 
+     0.77%  [.] _RNvXs8_NtCs8Sf28LPfCwh_10serde_json4readNtB5_7StrReadNtB5_4Read9parse_str                                                            
+     0.67%  [.] _int_free                                                                                                                             
+     0.63%  [.] __libc_recv                                                                                                                           
+     0.54%  [.] _RINvYQINtNtCs8Sf28LPfCwh_10serde_json2de12DeserializerNtNtB9_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de12Deserializer24___deseri
+     0.54%  [k] finish_task_switch.isra.0                                                                                                             
+     0.53%  [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtNtCsetwEpVRaCLp_10serde_core7private7content7ContentECs5bqHQzP3GFE_21engineering_challenge
+     0.50%  [.] malloc_consolidate                                                                                                                    
+     0.46%  [.] ring_core_0_17_14__aes_gcm_dec_update_vaes_avx2                                                                                       
+     0.46%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB13_7adapter10
+     0.44%  [.] _RNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB4_15WebSocketStreamINtNtB4_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6str
+     0.44%  [.] _int_free_merge_chunk                                                                                                                 
+     0.41%  [.] _RINvXsD_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentINtB6_22ContentRefDeserializerNtNtCs8Sf28LPfCwh_10serde_json5error5ErrorENtNtCse
+     0.41%  [.] unlink_chunk.isra.0                                                                                                                   
+     0.39%  [k] do_syscall_64                                                                                                                         
+     0.38%  [.] _RNvNtCs5bqHQzP3GFE_21engineering_challenge5fixed5parse                                                                               
+     0.38%  [.] _RINvXsD_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentINtB6_22ContentRefDeserializerNtNtCs8Sf28LPfCwh_10serde_json5error5ErrorENtNtCse
+     0.37%  [.] realloc                                                                                                                               
+     0.35%  [.] _RINvXs9_NtCs8Sf28LPfCwh_10serde_json2deINtB6_9MapAccessNtNtB8_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de9MapAccess13next_key_see
+---- steady [tokio-rt-worker] inclusive
+    92.81%     0.00%  [.] 0xffffffffffffffff                                                                                                          
+    37.40%     0.00%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio4loom3std11unsafe_cellINtB3_10UnsafeCellINtNtNtNtB9_7runtime4task4core5StageNCINvNtCs5bqHQzP
+    37.40%     0.00%  [.] _RNCNvMs4_NtNtNtCsay9L4KuU9nh_5tokio7runtime4task4coreINtB7_4CoreNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNt
+    37.40%     0.00%  [.] _RNvMs4_NtNtNtCsay9L4KuU9nh_5tokio7runtime4task4coreINtB5_4CoreNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB1
+    37.33%     0.00%  [.] _RNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB6_7adapter10polymarket10PolymarketE0Csh99FWABMwVn_9collector (
+    37.18%     0.00%  [.] _RNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB8_7adapter10polymarket10PolymarketE00Csh99FWABMwVn_9collecto
+    36.85%     0.00%  [.] _RNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNtB6_7adapter10polymarket10PolymarketE0Csh99FWABMwVn_9collect
+    35.14%     0.44%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB13_
+    16.98%     0.16%  [.] _RNvXs_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB4_10PolymarketNtB6_15ExchangeAdapter6decode          
+    16.87%     0.00%  [.] _RNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNtB8_7adapter10polymarket10PolymarketE00Csh99FWABMwVn_9coll
+    16.87%     0.00%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNt
+    16.14%     0.05%  [.] _RNvXs1_NtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream5splitINtB5_11SplitStreamINtCslb6031Kgosv_17tokio_tungstenite15WebSo
+    16.14%     0.00%  [.] _RNvXs1_NtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream4nextINtB5_4NextINtNtB7_5split11SplitStreamINtCslb6031Kgosv_17tokio_
+    16.14%     0.00%  [.] _RNvYINtNtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream5split11SplitStreamINtCslb6031Kgosv_17tokio_tungstenite15WebSocketSt
+    15.91%     0.44%  [.] _RNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB4_15WebSocketStreamINtNtB4_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3n
+    15.76%     0.00%  [.] _RINvMCslb6031Kgosv_17tokio_tungsteniteINtB3_15WebSocketStreamINtNtB3_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3ne
+    15.57%     0.00%  [k] entry_SYSCALL_64_after_hwframe                                                                                              
+    15.54%     0.00%  [.] _RNCNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB6_15WebSocketStreamINtNtB6_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio
+    15.43%     0.39%  [k] do_syscall_64                                                                                                               
+    15.40%     0.00%  [.] _RINvMs2_NtCsfvLwpuU4I70_11tungstenite8protocolNtB6_16WebSocketContext4readINtNtCslb6031Kgosv_17tokio_tungstenite6compat8All
+    15.23%     0.00%  [.] _RINvMs2_NtCsfvLwpuU4I70_11tungstenite8protocolNtB6_16WebSocketContext18read_message_frameINtNtCslb6031Kgosv_17tokio_tungste
+    14.23%     0.18%  [.] _RINvMs1_NtNtCsfvLwpuU4I70_11tungstenite8protocol5frameNtB6_10FrameCodec10read_frameINtNtCslb6031Kgosv_17tokio_tungstenite6c
+    14.08%     0.13%  [k] x64_sys_call                                                                                                                
+    14.02%     0.00%  [.] _RNvMs1_NtCsfvLwpuU4I70_11tungstenite8protocolINtB5_9WebSocketINtNtCslb6031Kgosv_17tokio_tungstenite6compat8AllowStdINtNtB12
+    13.45%     0.03%  [.] _RINvMNtCsfvLwpuU4I70_11tungstenite6bufferINtB3_10ReadBufferKj1000_E9read_fromINtNtCslb6031Kgosv_17tokio_tungstenite6compat8
+    13.16%     0.08%  [.] _RNvXs2_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB5_8AllowStdINtNtB7_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio
+    13.11%     0.00%  [.] _RINvMs1_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB6_8AllowStdINtNtB8_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5toki
+    13.09%     0.00%  [.] _RNCNvXs2_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB7_8AllowStdINtNtB9_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tok
+    13.08%     0.00%  [.] _RNvXNtCslb6031Kgosv_17tokio_tungstenite6streamINtB2_14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamEN
+    13.07%     0.12%  [.] _RNvXs7_NtCsiOH8e2Zp05X_12tokio_rustls6clientINtB5_9TlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENtNtNtB14
+    12.60%     0.11%  [.] _RNvXs8_NtCsiOH8e2Zp05X_12tokio_rustls6clientINtB5_9TlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENtNtNtB14
+    12.47%     0.11%  [.] _RNvMs_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB4_6StreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamNtNtNtNtCs70C7
+    12.30%     0.08%  [.] _RNvMs_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB4_6StreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamNtNtNtNtCs70C7
+    11.44%     0.05%  [.] _RINvNtCs8Sf28LPfCwh_10serde_json2de10from_traitNtNtB4_4read7StrReadNtNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10pol
+    11.44%     0.00%  [.] _RINvNtCs8Sf28LPfCwh_10serde_json2de8from_strNtNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarket9OneOrManyEBM_ (
+    11.39%     0.05%  [.] _RINvXNvNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarkets0_1__NtB5_9OneOrManyNtNtCsetwEpVRaCLp_10serde_core2de1
+     9.07%     0.00%  [.] _RNvMs0_NtCs70C7dH3z1Pj_6rustls4connINtB5_16ConnectionCommonNtNtNtB7_6client11client_conn20ClientConnectionDataE8read_tlsCsh
+     8.70%     0.07%  [.] _RNvXs3_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB5_15SyncReadAdapterNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENt
+     8.66%     0.04%  [.] _RNvMs3_NtNtNtCs70C7dH3z1Pj_6rustls4msgs8deframer7buffersNtB5_17DeframerVecBuffer4read                                      
+     8.65%     0.00%  [.] _RNvXs_NtNtCsay9L4KuU9nh_5tokio2io10async_readQNtNtNtNtB8_3net3tcp6stream9TcpStreamNtB4_9AsyncRead9poll_readCsh99FWABMwVn_9c
+---- steady [writer] self
+     4.98%  [.] __memmove_avx_unaligned_erms                                                                                                          
+     0.37%  [.] syscall                                                                                                                               
+     0.17%  [.] _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0IN
+     0.15%  [k] tcp_v4_rcv                                                                                                                            
+     0.12%  [.] __lll_lock_wake_private                                                                                                               
+     0.06%  [k] __raw_spin_unlock_irq                                                                                                                 
+     0.06%  [.] _RNvMNtNtCs72QKh137nGF_6chrono5naive4dateNtB2_9NaiveDate25from_num_days_from_ce_opt                                                   
+     0.04%  [k] schedule_debug.constprop.0                                                                                                            
+     0.04%  [k] copy_page_from_iter_atomic.part.0                                                                                                     
+     0.03%  [.] _RINvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB3_16AlignedSbeWriter9write_msgNtNtNtB5_4dtos19challenge_ord
+     0.03%  [k] futex_wait_queue                                                                                                                      
+     0.03%  [.] _RINvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB3_16AlignedSbeWriter9write_msgNtNtNtB5_4dtos19challenge_ord
+     0.02%  [k] futex_hash                                                                                                                            
+     0.02%  [k] ip_local_deliver_finish                                                                                                               
+     0.02%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio6future8block_on8block_onNCNvMNtNtNtB6_4sync4mpsc7boundedINtBU_8ReceiverTjINtNtCsgFX3jaOk65H_5alloc3vec3V
+     0.02%  [.] _RNvMNtNtNtNtCs8ZKwes1zzDd_3std3sys4sync7condvar5futexNtB2_7Condvar4wait                                                              
+     0.02%  [k] __es_insert_extent                                                                                                                    
+     0.02%  [k] __filemap_get_folio                                                                                                                   
+     0.02%  [k] blkcg_maybe_throttle_current                                                                                                          
+     0.02%  [k] kmem_cache_alloc                                                                                                                      
+     0.01%  [.] _RNvMs0_NtNtNtCsay9L4KuU9nh_5tokio4sync4mpsc4listINtB5_2RxTjINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCs5bqHQzP3GFE_21engineering_challenge
+     0.01%  [.] _RNvMsa_NtNtNtCsay9L4KuU9nh_5tokio4sync4mpsc4chanINtB5_2RxTjINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCs5bqHQzP3GFE_21engineering_challenge
+---- steady [writer] inclusive
+     7.55%     0.16%  [k] net_rx_action                                                                                                               
+     7.28%     0.01%  [k] __napi_poll                                                                                                                 
+     7.20%     0.13%  [k] netvsc_poll                                                                                                                 
+     7.14%     0.00%  [.] _RNvNvMs0_NtNtNtCs8ZKwes1zzDd_3std3sys6thread4unixNtB7_6Thread3new12thread_start                                            
+     5.76%     0.00%  [.] __memcpy_avx_unaligned_erms (inlined)                                                                                       
+     4.98%     4.98%  [.] __memmove_avx_unaligned_erms                                                                                                
+     4.97%     0.05%  [k] napi_complete_done                                                                                                          
+     4.95%     0.05%  [k] netif_receive_skb_list_internal                                                                                             
+     4.85%     0.04%  [k] __netif_receive_skb_list_core                                                                                               
+     4.76%     0.03%  [k] ip_list_rcv                                                                                                                 
+     4.67%     0.03%  [k] ip_sublist_rcv                                                                                                              
+     3.67%     0.01%  [k] ip_sublist_rcv_finish                                                                                                       
+     3.64%     0.02%  [k] ip_local_deliver                                                                                                            
+     3.34%     0.02%  [k] ip_local_deliver_finish                                                                                                     
+     3.31%     0.03%  [k] ip_protocol_deliver_rcu                                                                                                     
+     3.21%     0.15%  [k] tcp_v4_rcv                                                                                                                  
+     2.44%     0.17%  [.] _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5s
+     2.44%     0.00%  [.] _RINvNtCs8ZKwes1zzDd_3std5panic12catch_unwindINtNtNtCskADBYZwJmSU_4core5panic11unwind_safe16AssertUnwindSafeNCNCINvNtNtB4_6t
+     2.44%     0.00%  [.] _RINvNtCs8ZKwes1zzDd_3std9panicking12catch_unwindINtNtCskADBYZwJmSU_4core6result6ResultNtNtCs5bqHQzP3GFE_21engineering_chall
+     2.44%     0.00%  [.] _RINvNvNtCs8ZKwes1zzDd_3std9panicking12catch_unwind7do_callINtNtNtCskADBYZwJmSU_4core5panic11unwind_safe16AssertUnwindSafeNC
+     2.44%     0.00%  [.] _RNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0I
+     2.44%     0.00%  [.] _RNCNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_
+     2.44%     0.00%  [.] _RNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0B5_ (inlined)                                                 
+     2.44%     0.00%  [.] _RNvXsl_NtNtCskADBYZwJmSU_4core5panic11unwind_safeINtB5_16AssertUnwindSafeNCNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15sp
+     1.91%     0.00%  [.] _RNSNvYNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawn
+     1.08%     0.00%  [.] _RNvMNtNtNtCsay9L4KuU9nh_5tokio4sync4mpsc7boundedINtB2_8ReceiverTjINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCs5bqHQzP3GFE_21engin
+     1.07%     0.02%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio6future8block_on8block_onNCNvMNtNtNtB6_4sync4mpsc7boundedINtBU_8ReceiverTjINtNtCsgFX3jaOk65H_5a
+     1.06%     0.00%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime7context8blockingNtB3_19BlockingRegionGuard8block_onNCNvMNtNtNtB9_4sync4mpsc7bounded
+     1.06%     0.00%  [.] _RINvMs2_NtNtCsay9L4KuU9nh_5tokio7runtime4parkNtB6_16CachedParkThread8block_onNCNvMNtNtNtBa_4sync4mpsc7boundedINtB1i_8Receiv
+     0.96%     0.00%  [.] _RNvMs_NtNtCsay9L4KuU9nh_5tokio7runtime4parkNtB4_5Inner4park (inlined)                                                      
+     0.96%     0.00%  [.] _RINvMNtNtNtCs8ZKwes1zzDd_3std4sync6poison7condvarNtB3_7Condvar4waituECsay9L4KuU9nh_5tokio (inlined)                        
+     0.83%     0.00%  [.] __GI___lll_lock_wake_private (inlined)                                                                                      
+     0.58%     0.00%  [.] _RNvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB2_16AlignedSbeWriter5flush (inlined)              
+     0.58%     0.00%  [.] _RNvMNtNtNtCs8ZKwes1zzDd_3std3sys2fd4unixNtB2_8FileDesc5write (inlined)                                                     
+     0.58%     0.00%  [.] _RNvMsi_NtNtNtCs8ZKwes1zzDd_3std3sys2fs4unixNtB5_4File5write (inlined)                                                      
+     0.58%     0.00%  [.] _RNvXs8_NtCs8ZKwes1zzDd_3std2fsRNtB5_4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write5write (inlined)                          
+     0.58%     0.00%  [.] _RNvXsb_NtCs8ZKwes1zzDd_3std2fsNtB5_4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write5write                                     
+     0.58%     0.00%  [.] _RNvYNtNtCs8ZKwes1zzDd_3std2fs4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write9write_allCs5bqHQzP3GFE_21engineering_challenge  
+     0.58%     0.00%  [k] ext4_buffered_write_iter                                                                                                    
+     0.58%     0.00%  [k] ext4_file_write_iter                                                                                                        
+==== recovery by thread
+    37.61%  tokio-rt-worker
+    31.87%  core-0         
+    27.69%  core-1         
+     2.84%  writer         
+---- recovery [core-0,core-1] self
+     7.20%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE7on_tickCsh99FWABMwVn_9collector    
+     6.52%  [.] _RNvNtCs5bqHQzP3GFE_21engineering_challenge5fixed6encode                                                                              
+     6.14%  [k] handle_softirqs                                                                                                                       
+     5.67%  [.] _RNvNtNtCsfz4pEfLcYMC_4sha18compress3x8613digest_blocks                                                                               
+     3.77%  [.] _int_malloc                                                                                                                           
+     3.03%  [.] _RNCNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB7_9HashCheck6prefix0Bb_                                     
+     2.22%  [k] _raw_spin_unlock_irqrestore                                                                                                           
+     2.12%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9on_eventsCsh99FWABMwVn_9collector  
+     2.08%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck6prefix                                           
+     1.67%  [.] cfree@GLIBC_2.2.5                                                                                                                     
+     1.57%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck9try_match                                        
+     1.57%  [.] __memcmp_avx2_movbe                                                                                                                   
+     1.37%  [.] malloc                                                                                                                                
+     1.18%  [.] _RNvXsm_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_4IterxxENtNtNtNtCskADBYZwJmSU_4core4iter6traits12double_ended19DoubleEn
+     1.11%  [.] _RNvXsk_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_4IterxxENtNtNtNtCskADBYZwJmSU_4core4iter6traits8iterator8Iterator4nextC
+     1.07%  [.] _RNvMsi_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB5_8BTreeMapxxE6insertCs5bqHQzP3GFE_21engineering_challenge               
+     1.05%  [.] malloc_consolidate                                                                                                                    
+     0.92%  [.] _RNvXs3_NtNtCskADBYZwJmSU_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsh99FWABMwVn_9collector.llvm.12013520129038
+     0.86%  [.] unlink_chunk.isra.0                                                                                                                   
+     0.82%  [.] _RNvXs1_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheckINtB7_9IntegrityNtB5_4MetaE8on_event              
+     0.70%  [.] _int_free_merge_chunk                                                                                                                 
+     0.70%  [.] _RNvMNtCs3BTM885nGDo_9hashbrown11rustc_entryINtNtB4_3map7HashMapTmINtNtCsgFX3jaOk65H_5alloc4sync3ArceEENtNtNtCs5bqHQzP3GFE_21engineeri
+---- recovery [core-0,core-1] inclusive
+    94.81%     0.00%  [k] 0xffffffffffffffff                                                                                                          
+    59.54%     0.00%  [.] _RINvMNtNtCsay9L4KuU9nh_5tokio7runtime7runtimeNtB3_7Runtime14block_on_innerNCNvCsh99FWABMwVn_9collector9core_loop0EB1e_ (inl
+    59.54%     0.00%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB3_13CurrentThread8block_onNCNvCsh99FWABMwVn_9collector9
+    59.54%     0.00%  [.] _RINvMs2_NtNtCs8ZKwes1zzDd_3std6thread5localINtB6_8LocalKeyNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7ContextE4withNCINvBW_1
+    59.54%     0.00%  [.] _RINvMs2_NtNtCs8ZKwes1zzDd_3std6thread5localINtB6_8LocalKeyNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7ContextE8try_withNCINv
+    59.54%     0.00%  [.] _RINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_9CoreGuard5enterNCINvB2_8block_onNCNvCsh99FWABMwVn
+    59.54%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio7runtime7context13set_schedulerTINtNtCsgFX3jaOk65H_5alloc5boxed3BoxNtNtNtB4_9scheduler14current
+    59.54%     0.00%  [.] _RNCINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB5_13CurrentThread8block_onNCNvCsh99FWABMwVn_9collecto
+    59.54%     0.00%  [.] _RNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB8_9CoreGuard5enterNCINvB4_8block_onNCNvCsh99FWABMw
+    59.54%     0.00%  [.] _RNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB8_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collector9
+    59.54%     0.00%  [.] _RNCINvNtNtCsay9L4KuU9nh_5tokio7runtime7context13set_schedulerTINtNtCsgFX3jaOk65H_5alloc5boxed3BoxNtNtNtB6_9scheduler14curre
+    59.31%     0.00%  [.] _RINvMs1_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_7Context5enterINtNtNtCskADBYZwJmSU_4core4task4poll
+    59.31%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio4task4coop11with_budgetINtNtNtCskADBYZwJmSU_4core4task4poll4PollINtNtBU_6result6ResultNtNtCs5bq
+    59.31%     0.00%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio4task4coop6budgetINtNtNtCskADBYZwJmSU_4core4task4poll4PollINtNtBO_6result6ResultNtNtCs5bqHQzP3G
+    59.31%     0.00%  [.] _RNCNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtBa_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collecto
+    59.30%     0.00%  [.] _RNCNCNCINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtBc_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collec
+    59.30%     0.00%  [.] _RNCNCNvCsh99FWABMwVn_9collector9core_loop00B5_ (inlined)                                                                   
+    59.30%     0.00%  [.] _RNCNvCsh99FWABMwVn_9collector9core_loop0B3_ (inlined)                                                                      
+    58.84%     0.08%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio7runtime7context6scopedINtB3_6ScopedNtNtB7_9scheduler7ContextE3setNCINvMs7_NtB15_14current_t
+    58.84%     0.00%  [.] _RINvMNtNtCsay9L4KuU9nh_5tokio7runtime7runtimeNtB3_7Runtime8block_onNCNvCsh99FWABMwVn_9collector9core_loop0EB17_            
+    58.84%     0.00%  [.] _RINvNtNtNtCsay9L4KuU9nh_5tokio7runtime7context7runtime13enter_runtimeNCINvMNtNtB6_9scheduler14current_threadNtB1b_13Current
+    58.83%     0.00%  [.] _RINvMs7_NtNtNtCsay9L4KuU9nh_5tokio7runtime9scheduler14current_threadNtB6_9CoreGuard8block_onNCNvCsh99FWABMwVn_9collector9co
+    47.78%     0.04%  [.] _RNvCsh99FWABMwVn_9collector5apply                                                                                          
+    45.49%     2.12%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9on_eventsCsh99FWABMwVn_9c
+    35.35%     0.82%  [.] _RNvXs1_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheckINtB7_9IntegrityNtB5_4MetaE8on_event    
+    31.16%     1.57%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck9try_match                              
+    27.49%     2.08%  [.] _RNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB5_9HashCheck6prefix                                 
+    21.91%     3.03%  [.] _RNCNvMs0_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB7_9HashCheck6prefix0Bb_                           
+    13.36%     6.14%  [k] handle_softirqs                                                                                                             
+    13.27%     0.00%  [k] asm_sysvec_hyperv_callback                                                                                                  
+    13.27%     0.00%  [k] sysvec_hyperv_callback                                                                                                      
+    13.26%     0.00%  [k] __irq_exit_rcu                                                                                                              
+    13.26%     0.00%  [k] irq_exit_rcu                                                                                                                
+    10.91%     0.00%  [k] entry_SYSCALL_64_after_hwframe                                                                                              
+    10.84%     0.26%  [k] do_syscall_64                                                                                                               
+    10.55%     7.20%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE7on_tickCsh99FWABMwVn_9col
+     9.99%     0.00%  [.] _RINvMs3_Cs1TJjh97uPyU_12block_bufferINtB6_11BlockBufferINtNtCs68xsGthrypq_7typenum4uint4UIntIBS_IBS_IBS_IBS_IBS_IBS_NtBU_5U
+     9.99%     0.00%  [.] _RNvXs5_NtNtCs5MbYG4WdgjZ_6digest8core_api7wrapperINtB5_11CoreWrapperNtCsfz4pEfLcYMC_4sha18Sha1CoreENtB9_6Update6updateCs5bq
+     9.75%     0.14%  [k] x64_sys_call                                                                                                                
+     8.20%     0.00%  [.] _RNvMs6_NtCs5bqHQzP3GFE_21engineering_challenge4coreINtB5_4CoreNtNtNtB7_7adapter10polymarket4MetaE9check_lagCsh99FWABMwVn_9c
+---- recovery [tokio-rt-worker] self
+     1.80%  [.] _RINvXsj_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentNtB6_14ContentVisitorNtNtCsetwEpVRaCLp_10serde_core2de7Visitor9visit_mapINtNtCs8
+     1.10%  [.] _RNvMs3_NtCs8Sf28LPfCwh_10serde_json4readNtB5_9SliceRead14skip_to_escape                                                              
+     0.84%  [.] _int_free                                                                                                                             
+     0.79%  [.] _RNvXs8_NtCs8Sf28LPfCwh_10serde_json4readNtB5_7StrReadNtB5_4Read9parse_str                                                            
+     0.57%  [.] _RINvYQINtNtCs8Sf28LPfCwh_10serde_json2de12DeserializerNtNtB9_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de12Deserializer24___deseri
+     0.52%  [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtNtCsetwEpVRaCLp_10serde_core7private7content7ContentECs5bqHQzP3GFE_21engineering_challenge
+     0.46%  [.] ring_core_0_17_14__aes_gcm_dec_update_vaes_avx2                                                                                       
+     0.43%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB13_7adapter10
+     0.42%  [k] _copy_to_iter                                                                                                                         
+     0.41%  [.] _RINvXsD_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentINtB6_22ContentRefDeserializerNtNtCs8Sf28LPfCwh_10serde_json5error5ErrorENtNtCse
+     0.40%  [.] _RNvNtCs5bqHQzP3GFE_21engineering_challenge5fixed5parse                                                                               
+     0.39%  [.] _RNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB4_15WebSocketStreamINtNtB4_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6str
+     0.38%  [.] _RINvXs9_NtCs8Sf28LPfCwh_10serde_json2deINtB6_9MapAccessNtNtB8_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de9MapAccess13next_key_see
+     0.34%  [.] __libc_recv                                                                                                                           
+     0.34%  [.] _RINvXsD_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentINtB6_22ContentRefDeserializerNtNtCs8Sf28LPfCwh_10serde_json5error5ErrorENtNtCse
+     0.32%  [.] realloc                                                                                                                               
+     0.30%  [k] ipt_do_table                                                                                                                          
+     0.30%  [.] _RNvNtCskADBYZwJmSU_4core3fmt5write                                                                                                   
+     0.28%  [.] 0x0000000000000b5c                                                                                                                    
+     0.27%  [k] __raw_spin_unlock_irq                                                                                                                 
+     0.26%  [k] do_syscall_64                                                                                                                         
+     0.25%  [.] _RNvNtNtCskADBYZwJmSU_4core3str8converts9from_utf8                                                                                    
+---- recovery [tokio-rt-worker] inclusive
+    35.27%     0.00%  [.] _RNvMs4_NtNtNtCsay9L4KuU9nh_5tokio7runtime4task4coreINtB5_4CoreNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB1
+    35.25%     0.00%  [.] _RINvMNtNtNtCsay9L4KuU9nh_5tokio4loom3std11unsafe_cellINtB3_10UnsafeCellINtNtNtNtB9_7runtime4task4core5StageNCINvNtCs5bqHQzP
+    35.25%     0.00%  [.] _RNCNvMs4_NtNtNtCsay9L4KuU9nh_5tokio7runtime4task4coreINtB7_4CoreNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNt
+    35.22%     0.00%  [.] _RNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB6_7adapter10polymarket10PolymarketE0Csh99FWABMwVn_9collector (
+    35.10%     0.43%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB13_
+    35.09%     0.00%  [.] _RNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn3runNtNtNtB8_7adapter10polymarket10PolymarketE00Csh99FWABMwVn_9collecto
+    34.76%     0.00%  [.] _RNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNtB6_7adapter10polymarket10PolymarketE0Csh99FWABMwVn_9collect
+    15.99%     0.00%  [.] _RNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNtB8_7adapter10polymarket10PolymarketE00Csh99FWABMwVn_9coll
+    15.99%     0.00%  [.] _RNvXs0_NtNtCskADBYZwJmSU_4core6future7poll_fnINtB5_6PollFnNCNCINvNtCs5bqHQzP3GFE_21engineering_challenge4conn7sessionNtNtNt
+    15.45%     0.06%  [.] _RNvXs1_NtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream5splitINtB5_11SplitStreamINtCslb6031Kgosv_17tokio_tungstenite15WebSo
+    15.45%     0.00%  [.] _RNvXs1_NtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream4nextINtB5_4NextINtNtB7_5split11SplitStreamINtCslb6031Kgosv_17tokio_
+    15.45%     0.00%  [.] _RNvYINtNtNtNtCsg2b3NtTJdkL_12futures_util6stream6stream5split11SplitStreamINtCslb6031Kgosv_17tokio_tungstenite15WebSocketSt
+    15.09%     0.00%  [.] _RINvMCslb6031Kgosv_17tokio_tungsteniteINtB3_15WebSocketStreamINtNtB3_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3ne
+    14.85%     0.00%  [.] _RNCNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB6_15WebSocketStreamINtNtB6_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio
+    14.76%     0.00%  [.] _RINvMs2_NtCsfvLwpuU4I70_11tungstenite8protocolNtB6_16WebSocketContext4readINtNtCslb6031Kgosv_17tokio_tungstenite6compat8All
+    14.76%     0.00%  [.] _RNvMs1_NtCsfvLwpuU4I70_11tungstenite8protocolINtB5_9WebSocketINtNtCslb6031Kgosv_17tokio_tungstenite6compat8AllowStdINtNtB12
+    14.64%     0.00%  [.] _RINvMs2_NtCsfvLwpuU4I70_11tungstenite8protocolNtB6_16WebSocketContext18read_message_frameINtNtCslb6031Kgosv_17tokio_tungste
+    13.55%     0.17%  [.] _RINvMs1_NtNtCsfvLwpuU4I70_11tungstenite8protocol5frameNtB6_10FrameCodec10read_frameINtNtCslb6031Kgosv_17tokio_tungstenite6c
+    12.73%     0.04%  [.] _RINvMNtCsfvLwpuU4I70_11tungstenite6bufferINtB3_10ReadBufferKj1000_E9read_fromINtNtCslb6031Kgosv_17tokio_tungstenite6compat8
+    12.45%     0.05%  [.] _RNvXs2_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB5_8AllowStdINtNtB7_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio
+    12.42%     0.00%  [.] _RINvMs1_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB6_8AllowStdINtNtB8_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5toki
+    12.41%     0.00%  [.] _RNCNvXs2_NtCslb6031Kgosv_17tokio_tungstenite6compatINtB7_8AllowStdINtNtB9_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tok
+    12.41%     0.00%  [.] _RNvXNtCslb6031Kgosv_17tokio_tungstenite6streamINtB2_14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamEN
+    12.38%     0.08%  [.] _RNvXs7_NtCsiOH8e2Zp05X_12tokio_rustls6clientINtB5_9TlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENtNtNtB14
+    11.87%     0.08%  [.] _RNvXs8_NtCsiOH8e2Zp05X_12tokio_rustls6clientINtB5_9TlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENtNtNtB14
+    11.85%     0.07%  [.] _RINvNtCs8Sf28LPfCwh_10serde_json2de10from_traitNtNtB4_4read7StrReadNtNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10pol
+    11.85%     0.00%  [.] _RINvNtCs8Sf28LPfCwh_10serde_json2de8from_strNtNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarket9OneOrManyEBM_ (
+    11.80%     0.09%  [.] _RNvMs_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB4_6StreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamNtNtNtNtCs70C7
+    11.78%     0.06%  [.] _RINvXNvNtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarkets0_1__NtB5_9OneOrManyNtNtCsetwEpVRaCLp_10serde_core2de1
+    11.67%     0.05%  [.] _RNvMs_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB4_6StreamNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamNtNtNtNtCs70C7
+     9.49%     0.11%  [.] _RNvXs_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB4_10PolymarketNtB6_15ExchangeAdapter6decode          
+     8.69%     0.21%  [.] _RNvXs_Cslb6031Kgosv_17tokio_tungsteniteINtB4_15WebSocketStreamINtNtB4_6stream14MaybeTlsStreamNtNtNtNtCsay9L4KuU9nh_5tokio3n
+     7.27%     0.08%  [.] _RNvXs_NtNtCs5bqHQzP3GFE_21engineering_challenge7adapter10polymarketNtB4_10PolymarketNtB6_15ExchangeAdapter6decode          
+     7.24%     0.57%  [.] _RINvYQINtNtCs8Sf28LPfCwh_10serde_json2de12DeserializerNtNtB9_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de12Deserializer2
+     7.24%     0.00%  [.] _RINvXsi_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentNtB6_14ContentVisitorNtNtCsetwEpVRaCLp_10serde_core2de15DeserializeSee
+     7.23%     0.00%  [.] _RINvXs5_NtCs8Sf28LPfCwh_10serde_json2deQINtB6_12DeserializerNtNtB8_4read7StrReadENtNtCsetwEpVRaCLp_10serde_core2de12Deseria
+     7.15%     1.80%  [.] _RINvXsj_NtNtNtCslNMlvOXMlOc_5serde7private2de7contentNtB6_14ContentVisitorNtNtCsetwEpVRaCLp_10serde_core2de7Visitor9visit_m
+     7.02%     0.00%  [.] _RNvMs0_NtCs70C7dH3z1Pj_6rustls4connINtB5_16ConnectionCommonNtNtNtB7_6client11client_conn20ClientConnectionDataE8read_tlsCsh
+     6.96%     0.03%  [.] _RNvMs3_NtNtNtCs70C7dH3z1Pj_6rustls4msgs8deframer7buffersNtB5_17DeframerVecBuffer4read                                      
+     6.78%     0.04%  [.] _RNvXs3_NtCsiOH8e2Zp05X_12tokio_rustls6commonINtB5_15SyncReadAdapterNtNtNtNtCsay9L4KuU9nh_5tokio3net3tcp6stream9TcpStreamENt
+---- recovery [writer] self
+     5.49%  [.] __memmove_avx_unaligned_erms                                                                                                          
+     0.24%  [.] _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0IN
+     0.14%  [k] net_rx_action                                                                                                                         
+     0.14%  [.] _RNvMs5_NtCsgFX3jaOk65H_5alloc7raw_vecNtB5_11RawVecInner11finish_growCs5bqHQzP3GFE_21engineering_challenge.llvm.5122089077789329918   
+     0.11%  [.] __memset_avx2_unaligned_erms                                                                                                          
+     0.11%  [.] _RNvMNtNtCs72QKh137nGF_6chrono5naive4dateNtB2_9NaiveDate25from_num_days_from_ce_opt                                                   
+     0.10%  [.] _RINvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB3_16AlignedSbeWriter9write_msgNtNtNtB5_4dtos19challenge_ord
+     0.09%  [.] _RNvCs5fGHjzWXRav_7___rustc35___rust_no_alloc_shim_is_unstable_v2                                                                     
+     0.09%  [k] copy_page_from_iter_atomic.part.0                                                                                                     
+     0.08%  [k] __raw_spin_unlock_irq                                                                                                                 
+     0.07%  [k] validate_xmit_skb                                                                                                                     
+     0.06%  [k] nf_nat_inet_fn                                                                                                                        
+     0.05%  [.] _RNvCs5fGHjzWXRav_7___rustc14___rust_dealloc                                                                                          
+     0.04%  [k] fault_in_readable                                                                                                                     
+     0.03%  [k] __memset                                                                                                                              
+     0.03%  [k] __raw_spin_lock_irqsave                                                                                                               
+     0.03%  [k] tcp_gro_receive                                                                                                                       
+     0.03%  [k] tcp_try_coalesce                                                                                                                      
+     0.03%  [k] srso_alias_return_thunk                                                                                                               
+     0.03%  [k] get_page_from_freelist                                                                                                                
+     0.03%  [k] mem_cgroup_commit_charge                                                                                                              
+     0.02%  [k] __filemap_get_folio                                                                                                                   
+---- recovery [writer] inclusive
+     6.38%     0.00%  [.] __memcpy_avx_unaligned_erms (inlined)                                                                                       
+     5.49%     5.49%  [.] __memmove_avx_unaligned_erms                                                                                                
+     2.83%     0.24%  [.] _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5s
+     2.83%     0.00%  [.] _RINvNtCs8ZKwes1zzDd_3std5panic12catch_unwindINtNtNtCskADBYZwJmSU_4core5panic11unwind_safe16AssertUnwindSafeNCNCINvNtNtB4_6t
+     2.83%     0.00%  [.] _RINvNtCs8ZKwes1zzDd_3std9panicking12catch_unwindINtNtCskADBYZwJmSU_4core6result6ResultNtNtCs5bqHQzP3GFE_21engineering_chall
+     2.83%     0.00%  [.] _RINvNvNtCs8ZKwes1zzDd_3std9panicking12catch_unwind7do_callINtNtNtCskADBYZwJmSU_4core5panic11unwind_safe16AssertUnwindSafeNC
+     2.83%     0.00%  [.] _RNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0I
+     2.83%     0.00%  [.] _RNCNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_
+     2.83%     0.00%  [.] _RNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawns1_0B5_ (inlined)                                                 
+     2.83%     0.00%  [.] _RNSNvYNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15spawn_uncheckedNCNvNtCs5bqHQzP3GFE_21engineering_challenge6writer5spawn
+     2.83%     0.00%  [.] _RNvXsl_NtNtCskADBYZwJmSU_4core5panic11unwind_safeINtB5_16AssertUnwindSafeNCNCINvNtNtCs8ZKwes1zzDd_3std6thread9lifecycle15sp
+     1.65%     0.04%  [.] __GI___libc_write                                                                                                           
+     1.52%     0.00%  [k] __x64_sys_write                                                                                                             
+     1.52%     0.00%  [k] ksys_write                                                                                                                  
+     1.51%     0.01%  [k] vfs_write                                                                                                                   
+     1.12%     0.00%  [k] ext4_buffered_write_iter                                                                                                    
+     1.12%     0.00%  [k] ext4_file_write_iter                                                                                                        
+     1.11%     0.00%  [.] _RNvMNtNtNtCs8ZKwes1zzDd_3std3sys2fd4unixNtB2_8FileDesc5write (inlined)                                                     
+     1.11%     0.00%  [.] _RNvMsi_NtNtNtCs8ZKwes1zzDd_3std3sys2fs4unixNtB5_4File5write (inlined)                                                      
+     1.11%     0.00%  [.] _RNvXs8_NtCs8ZKwes1zzDd_3std2fsRNtB5_4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write5write (inlined)                          
+     1.11%     0.01%  [k] generic_perform_write                                                                                                       
+     0.99%     0.00%  [.] _RNvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB2_16AlignedSbeWriter5flush (inlined)              
+     0.85%     0.00%  [.] _RNvMs0_NtCsgFX3jaOk65H_5alloc5allocNtB5_6Global10alloc_impl (inlined)                                                      
+     0.85%     0.00%  [.] _RNvMs0_NtCsgFX3jaOk65H_5alloc5allocNtB5_6Global18alloc_impl_runtime (inlined)                                              
+     0.85%     0.00%  [.] _RNvXs1_NtCsgFX3jaOk65H_5alloc5allocNtB5_6GlobalNtNtCskADBYZwJmSU_4core5alloc9Allocator8allocate (inlined)                  
+     0.84%     0.00%  [.] _RNvXsb_NtCs8ZKwes1zzDd_3std2fsNtB5_4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write5write                                     
+     0.84%     0.00%  [.] _RNvYNtNtCs8ZKwes1zzDd_3std2fs4FileNtNtNtCskADBYZwJmSU_4core2io5write5Write9write_allCs5bqHQzP3GFE_21engineering_challenge  
+     0.82%     0.00%  [.] _RNvNtCsgFX3jaOk65H_5alloc5alloc5alloc (inlined)                                                                            
+     0.81%     0.09%  [.] _RINvMNtNtCs5bqHQzP3GFE_21engineering_challenge4util18aligned_sbe_writerNtB3_16AlignedSbeWriter9write_msgNtNtNtB5_4dtos19cha
+     0.76%     0.01%  [k] ext4_da_write_begin                                                                                                         
+     0.48%     0.02%  [k] __filemap_get_folio                                                                                                         
+     0.38%     0.00%  [.] _RNvXsB_NtCsgFX3jaOk65H_5alloc6stringINtNtB7_4sync3ArceENtB5_8ToString9to_stringCs5bqHQzP3GFE_21engineering_challenge (inlin
+     0.38%     0.00%  [.] _RNvXsC_NtCsgFX3jaOk65H_5alloc6stringINtNtB7_4sync3ArceENtB5_12SpecToString14spec_to_stringCs5bqHQzP3GFE_21engineering_chall
+     0.38%     0.00%  [.] _RNvXsV_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArceENtNtCskADBYZwJmSU_4core3fmt7Display3fmtCs5bqHQzP3GFE_21engineering_challenge 
+     0.38%     0.00%  [.] _RNvMNtCsgFX3jaOk65H_5alloc6stringNtB2_6String8push_str (inlined)                                                           
+     0.38%     0.00%  [.] _RNvMs1_NtCsgFX3jaOk65H_5alloc3vecINtB5_3VechE17extend_from_sliceCs5bqHQzP3GFE_21engineering_challenge (inlined)            
+     0.38%     0.00%  [.] _RNvMs_NtCsgFX3jaOk65H_5alloc3vecINtB4_3VechE15append_elementsCs5bqHQzP3GFE_21engineering_challenge (inlined)               
+     0.38%     0.00%  [.] _RNvXs2_NtNtCsgFX3jaOk65H_5alloc3vec11spec_extendINtB7_3VechEINtB5_10SpecExtendRhINtNtNtCskADBYZwJmSU_4core5slice4iter4Iterh
+     0.35%     0.01%  [.] _RINvNtNtCsay9L4KuU9nh_5tokio6future8block_on8block_onNCNvMNtNtNtB6_4sync4mpsc7boundedINtBU_8ReceiverTjINtNtCsgFX3jaOk65H_5a
+     0.35%     0.00%  [.] _RNvMNtNtNtCsay9L4KuU9nh_5tokio4sync4mpsc7boundedINtB2_8ReceiverTjINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCs5bqHQzP3GFE_21engin
+REP_DONE

@@ -31,6 +31,64 @@ use crate::adapter::{ConnId, ExchangeAdapter, NormEvent, Sym, Ts};
 /// read its socket, and the server closes it as a slow consumer once its buffer fills.
 pub static STALLS: AtomicU64 = AtomicU64::new(0);
 
+/// Per-connection counters since the last [`top_conns`]: which sockets carry the bytes, which
+/// spend their time decoding, and which wait on a full core queue.
+#[derive(Default)]
+pub struct ConnStats {
+    rx_bytes: AtomicU64,
+    frames: AtomicU64,
+    decode_ns: AtomicU64,
+    stall_ns: AtomicU64,
+}
+
+static CONN_STATS: std::sync::Mutex<Vec<(ConnId, Arc<ConnStats>)>> = std::sync::Mutex::new(Vec::new());
+
+fn register_stats(id: ConnId) -> Arc<ConnStats> {
+    let s = Arc::new(ConnStats::default());
+    CONN_STATS.lock().expect("stats lock").push((id, s.clone()));
+    s
+}
+
+fn drop_stats(id: ConnId) {
+    CONN_STATS.lock().expect("stats lock").retain(|(c, _)| *c != id);
+}
+
+/// Resets every connection's counters and describes the `n` busiest by bytes and by stall
+/// time over the window just ended, plus the totals.
+pub fn top_conns(n: usize) -> String {
+    let mut rows: Vec<(ConnId, [u64; 4])> = CONN_STATS
+        .lock()
+        .expect("stats lock")
+        .iter()
+        .map(|(c, s)| {
+            let take = |a: &AtomicU64| a.swap(0, Ordering::Relaxed);
+            (*c, [take(&s.rx_bytes), take(&s.frames), take(&s.decode_ns), take(&s.stall_ns)])
+        })
+        .collect();
+    let mut sum = [0u64; 4];
+    for (_, v) in &rows {
+        for (s, x) in sum.iter_mut().zip(v) {
+            *s += x;
+        }
+    }
+    let fmt = |(c, v): &(ConnId, [u64; 4])| {
+        format!("{c}:{}MB/{}f/dec{}ms/stall{}ms", v[0] >> 20, v[1], v[2] / 1_000_000, v[3] / 1_000_000)
+    };
+    rows.sort_unstable_by_key(|(_, v)| std::cmp::Reverse(v[0]));
+    let by_rx: Vec<String> = rows.iter().take(n).map(fmt).collect();
+    rows.sort_unstable_by_key(|(_, v)| std::cmp::Reverse(v[3]));
+    let by_stall: Vec<String> = rows.iter().take(n).filter(|(_, v)| v[3] > 0).map(fmt).collect();
+    format!(
+        "all: {}MB {}f dec{}ms stall{}ms | top rx [{}] | top stall [{}]",
+        sum[0] >> 20,
+        sum[1],
+        sum[2] / 1_000_000,
+        sum[3] / 1_000_000,
+        by_rx.join(" "),
+        by_stall.join(" ")
+    )
+}
+
 /// No frame (not even a PONG) for this long means the socket is dead.
 const WATCHDOG: Duration = Duration::from_secs(30);
 /// Before the first frame the venue may still be queueing a large initial dump: at full
@@ -157,12 +215,13 @@ enum Exit {
 
 async fn run<A: ExchangeAdapter>(spec: ConnSpec<A>, mut cmds: mpsc::UnboundedReceiver<ConnCmd>) {
     let mut tokens: BTreeSet<Sym> = spec.tokens.iter().cloned().collect();
+    let stats = register_stats(spec.id);
     let mut failures = 0u32;
     loop {
         let started = Instant::now();
         let exit = tokio::select! {
             _ = spec.cancel.cancelled() => Exit::Closed,
-            r = session(&spec, &mut tokens, &mut cmds) => r,
+            r = session(&spec, &mut tokens, &mut cmds, &stats) => r,
         };
         match exit {
             Exit::Closed => break,
@@ -182,6 +241,7 @@ async fn run<A: ExchangeAdapter>(spec: ConnSpec<A>, mut cmds: mpsc::UnboundedRec
             _ = sleep(wait) => {}
         }
     }
+    drop_stats(spec.id);
     let _ = spec.out.send(Inbound::Gone { conn: spec.id }).await;
 }
 
@@ -191,6 +251,7 @@ async fn session<A: ExchangeAdapter>(
     spec: &ConnSpec<A>,
     tokens: &mut BTreeSet<Sym>,
     cmds: &mut mpsc::UnboundedReceiver<ConnCmd>,
+    stats: &ConnStats,
 ) -> Exit {
     let a = &spec.adapter;
     spec.limiter.wait().await;
@@ -237,8 +298,13 @@ async fn session<A: ExchangeAdapter>(
                     Some(Err(e)) => return Exit::Lost(format!("read: {e}")),
                     None => return Exit::Lost("stream ended".into()),
                 };
+                stats.rx_bytes.fetch_add(text.len() as u64, Ordering::Relaxed);
+                stats.frames.fetch_add(1, Ordering::Relaxed);
+                let t = Instant::now();
                 let mut events = Vec::new();
-                if let Err(e) = a.decode(&text, &mut events) {
+                let decoded = a.decode(&text, &mut events);
+                stats.decode_ns.fetch_add(t.elapsed().as_nanos() as u64, Ordering::Relaxed);
+                if let Err(e) = decoded {
                     tracing::warn!(conn = spec.id, error = %e, frame = %text.chars().take(200).collect::<String>(), "undecodable frame");
                     continue;
                 }
@@ -250,7 +316,10 @@ async fn session<A: ExchangeAdapter>(
                     Ok(()) => Ok(()),
                     Err(mpsc::error::TrySendError::Full(item)) => {
                         STALLS.fetch_add(1, Ordering::Relaxed);
-                        spec.out.send(item).await.map_err(drop)
+                        let t = Instant::now();
+                        let r = spec.out.send(item).await.map_err(drop);
+                        stats.stall_ns.fetch_add(t.elapsed().as_nanos() as u64, Ordering::Relaxed);
+                        r
                     }
                     Err(mpsc::error::TrySendError::Closed(_)) => Err(()),
                 };
