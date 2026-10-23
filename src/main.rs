@@ -158,6 +158,25 @@ fn discover(adapter: Arc<Polymarket>, tx: mpsc::UnboundedSender<Option<Vec<Instr
     });
 }
 
+/// Inbound messages handled per main-loop turn before timers get another look.
+const INBOUND_BATCH: usize = 256;
+
+fn apply(core: &mut Core<Meta>, rt: &mut Runtime, msg: Inbound) {
+    let now = std::time::Instant::now();
+    match msg {
+        Inbound::Events { conn, recv_ts, events } => {
+            core.metrics.queue.record(now_us() - recv_ts);
+            core.on_events(conn, recv_ts, &events, now, rt)
+        }
+        Inbound::Up { conn } => core.on_up(conn, now),
+        Inbound::Down { conn, .. } => core.on_down(conn, now_us()),
+        Inbound::Gone { conn } => {
+            rt.conns.remove(&conn);
+            core.on_gone(conn, now_us());
+        }
+    }
+}
+
 async fn emit(tx: &mpsc::Sender<Batch>, core: &mut Core<Meta>) -> anyhow::Result<()> {
     if core.out.is_empty() {
         return Ok(());
@@ -177,6 +196,28 @@ async fn emit(tx: &mpsc::Sender<Batch>, core: &mut Core<Meta>) -> anyhow::Result
     }
 }
 
+/// Each websocket is a file descriptor and full coverage needs several hundred, more than the
+/// usual 1024 soft limit once replicas and recycling overlap. Raise the soft limit to the hard one.
+fn raise_nofile() {
+    #[cfg(unix)]
+    unsafe {
+        let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        if libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) != 0 {
+            return;
+        }
+        let before = lim.rlim_cur;
+        // macOS rejects RLIM_INFINITY here; its OPEN_MAX (10240) bounds it.
+        #[cfg(target_os = "macos")]
+        let max = lim.rlim_max.min(10240);
+        #[cfg(not(target_os = "macos"))]
+        let max = lim.rlim_max;
+        lim.rlim_cur = max;
+        if lim.rlim_cur > before && libc::setrlimit(libc::RLIMIT_NOFILE, &lim) == 0 {
+            tracing::info!(from = before, to = lim.rlim_cur, "raised open-file limit");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -186,6 +227,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
+    raise_nofile();
     let adapter = Arc::new(Polymarket::new()?);
 
     let cancel = CancellationToken::new();
@@ -264,25 +306,28 @@ async fn main() -> anyhow::Result<()> {
     let mut rediscover = interval(Duration::from_secs(args.rediscover_mins.max(1) * 60));
     rediscover.reset();
 
+    // Timers and control channels come first in the biased select: under load the inbound
+    // channel is always ready, and polling it first starved ticks, snapshots and discovery.
+    // Inbound is drained in bounded batches so one wakeup cannot monopolise the loop.
+    let mut inbox = Vec::with_capacity(INBOUND_BATCH);
     let result: anyhow::Result<()> = async {
         loop {
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => break,
-                Some(msg) = irx.recv() => {
-                    let now = std::time::Instant::now();
-                    match msg {
-                        Inbound::Events { conn, recv_ts, events } => {
-                            core.metrics.queue.record(now_us() - recv_ts);
-                            core.on_events(conn, recv_ts, &events, now, &mut rt)
-                        }
-                        Inbound::Up { conn } => core.on_up(conn, now),
-                        Inbound::Down { conn, .. } => core.on_down(conn, now_us()),
-                        Inbound::Gone { conn } => {
-                            rt.conns.remove(&conn);
-                            core.on_gone(conn, now_us());
-                        }
-                    }
+                _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
+                _ = report.tick() => {
+                    tracing::info!(
+                        tokens = core.token_count(),
+                        sourced = core.sourced_count(),
+                        conns = core.conn_count(),
+                        m = ?core.metrics,
+                        "status"
+                    );
+                }
+                _ = rediscover.tick(), if !discovering => {
+                    discovering = true;
+                    discover(adapter.clone(), dtx.clone());
                 }
                 Some(page) = drx.recv() => match page {
                     Some(mut v) => {
@@ -320,19 +365,13 @@ async fn main() -> anyhow::Result<()> {
                         core.flush_pending(std::time::Instant::now(), &mut rt);
                     }
                 }
-                _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
-                _ = rediscover.tick(), if !discovering => {
-                    discovering = true;
-                    discover(adapter.clone(), dtx.clone());
-                }
-                _ = report.tick() => {
-                    tracing::info!(
-                        tokens = core.token_count(),
-                        sourced = core.sourced_count(),
-                        conns = core.conn_count(),
-                        m = ?core.metrics,
-                        "status"
-                    );
+                n = irx.recv_many(&mut inbox, INBOUND_BATCH) => {
+                    if n == 0 {
+                        break;
+                    }
+                    for msg in inbox.drain(..) {
+                        apply(&mut core, &mut rt, msg);
+                    }
                 }
             }
             emit(&wtx, &mut core).await?;
@@ -350,6 +389,7 @@ async fn main() -> anyhow::Result<()> {
     let drain = async {
         while !rt.conns.is_empty() {
             let Some(msg) = irx.recv().await else { break };
+            // Only apply data here: replaying Down/Gone would fail every token over as sockets close.
             match msg {
                 Inbound::Events { conn, recv_ts, events } => {
                     core.on_events(conn, recv_ts, &events, std::time::Instant::now(), &mut rt)
