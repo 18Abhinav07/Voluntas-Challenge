@@ -188,7 +188,12 @@ impl ExchangeAdapter for Polymarket {
     }
 
     fn decode(&self, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()> {
-        if frame == "PONG" || frame.is_empty() {
+        // `PONG`, and plain-text status replies such as `NO NEW ASSETS` (re-subscribing a token
+        // the socket already has).
+        if !frame.starts_with(['{', '[']) {
+            if frame != "PONG" {
+                tracing::debug!(frame, "venue status text");
+            }
             return Ok(());
         }
         let raws = match serde_json::from_str::<OneOrMany>(frame)? {
