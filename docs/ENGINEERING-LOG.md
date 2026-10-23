@@ -23,6 +23,7 @@ Hardware notes:
 | Cloud 3 | Codespace | 557k tokens | 9.68M / 300 s | 524 ms | 524 ms | 0 / 5.27M | Hash hot spot fixed |
 | Soak 1 | Codespace, 90 min | 559k tokens, 452 sockets, 2 cores | 185M | 262 ms (queue) | 262 ms | 0, all 10 files | Ext 2 over-tuned; slow-consumer closes |
 | Soak 2 | Codespace, 30 min | 560k tokens, 2 cores | 64M | 66–145 ms (13 s after freeze) | 2.1 s after freeze | 0, all 4 files | Ext 2 fixed; core CPU is the limit |
+| Profile 2 | Codespace, 10 min | 561k tokens, 452 sockets | 18.6M | 247 ms–13.5 s per file | p99 4.2 s | 0 / 10.3M, all 3 files | Core CPU −38%; rotation fsync stalls everything |
 
 ---
 
@@ -353,3 +354,140 @@ at t=66, 277, 360, 370, and 560–582 s.
   own socket, or decode off the read task.
 - Decode with a tagged or borrowed serde path instead of buffered `Content`, to cut reader
   allocations.
+
+---
+
+## Turn — Hash only the source, incremental lag check, per-socket counters, profile again
+
+**Ask:** verify the hash only on the source replica, make the lag check incremental, add
+per-connection rx/decode counters, then rerun the all-component profile and log it.
+
+**Changes** (commit 7ecb6a6):
+1. **Hash only the source.** The `BookView` that the hash checker reads from now returns a book only
+   when the asking connection is that token's source. Standby replicas are no longer hashed.
+   - When the source misses, its standby is still compared book-to-book (that never needed a
+     hash).
+   - A standby starts being hashed the moment it becomes source.
+   - Cost: a standby that drifts is only caught once it becomes source. Its first miss there, plus a
+     disagreeing peer, refreshes it at once.
+2. **Incremental lag check.** When a standby replica's newest delta advances, its token is put on
+   a candidate list, once. Each tick looks only at the listed tokens:
+   - the source caught up: drop it;
+   - a peer is still ahead and the lag window has not run out: keep it;
+   - the window ran out: switch source.
+   Before this, every tick walked all 560k tokens.
+3. **Per-socket counters.** Each reader counts bytes received, frames, time spent decoding, and
+   time spent blocked on a full core queue. Every 30 s the collector logs the totals and the five
+   busiest sockets by bytes and by blocked time, then resets the counters.
+
+**Tests:** 2 new unit tests (standby is not offered for hashing; a caught-up source leaves the
+candidate list). 46 tests pass, clippy is clean.
+
+**Run:** the same script as last turn. Codespace WestEurope, 4 vCPU. 600 s with 5-minute files,
+perf for 30 s at t=240 s, a 15 s freeze (SIGSTOP) at t=330 s, then perf for 30 s during recovery.
+561k tokens on 452 sockets, 18.6M updates, 12.9M snapshots. Output in
+`bench/profile-2026-10-23-b/`.
+
+**Correctness:** all 3 files verified. 10.3M snapshots replayed, **0 mismatches**. Exit 0.
+
+**CPU, before vs after** (100% = one core, from per-thread `/proc` samples every 10 s):
+
+| Component | Last turn, steady | Now, steady | Last turn, after freeze | Now, after freeze |
+|---|---|---|---|---|
+| Order-book threads (core-0, core-1), each | 50–60% | **31–38%** | 62–80% | **52–57%** |
+| Socket readers (tokio pool), total | 80–100% | 81–100% | — | 99–111% |
+| Writer | 6–9% | 7–12% | — | 11% |
+| Network in | 23–35 MB/s | 23–40 MB/s | | |
+
+**perf, share of all samples:**
+
+| Thread | Last turn | Now |
+|---|---|---|
+| Socket readers | 42.1% | **54.7%** |
+| core-0 + core-1 | 55.4% | **42.0%** |
+| Writer | 2.5% | 3.3% |
+
+- Order-book thread CPU fell by about 38% at steady state. The socket readers are now the largest
+  user of CPU.
+- `on_tick` self time went from 7.9% of all samples to 0.5%. The lag scan is gone as a cost.
+- Hash verification is still 57% of what is left of core time (24.1% of all samples, down from
+  32.1% of a larger total). In absolute terms that is about 0.4 of a core, down from about 0.65.
+- `hash_ok` is now 18.9M against 18.6M updates. Last turn it was 40M against 19.8M, because both
+  replicas were hashed.
+- What remains in the hash checker: rebuilding the book prefix (`fixed::encode` for every level,
+  4% of all samples on its own), SHA1, and the per-event bookkeeping that still runs on standby
+  events (recent prices, last-trade candidates).
+
+**Counters at the end, before vs after:**
+
+| | Last turn | Now |
+|---|---|---|
+| lag_switches | 1,616 | **294** |
+| hash_miss | 224,702 | 100,992 |
+| hash_agreed | 190,532 | 95,143 |
+| divergent | 622 | 2,126 |
+| resnapshots | 47,283 | 23,804 |
+| switches | 31,602 | 50,724 |
+| disconnects | 13 | 23 |
+| slow-consumer closes | 18 | 27 |
+| stalls | 302,985 | 147,332 |
+
+- Misses and resnapshots halved, as expected: only one replica is checked.
+- `switches` went up with the disconnects: each lost socket moves ~1,200 tokens to their peers.
+- `divergent` (a source miss where the peer's book disagrees) went up about 3×. It is still 2% of
+  misses. Hashing only the source does not create divergence; it more likely follows the extra
+  disconnects and their rebuilds. Watch it in the next soak.
+
+**What the per-socket counters showed:**
+
+1. **The traffic is very uneven.** Four sockets, `206`/`207` (one shard on core-0, both replicas)
+   and `16777422`/`16777423` (one shard on core-1), each carry 30–47 MB and 50–79k frames per 30 s
+   window. That is 1.0–1.6 MB/s and ~2,000 frames/s each, about 5× the next busiest socket. Those
+   four are exactly the sockets the venue closes as slow consumers. All 27 closes were on them.
+2. **Decoding is not why they fall behind.** Even the hottest socket spends 0.25–0.5 s decoding per
+   30 s (1–2% of a core). All 452 sockets together decode for 7–10 s per 30 s, about 0.27 of a core.
+3. **Stalls are global, and they line up with file rotation.** Blocked time is zero in every window
+   except three:
+   - 16:20:06, the window holding the 16:20 rotation: 330 s of blocked time summed over sockets
+     (about 0.7–1.0 s on each).
+   - 16:23:36: the planned freeze.
+   - 16:25:36, the window holding the 16:25 rotation: 1,153 s summed (about 3.1–3.3 s on each).
+     The core logged `writer backpressure waited=6.2s` at 16:25:07. The first slow-consumer close
+     followed 0.7 s later.
+
+**Cause of the rotation stall** (from `src/writer.rs`, `Part::finish`): when the last core crosses
+into a new period, the writer thread flushes the old file, then calls `sync_all()` on it, then
+renames it, all inline. The file was 2.6 GB. While the fsync runs the writer does not drain its
+channel. Then:
+1. The cores block in `emit`.
+2. The core queues fill.
+3. Every reader blocks.
+4. The hottest sockets' server-side buffers overflow and the venue closes them.
+
+Rotation also asks each core for a snapshot of every published book (1.1M records) in the same
+instant, which adds to the burst.
+
+Some closes (16:25:29, 16:26:19) came in windows with no blocked time. Those were the hot sockets
+reconnecting and getting their shard's full dump, then falling behind on it again. This is the same
+loop seen last turn.
+
+**Verdict:**
+1. The two fixes did what they should. Order-book CPU is down ~38% at steady state and ~25–30%
+   after the freeze. The lag scan cost is gone and hashing costs about half.
+2. **The remaining stalls are caused by the writer's inline fsync at rotation, not by CPU.** It
+   stops the whole pipeline for 1–6 s every 5 minutes. This is the next fix and the cheapest.
+3. **The slow-consumer closes are on 4 hot sockets.** Rotation stalls trigger them, and the dump
+   on reconnect keeps them going. The fix is to split those shards.
+4. The socket readers are now the largest CPU user (~1 core). That is TLS plus websocket plus
+   decode. Decode is about a quarter of it.
+
+**Next fixes, ranked:**
+- Finish rotated files (flush, fsync, rename) on a background thread, so the writer keeps draining.
+  Expected: no stalls at rotation.
+- Spread rotation snapshots over the following ticks, or make them come from the writer's own copy,
+  instead of 1.1M records in one instant.
+- Split hot shards: size shards by observed message rate, not by token count. Or move a shard's
+  hottest markets to their own socket once their rate is known.
+- Hash cost: cache each side's encoded levels so that a delta re-encodes one level, not the whole
+  book. Also skip the standby bookkeeping in `HashCheck::on_event`.
+- Readers: decode through a tagged or borrowed serde path to cut allocations.

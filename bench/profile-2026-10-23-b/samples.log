@@ -1,0 +1,62 @@
+t  | cpu% per group (100 = one core)                      | rx MB/s | disk MB/s | stalls
+  10s | main=0 tokio=47 writer=2                             |    22.9 |       0.0 | 
+  20s | core-0=25 core-1=25 main=1 tokio=76 writer=5         |    31.4 |      12.8 | 
+  30s | core-0=25 core-1=25 main=0 tokio=76 writer=5         |    28.7 |       6.4 | stalls=0
+  40s | core-0=31 core-1=29 main=1 tokio=82 writer=5         |    28.8 |       6.4 | stalls=0
+  50s | core-0=34 core-1=34 main=0 tokio=98 writer=7         |    40.2 |      12.8 | stalls=0
+  60s | core-0=31 core-1=29 main=0 tokio=84 writer=7         |    32.0 |       6.4 | stalls=0
+  70s | core-0=33 core-1=31 main=0 tokio=89 writer=7         |    36.8 |       6.4 | stalls=0
+  80s | core-0=33 core-1=30 main=0 tokio=89 writer=7         |    32.7 |       6.4 | stalls=0
+  90s | core-0=34 core-1=32 main=0 tokio=89 writer=8         |    34.9 |      12.8 | stalls=0
+ 101s | core-0=32 core-1=32 main=0 tokio=90 writer=8         |    31.0 |       6.4 | stalls=0
+ 111s | core-0=33 core-1=32 main=6 tokio=91 writer=8         |    29.2 |      14.6 | stalls=0
+ 121s | core-0=32 core-1=30 main=0 tokio=84 writer=8         |    25.3 |       6.4 | stalls=0
+ 131s | core-0=33 core-1=33 main=0 tokio=92 writer=9         |    26.1 |      12.8 | stalls=0
+ 141s | core-0=35 core-1=35 main=0 tokio=95 writer=9         |    27.9 |       6.4 | stalls=0
+ 151s | core-0=27 core-1=28 main=0 tokio=81 writer=11        |    24.8 |      32.0 | stalls=11768
+ 161s | core-0=32 core-1=31 main=0 tokio=87 writer=8         |    24.4 |       6.4 | stalls=11768
+ 172s | core-0=31 core-1=32 main=0 tokio=81 writer=7         |    24.9 |       6.4 | stalls=11768
+ 182s | core-0=33 core-1=35 main=0 tokio=92 writer=9         |    26.1 |       6.4 | stalls=11768
+ 192s | core-0=34 core-1=36 main=0 tokio=91 writer=9         |    27.9 |      12.8 | stalls=11768
+ 202s | core-0=32 core-1=33 main=0 tokio=87 writer=8         |    24.8 |       6.4 | stalls=11768
+ 212s | core-0=32 core-1=32 main=0 tokio=83 writer=8         |    25.0 |       6.4 | stalls=11768
+ 223s | core-0=33 core-1=35 main=0 tokio=89 writer=8         |    26.1 |       6.4 | stalls=11768
+ 233s | core-0=32 core-1=35 main=0 tokio=91 writer=9         |    25.3 |      12.8 | stalls=11768
+ 243s | core-0=31 core-1=33 main=0 tokio=84 writer=8         |    26.2 |       6.4 | stalls=11768
+ 253s | core-0=37 core-1=38 main=0 tokio=97 writer=11        |    27.6 |       6.4 | stalls=11768
+ 263s | core-0=36 core-1=38 main=0 tokio=100 writer=12       |    25.8 |       6.4 | stalls=11768
+ 273s | core-0=31 core-1=32 main=0 tokio=81 writer=10        |    25.6 |      12.8 | stalls=11768
+ 283s | core-0=34 core-1=35 main=0 tokio=91 writer=9         |    26.8 |       6.4 | stalls=11768
+ 293s | core-0=36 core-1=37 main=0 tokio=93 writer=8         |    28.6 |       6.4 | stalls=11768
+ 303s | core-0=32 core-1=34 main=0 tokio=88 writer=8         |    24.6 |       6.4 | stalls=11768
+ 313s | core-0=34 core-1=36 main=0 tokio=92 writer=9         |    27.1 |      12.8 | stalls=11768
+ 324s | core-0=35 core-1=35 main=0 tokio=94 writer=9         |    26.9 |       6.4 | stalls=11768
+ 334s | core-0=19 core-1=19 main=0 tokio=50 writer=5         |    24.2 |       6.4 | stalls=11768
+ 344s | core-0=0 core-1=0 main=0 tokio=0 writer=0            |    19.4 |       0.0 | stalls=11768
+ 354s | core-0=57 core-1=52 main=0 tokio=111 writer=7        |    29.9 |      12.8 | stalls=11768
+ 364s | core-0=37 core-1=37 main=0 tokio=99 writer=11        |    26.7 |       6.4 | stalls=111138
+ 374s | core-0=34 core-1=38 main=0 tokio=99 writer=11        |    25.8 |       6.4 | stalls=111138
+ 384s | core-0=34 core-1=37 main=0 tokio=97 writer=9         |    26.7 |      12.8 | stalls=111138
+ 394s | core-0=31 core-1=34 main=0 tokio=91 writer=8         |    24.3 |       6.4 | stalls=111138
+ 404s | core-0=32 core-1=35 main=0 tokio=96 writer=9         |    24.5 |       6.4 | stalls=111138
+ 414s | core-0=30 core-1=34 main=0 tokio=91 writer=9         |    23.4 |       6.4 | stalls=111138
+ 425s | core-0=33 core-1=35 main=0 tokio=96 writer=8         |    25.6 |       6.4 | stalls=111138
+ 435s | core-0=33 core-1=36 main=0 tokio=98 writer=10        |    25.2 |      12.8 | stalls=111138
+ 445s | core-0=34 core-1=35 main=0 tokio=93 writer=12        |    25.4 |      19.2 | stalls=111138
+ 455s | core-0=25 core-1=25 main=0 tokio=75 writer=6         |    26.7 |      19.2 | stalls=111570
+ 465s | core-0=34 core-1=35 main=0 tokio=95 writer=9         |    25.8 |       6.4 | stalls=111570
+ 475s | core-0=38 core-1=38 main=0 tokio=91 writer=7         |    32.5 |      12.8 | stalls=111570
+ 485s | core-0=41 core-1=39 main=0 tokio=107 writer=9        |    32.0 |       6.4 | stalls=147332
+ 495s | core-0=39 core-1=39 main=0 tokio=109 writer=10       |    28.8 |       6.4 | stalls=147332
+ 505s | core-0=35 core-1=34 main=0 tokio=96 writer=10        |    25.2 |      12.8 | stalls=147332
+ 516s | core-0=37 core-1=34 main=0 tokio=98 writer=8         |    26.6 |       6.4 | stalls=147332
+ 526s | core-0=35 core-1=32 main=0 tokio=90 writer=8         |    24.9 |       6.4 | stalls=147332
+ 536s | core-0=38 core-1=35 main=0 tokio=100 writer=10       |    27.0 |      12.8 | stalls=147332
+ 546s | core-0=35 core-1=33 main=0 tokio=90 writer=8         |    26.2 |       6.4 | stalls=147332
+ 556s | core-0=36 core-1=35 main=0 tokio=98 writer=9         |    26.9 |       6.4 | stalls=147332
+ 566s | core-0=34 core-1=33 main=0 tokio=91 writer=9         |    24.8 |       6.4 | stalls=147332
+ 576s | core-0=37 core-1=37 main=0 tokio=97 writer=9         |    27.9 |      12.8 | stalls=147332
+ 586s | core-0=35 core-1=33 main=0 tokio=92 writer=8         |    25.7 |       6.4 | stalls=147332
+ 596s | core-0=34 core-1=34 main=0 tokio=93 writer=9         |    25.3 |       6.4 | stalls=147332
+ 607s | main=5 tokio=30 writer=4                             |     8.5 |      14.6 | stalls=147332
+ 617s |                                                      |     0.0 |    -534.8 | stalls=147332
