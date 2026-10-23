@@ -42,6 +42,8 @@ pub enum ConnCmd {
     Unsubscribe(Vec<Sym>),
     /// Asks for fresh `book`s: unsubscribe, then subscribe with the initial dump.
     Resnapshot(Vec<Sym>),
+    /// Drops the socket and reconnects (resubscribing everything), keeping the actor.
+    Reconnect,
     Close,
 }
 
@@ -257,6 +259,10 @@ async fn session<A: ExchangeAdapter>(
                         vec![a.unsubscribe(&t)]
                     }
                     Some(ConnCmd::Resnapshot(t)) => vec![a.unsubscribe(&t), a.subscribe(&t)],
+                    Some(ConnCmd::Reconnect) => {
+                        let _ = sink.send(Message::Close(None)).await;
+                        return Exit::Lost("reconnect requested".into());
+                    }
                 };
                 for m in msg {
                     if let Err(e) = sink.send(Message::Text(m)).await {

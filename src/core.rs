@@ -26,6 +26,8 @@ pub struct Config {
     /// A source that has not seen an event a peer saw this long ago is lagging.
     pub lag: Duration,
     pub snapshot_every: Duration,
+    /// Cut the output into wall-clock periods of this length (see `writer`).
+    pub rotate_every: Option<Duration>,
     /// Make-before-break recycle connections older than this.
     pub max_conn_age: Option<Duration>,
     /// How long a recycle waits for the new connection's books before retiring the old one.
@@ -37,6 +39,43 @@ pub struct Config {
     pub book_timeout: Duration,
     /// Most steady-state connections (shards × replicas); tokens past it wait unplaced.
     pub max_conns: usize,
+    /// At most this many make-before-break recycles in flight, never two in one shard.
+    pub recycle_parallel: usize,
+    /// First connection id this core hands out; cores on other threads use disjoint ranges.
+    pub conn_id_base: ConnId,
+    pub quiet: Quiet,
+}
+
+/// Ext 2 thresholds. A token is quiet when no replica has seen a delta for
+/// `factor` expected gaps (from its smoothed per-minute rate), clamped to `floor..=ceiling`
+/// and doubled per resubscribe that did not bring it back. Tokens slower than `min_rate`
+/// are left to periodic recycling: their silence is indistinguishable from a dead feed.
+#[derive(Clone, Debug)]
+pub struct Quiet {
+    pub min_rate: f32,
+    pub factor: f32,
+    pub floor: Duration,
+    pub ceiling: Duration,
+    /// Most tokens resubscribed per check; a venue-wide lull must not become a storm.
+    pub max_per_round: usize,
+    /// A socket that delivers no delta in a window while a peer of its shard delivers at
+    /// least `conn_min` (or while its own smoothed rate is 4× that) is reconnected.
+    pub conn_window: Duration,
+    pub conn_min: u64,
+}
+
+impl Default for Quiet {
+    fn default() -> Self {
+        Self {
+            min_rate: 1.0,
+            factor: 10.0,
+            floor: Duration::from_secs(20),
+            ceiling: Duration::from_secs(30 * 60),
+            max_per_round: 200,
+            conn_window: Duration::from_secs(30),
+            conn_min: 30,
+        }
+    }
 }
 
 impl Default for Config {
@@ -46,11 +85,15 @@ impl Default for Config {
             replicas: 2,
             lag: Duration::from_secs(3),
             snapshot_every: Duration::from_secs(60),
+            rotate_every: None,
             max_conn_age: None,
             recycle_grace: Duration::from_secs(60),
             resnap_gap: Duration::from_secs(30),
             book_timeout: Duration::from_secs(120),
             max_conns: 600,
+            recycle_parallel: 2,
+            conn_id_base: 0,
+            quiet: Quiet::default(),
         }
     }
 }
@@ -78,6 +121,14 @@ impl Hist {
         self.buckets[(64 - (us as u64).leading_zeros() as usize).min(31)] += 1;
         self.n += 1;
         self.max = self.max.max(us);
+    }
+
+    pub fn merge(&mut self, o: &Hist) {
+        for (a, b) in self.buckets.iter_mut().zip(o.buckets) {
+            *a += b;
+        }
+        self.n += o.n;
+        self.max = self.max.max(o.max);
     }
 
     /// Upper bound of the bucket holding quantile `q`, in µs.
@@ -124,12 +175,28 @@ pub struct Metrics {
     pub recycles: u64,
     pub markets_added: u64,
     pub markets_removed: u64,
+    /// Tokens resubscribed because every replica went quiet (Ext 2).
+    pub quiet_resubs: u64,
+    /// Sockets reconnected because they went quiet while a peer did not (Ext 2).
+    pub quiet_reconnects: u64,
     /// Tokens waiting because the connection cap is reached.
     pub unplaced: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
     pub wire: Hist,
     /// Socket read to core apply: time spent queued inside this process.
     pub queue: Hist,
+}
+
+impl Metrics {
+    /// Folds another core's metrics into these.
+    pub fn merge(&mut self, o: &Metrics) {
+        macro_rules! sum { ($($f:ident),*) => { $(self.$f += o.$f;)* } }
+        sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
+            resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
+            quiet_resubs, quiet_reconnects, unplaced);
+        self.wire.merge(&o.wire);
+        self.queue.merge(&o.queue);
+    }
 }
 
 struct Replica {
@@ -182,6 +249,26 @@ struct Tok {
     emitted_exch: Ts,
     /// Whether the first snapshot has been written.
     announced: bool,
+    /// Newest delta timestamp any replica has seen, and when it last advanced (Ext 2).
+    newest: Ts,
+    active_at: Instant,
+    /// New deltas so far this minute, and the smoothed per-minute rate.
+    this_min: u32,
+    rate: f32,
+    /// Last quiet resubscribe and how many in a row have not brought deltas back.
+    quiet_at: Option<Instant>,
+    quiet_strikes: u8,
+}
+
+impl Tok {
+    /// How long this token may stay silent before it counts as quiet; `None` = too slow to tell.
+    fn quiet_after(&self, q: &Quiet) -> Option<Duration> {
+        if self.rate < q.min_rate {
+            return None;
+        }
+        let base = Duration::from_secs_f32(q.factor * 60.0 / self.rate).clamp(q.floor, q.ceiling);
+        Some(base.saturating_mul(1 << self.quiet_strikes.min(10)).min(q.ceiling))
+    }
 }
 
 struct Shard {
@@ -197,6 +284,10 @@ struct ConnState {
     replacing: Option<ConnId>,
     awaiting: HashSet<Sym>,
     retiring: bool,
+    up_since: Option<Instant>,
+    /// Delta events this quiet window, and the smoothed count per window.
+    win_events: u64,
+    win_rate: f64,
 }
 
 pub struct Core<M> {
@@ -214,8 +305,9 @@ pub struct Core<M> {
     looking_up: HashSet<Sym>,
     /// 60 one-second snapshot buckets; a token's bucket is a hash of its id.
     buckets: Vec<Vec<Sym>>,
+    /// Rotation period the output is in; `None` until the first tick.
+    epoch: Option<i64>,
     tick_no: u64,
-    recycle_started: Option<Instant>,
     verdicts: Vec<Verdict>,
     pub out: Vec<Rec>,
     pub metrics: Metrics,
@@ -242,6 +334,7 @@ impl<M> Core<M> {
     pub fn new(cfg: Config, integrity: Box<dyn Integrity<M>>) -> Self {
         let n = cfg.snapshot_every.as_secs().max(1) as usize;
         Self {
+            next_conn: cfg.conn_id_base,
             cfg,
             integrity,
             tokens: HashMap::new(),
@@ -250,11 +343,10 @@ impl<M> Core<M> {
             pending: Vec::new(),
             pending_since: None,
             conns: HashMap::new(),
-            next_conn: 0,
             looking_up: HashSet::new(),
             buckets: vec![Vec::new(); n],
+            epoch: None,
             tick_no: 0,
-            recycle_started: None,
             verdicts: Vec::new(),
             out: Vec::new(),
             metrics: Metrics::default(),
@@ -289,6 +381,7 @@ impl<M> Core<M> {
                 self.pending.is_empty() && self.shards[s].tokens.len() + inst.tokens.len() <= self.cfg.tokens_per_conn
             });
             let shard = tail.unwrap_or(self.shards.len());
+            let now = Instant::now();
             for t in &inst.tokens {
                 self.tokens.insert(
                     t.clone(),
@@ -300,6 +393,12 @@ impl<M> Core<M> {
                         emitted: Book::default(),
                         emitted_exch: 0,
                         announced: false,
+                        newest: 0,
+                        active_at: now,
+                        this_min: 0,
+                        rate: 0.0,
+                        quiet_at: None,
+                        quiet_strikes: 0,
                     },
                 );
                 let b = bucket_of(t, self.buckets.len());
@@ -307,7 +406,6 @@ impl<M> Core<M> {
             }
             self.markets.insert(inst.market.clone(), inst.tokens.clone());
             if let Some(s) = tail {
-                let now = Instant::now();
                 self.shards[s].tokens.extend(inst.tokens.iter().cloned());
                 for &c in &self.shards[s].conns.clone() {
                     for t in &inst.tokens {
@@ -360,7 +458,10 @@ impl<M> Core<M> {
         }
         self.shards[shard].conns.push(id);
         let awaiting = if replacing.is_some() { tokens.iter().cloned().collect() } else { HashSet::new() };
-        self.conns.insert(id, ConnState { shard, replica, born: now, replacing, awaiting, retiring: false });
+        self.conns.insert(
+            id,
+            ConnState { shard, replica, born: now, replacing, awaiting, retiring: false, up_since: None, win_events: 0, win_rate: 0.0 },
+        );
         fx.spawn_conn(id, replica, tokens);
         id
     }
@@ -395,7 +496,10 @@ impl<M> Core<M> {
     /// The socket is (re)subscribed to every token it owns; their books are on the way.
     pub fn on_up(&mut self, conn: ConnId, now: Instant) {
         tracing::debug!(conn, "up");
-        let Some(shard) = self.conns.get(&conn).map(|c| c.shard) else { return };
+        let Some(cs) = self.conns.get_mut(&conn) else { return };
+        cs.up_since = Some(now);
+        cs.win_events = 0;
+        let shard = cs.shard;
         let due = now + self.cfg.book_timeout;
         for t in &self.shards[shard].tokens {
             if let Some(r) = self.tokens.get_mut(t).and_then(|t| t.replicas.get_mut(&conn))
@@ -409,7 +513,9 @@ impl<M> Core<M> {
     pub fn on_down(&mut self, conn: ConnId, recv: Ts) {
         self.metrics.disconnects += 1;
         self.integrity.forget_conn(conn);
-        let Some(shard) = self.conns.get(&conn).map(|c| c.shard) else { return };
+        let Some(cs) = self.conns.get_mut(&conn) else { return };
+        cs.up_since = None;
+        let shard = cs.shard;
         for t in self.shards[shard].tokens.clone() {
             let Some(tok) = self.tokens.get_mut(&t) else { continue };
             if let Some(r) = tok.replicas.get_mut(&conn) {
@@ -440,6 +546,9 @@ impl<M> Core<M> {
     }
 
     pub fn on_events(&mut self, conn: ConnId, recv: Ts, events: &[NormEvent], now: Instant, fx: &mut dyn Effects) {
+        if let Some(cs) = self.conns.get_mut(&conn) {
+            cs.win_events += events.iter().filter(|e| matches!(e, NormEvent::Levels { .. })).count() as u64;
+        }
         for ev in events {
             self.integrity.pre_event(conn, ev, &View { tokens: &self.tokens, conn }, now, &mut self.verdicts);
             self.apply(conn, recv, ev, now, fx);
@@ -476,6 +585,12 @@ impl<M> Core<M> {
                 for c in changes {
                     let Some(tok) = self.tokens.get_mut(&c.token) else { continue };
                     let Some(rep) = tok.replicas.get_mut(&conn) else { continue };
+                    if *exch_ts > tok.newest {
+                        tok.newest = *exch_ts;
+                        tok.active_at = now;
+                        tok.this_min += 1;
+                        tok.quiet_strikes = 0;
+                    }
                     if !rep.valid {
                         continue;
                     }
@@ -500,6 +615,21 @@ impl<M> Core<M> {
             }
             NormEvent::Resolved { market } => self.remove_market(market, recv, fx),
             NormEvent::Trade { .. } | NormEvent::TickSize { .. } => {}
+        }
+    }
+
+    /// Starts a new output period: the marker, then every published book, so the period's
+    /// file replays without the ones before it.
+    fn maybe_rotate(&mut self, recv: Ts) {
+        let Some(p) = self.cfg.rotate_every else { return };
+        let e = recv / p.as_micros().max(1) as i64;
+        if self.epoch == Some(e) {
+            return;
+        }
+        self.epoch = Some(e);
+        self.out.push(Rec::Rotate { epoch: e });
+        for tok in self.tokens.values().filter(|t| t.announced) {
+            Self::snapshot(tok, recv, &mut self.out, &mut self.metrics);
         }
     }
 
@@ -657,11 +787,22 @@ impl<M> Core<M> {
 
     /// Call once per second.
     pub fn on_tick(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
+        self.maybe_rotate(recv);
         self.integrity.on_tick(now, &mut self.verdicts);
         self.handle_verdicts(recv, now, fx);
         self.check_lag(now, recv, fx);
         if self.tick_no.is_multiple_of(10) {
             self.retry_resnapshots(now, fx);
+        }
+        if self.tick_no > 0 && self.tick_no.is_multiple_of(60) {
+            self.roll_rates();
+        }
+        if self.tick_no.is_multiple_of(5) {
+            self.check_quiet(now, fx);
+        }
+        let win = self.cfg.quiet.conn_window.as_secs().max(1);
+        if self.tick_no > 0 && self.tick_no.is_multiple_of(win) {
+            self.check_quiet_conns(now, fx);
         }
 
         let b = (self.tick_no % self.buckets.len() as u64) as usize;
@@ -678,11 +819,87 @@ impl<M> Core<M> {
             self.flush_pending(now, fx);
         }
         self.maybe_start_recycle(now, fx);
-        if self.recycle_started.is_some_and(|t| now.duration_since(t) >= self.cfg.recycle_grace) {
-            let ids: Vec<ConnId> = self.conns.iter().filter(|(_, c)| c.replacing.is_some()).map(|(id, _)| *id).collect();
-            for id in ids {
-                self.finish_recycle(id, recv, fx);
+        let grace = self.cfg.recycle_grace;
+        let overdue: Vec<ConnId> = self
+            .conns
+            .iter()
+            .filter(|(_, c)| c.replacing.is_some() && now.duration_since(c.born) >= grace)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in overdue {
+            self.finish_recycle(id, recv, fx);
+        }
+    }
+
+    // ------------------------------------------------------------ activity monitoring (Ext 2)
+
+    /// Folds this minute's delta count into each token's smoothed per-minute rate.
+    fn roll_rates(&mut self) {
+        for tok in self.tokens.values_mut() {
+            tok.rate = 0.9 * tok.rate + 0.1 * tok.this_min as f32;
+            tok.this_min = 0;
+        }
+    }
+
+    /// Resubscribes tokens that no replica has heard from for much longer than their usual
+    /// gap. The peer lag check cannot see this: it needs one replica that still gets data.
+    fn check_quiet(&mut self, now: Instant, fx: &mut dyn Effects) {
+        let q = &self.cfg.quiet;
+        let mut by_conn: BTreeMap<ConnId, Vec<Sym>> = BTreeMap::new();
+        let mut n = 0;
+        for (t, tok) in self.tokens.iter_mut() {
+            if n >= q.max_per_round {
+                break;
             }
+            let Some(after) = tok.quiet_after(q) else { continue };
+            let since = tok.quiet_at.map_or(tok.active_at, |a| a.max(tok.active_at));
+            // A replica still waiting for its book is not evidence either way.
+            if now.duration_since(since) < after || tok.replicas.values().all(|r| !r.valid) {
+                continue;
+            }
+            tok.quiet_at = Some(now);
+            tok.quiet_strikes = tok.quiet_strikes.saturating_add(1);
+            for c in tok.replicas.keys() {
+                by_conn.entry(*c).or_default().push(t.clone());
+            }
+            n += 1;
+        }
+        if n > 0 {
+            tracing::info!(tokens = n, "quiet subscriptions; resubscribing");
+        }
+        self.metrics.quiet_resubs += n as u64;
+        for (c, ts) in by_conn {
+            fx.send(c, ConnCmd::Resnapshot(ts));
+        }
+    }
+
+    /// Reconnects sockets that delivered nothing for a whole window while their shard's peer
+    /// kept delivering: a socket can keep answering PINGs, and so pass the watchdog, long
+    /// after the venue has stopped pushing it data.
+    fn check_quiet_conns(&mut self, now: Instant, fx: &mut dyn Effects) {
+        let (win, min) = (self.cfg.quiet.conn_window, self.cfg.quiet.conn_min);
+        let mut quiet = Vec::new();
+        for shard in &self.shards {
+            let peer_max = |me: ConnId| shard.conns.iter().filter(|&&c| c != me).filter_map(|c| self.conns.get(c)).map(|c| c.win_events).max();
+            for &c in &shard.conns {
+                let Some(cs) = self.conns.get(&c) else { continue };
+                let settled = cs.up_since.is_some_and(|u| now.duration_since(u) >= win);
+                if settled && !cs.retiring && cs.win_events == 0 && (peer_max(c).unwrap_or(0) >= min || cs.win_rate >= 4.0 * min as f64) {
+                    quiet.push(c);
+                }
+            }
+        }
+        for cs in self.conns.values_mut() {
+            cs.win_rate = 0.7 * cs.win_rate + 0.3 * cs.win_events as f64;
+            cs.win_events = 0;
+        }
+        for c in quiet {
+            tracing::warn!(conn = c, "socket quiet while its peer is not; reconnecting");
+            self.metrics.quiet_reconnects += 1;
+            if let Some(cs) = self.conns.get_mut(&c) {
+                cs.up_since = None;
+            }
+            fx.send(c, ConnCmd::Reconnect);
         }
     }
 
@@ -712,22 +929,30 @@ impl<M> Core<M> {
 
     fn maybe_start_recycle(&mut self, now: Instant, fx: &mut dyn Effects) {
         let Some(age) = self.cfg.max_conn_age else { return };
-        if self.recycle_started.is_some() {
+        let busy: HashSet<usize> = self.conns.values().filter(|c| c.retiring).map(|c| c.shard).collect();
+        if busy.len() >= self.cfg.recycle_parallel {
             return;
         }
-        let Some((&old, st)) = self
+        // Oldest first; one recycle per shard at a time so its other replica stays put.
+        let mut due: Vec<(Instant, ConnId, usize, usize)> = self
             .conns
             .iter()
-            .filter(|(_, c)| !c.retiring && c.replacing.is_none() && now.duration_since(c.born) >= age)
-            .min_by_key(|(id, c)| (c.born, **id))
-        else {
-            return;
-        };
-        let (shard, replica) = (st.shard, st.replica);
-        tracing::info!(conn = old, shard, "recycling connection (make-before-break)");
-        self.conns.get_mut(&old).expect("listed").retiring = true;
-        self.recycle_started = Some(now);
-        self.open_conn(shard, replica, now, Some(old), fx);
+            .filter(|(_, c)| !c.retiring && c.replacing.is_none() && now.duration_since(c.born) >= age && !busy.contains(&c.shard))
+            .map(|(&id, c)| (c.born, id, c.shard, c.replica))
+            .collect();
+        due.sort_unstable();
+        let mut busy = busy;
+        for (_, old, shard, replica) in due {
+            if busy.len() >= self.cfg.recycle_parallel {
+                break;
+            }
+            if !busy.insert(shard) {
+                continue;
+            }
+            tracing::info!(conn = old, shard, "recycling connection (make-before-break)");
+            self.conns.get_mut(&old).expect("listed").retiring = true;
+            self.open_conn(shard, replica, now, Some(old), fx);
+        }
     }
 
     fn maybe_finish_recycle(&mut self, conn: ConnId, recv: Ts, fx: &mut dyn Effects) {
@@ -739,7 +964,6 @@ impl<M> Core<M> {
     fn finish_recycle(&mut self, new: ConnId, recv: Ts, fx: &mut dyn Effects) {
         let Some(old) = self.conns.get_mut(&new).and_then(|c| c.replacing.take()) else { return };
         self.conns.get_mut(&new).expect("exists").awaiting.clear();
-        self.recycle_started = None;
         self.metrics.recycles += 1;
         fx.send(old, ConnCmd::Close);
         // Hand over sources now rather than waiting for the old actor to exit.
@@ -1028,6 +1252,26 @@ mod tests {
     }
 
     #[test]
+    fn rotation_marks_the_cut_and_snapshots_every_published_book() {
+        let (mut core, mut fx, now) = setup();
+        core.cfg.rotate_every = Some(Duration::from_secs(10));
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(0, 1, &[book("b", 5, &[(400, 1)], &[])], now, &mut fx);
+        let cut = |out: &[Rec]| out.iter().position(|r| matches!(r, Rec::Rotate { .. }));
+        core.out.clear();
+        core.on_tick(now, 3_000_000, &mut fx);
+        assert_eq!(core.out[0], Rec::Rotate { epoch: 0 });
+        assert_eq!(core.out[1..].iter().filter(|r| matches!(r, Rec::Snapshot { .. })).count(), 4);
+        core.out.clear();
+        core.on_tick(now + Duration::from_secs(1), 9_999_999, &mut fx);
+        assert_eq!(cut(&core.out), None, "same period");
+        core.on_tick(now + Duration::from_secs(2), 10_000_000, &mut fx);
+        let i = cut(&core.out).unwrap();
+        assert_eq!(core.out[i], Rec::Rotate { epoch: 1 });
+        assert!(core.out[i + 1..].iter().filter(|r| matches!(r, Rec::Snapshot { .. })).count() >= 4);
+    }
+
+    #[test]
     fn partial_shard_opens_after_wait() {
         let (mut core, mut fx, now) = setup();
         core.add(vec![inst("x", &["p", "q", "r", "s", "t", "u", "v", "w", "y"])], &mut fx);
@@ -1055,5 +1299,133 @@ mod tests {
         assert!(fx.sent.iter().any(|(c, s)| *c == 0 && s == "Close"));
         assert_eq!(core.metrics.recycles, 1);
         assert!(core.out.is_empty(), "identical books: handover is invisible in the output");
+    }
+
+    fn set_rate(core: &mut Core<()>, t: &str, rate: f32) {
+        core.tokens.get_mut(t).unwrap().rate = rate;
+    }
+
+    #[test]
+    fn quiet_token_is_resubscribed_on_every_replica() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        // 6 deltas a minute: one every 10 s, so quiet after 10 gaps = 100 s.
+        set_rate(&mut core, "a", 6.0);
+        core.check_quiet(now + Duration::from_secs(99), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 0, "within its usual silence");
+        core.check_quiet(now + Duration::from_secs(101), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 1);
+        let mut to: Vec<ConnId> = fx.sent.iter().filter(|(_, s)| s == r#"Resnapshot(["a"])"#).map(|(c, _)| *c).collect();
+        to.sort();
+        assert_eq!(to, vec![0, 1], "every replica resubscribes: none of them is hearing anything");
+    }
+
+    #[test]
+    fn quiet_backs_off_until_a_delta_returns() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        set_rate(&mut core, "a", 6.0);
+        let at = |s| now + Duration::from_secs(s);
+        core.check_quiet(at(101), &mut fx);
+        core.check_quiet(at(250), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 1, "second wait is doubled to 200 s");
+        core.check_quiet(at(302), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 2);
+        core.on_events(0, 2, &[lvl("a", 6, Side::Bid, 410, 1)], at(310), &mut fx);
+        assert_eq!(core.tokens["a"].quiet_strikes, 0, "a delta proves the feed is back");
+        core.check_quiet(at(411), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 3, "and the normal 100 s applies again");
+    }
+
+    #[test]
+    fn slow_token_is_left_to_recycling() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        set_rate(&mut core, "a", 0.5);
+        core.check_quiet(now + Duration::from_secs(3 * 3600), &mut fx);
+        assert_eq!(core.metrics.quiet_resubs, 0, "below min_rate silence says nothing");
+    }
+
+    #[test]
+    fn rates_follow_delta_counts() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        for ts in 6..16 {
+            core.on_events(0, 2, &[lvl("a", ts, Side::Bid, 400, ts)], now, &mut fx);
+            core.on_events(1, 2, &[lvl("a", ts, Side::Bid, 400, ts)], now, &mut fx);
+        }
+        core.roll_rates();
+        assert_eq!(core.tokens["a"].rate, 1.0, "10 distinct deltas (seen on two sockets) smoothed by 0.1");
+        assert_eq!(core.tokens["b"].rate, 0.0);
+    }
+
+    fn busy_window(core: &mut Core<()>, fx: &mut Fx, now: Instant, conn: ConnId, n: i64) {
+        for ts in 0..n {
+            core.on_events(conn, 2, &[lvl("a", 100 + ts, Side::Bid, 400, 1)], now, fx);
+        }
+    }
+
+    #[test]
+    fn socket_quiet_while_peer_is_busy_reconnects() {
+        let (mut core, mut fx, now) = setup();
+        core.on_up(0, now);
+        core.on_up(1, now);
+        busy_window(&mut core, &mut fx, now, 1, 40);
+        core.check_quiet_conns(now + Duration::from_secs(31), &mut fx);
+        assert_eq!(fx.sent, vec![(0, "Reconnect".to_string())]);
+        assert_eq!(core.metrics.quiet_reconnects, 1);
+        core.check_quiet_conns(now + Duration::from_secs(62), &mut fx);
+        assert_eq!(core.metrics.quiet_reconnects, 1, "not again until it is back up for a window");
+    }
+
+    #[test]
+    fn shard_quiet_on_both_sockets_is_not_a_socket_fault() {
+        let (mut core, mut fx, now) = setup();
+        core.on_up(0, now);
+        core.on_up(1, now);
+        busy_window(&mut core, &mut fx, now, 0, 5);
+        core.check_quiet_conns(now + Duration::from_secs(31), &mut fx);
+        assert_eq!(core.metrics.quiet_reconnects, 0, "a peer below conn_min is no evidence");
+        core.check_quiet_conns(now + Duration::from_secs(10), &mut fx);
+        assert_eq!(core.metrics.quiet_reconnects, 0);
+    }
+
+    #[test]
+    fn recycles_run_in_parallel_across_shards_only() {
+        let mut core = Core::new(
+            Config { tokens_per_conn: 1, max_conn_age: Some(Duration::from_secs(10)), recycle_parallel: 2, ..Config::default() },
+            Box::new(NoCheck),
+        );
+        let mut fx = Fx::default();
+        let now = Instant::now();
+        core.add(vec![inst("m", &["a"]), inst("n", &["b"]), inst("o", &["c"])], &mut fx);
+        core.flush_pending(now, &mut fx);
+        assert_eq!(fx.spawned.len(), 6, "three shards × two replicas");
+        core.maybe_start_recycle(now + Duration::from_secs(11), &mut fx);
+        let new: Vec<_> = fx.spawned[6..].iter().map(|(id, _, t)| (*id, t.clone())).collect();
+        assert_eq!(new.len(), 2, "capped at recycle_parallel");
+        assert_ne!(new[0].1, new[1].1, "never both replicas of one shard");
+        core.maybe_start_recycle(now + Duration::from_secs(12), &mut fx);
+        assert_eq!(fx.spawned.len(), 8, "no more until one finishes");
+    }
+
+    #[test]
+    fn conn_ids_start_at_the_core_base() {
+        let mut core = Core::new(Config { tokens_per_conn: 10, conn_id_base: 1 << 20, ..Config::default() }, Box::new(NoCheck));
+        let mut fx = Fx::default();
+        core.add(vec![inst("m", &["a"])], &mut fx);
+        core.flush_pending(Instant::now(), &mut fx);
+        assert_eq!(fx.spawned.iter().map(|s| s.0).collect::<Vec<_>>(), vec![1 << 20, (1 << 20) + 1]);
+    }
+
+    #[test]
+    fn metrics_merge_sums_counts_and_histograms() {
+        let mut a = Metrics { updates: 2, quiet_resubs: 1, ..Metrics::default() };
+        a.wire.record(1000);
+        let mut b = Metrics { updates: 3, ..Metrics::default() };
+        b.wire.record(5000);
+        a.merge(&b);
+        assert_eq!((a.updates, a.quiet_resubs, a.wire.n, a.wire.max), (5, 1, 2, 5000));
     }
 }

@@ -1,7 +1,12 @@
-//! The only owner of the output file: a dedicated OS thread fed by a bounded channel, so
+//! The only owner of the output files: a dedicated OS thread fed by a bounded channel, so
 //! disk latency never stalls the async runtime and nothing is ever dropped (§5.7).
+//!
+//! With rotation, output is cut into wall-clock periods. Each core marks the cut in its own
+//! stream (`Rec::Rotate`) and follows it with a snapshot of every book it publishes, so each
+//! file replays on its own. A period's file is written as `.part` and renamed once every core
+//! has moved past it: a consumer can take any `.sbe` file as complete.
 
-use std::{path::PathBuf, thread::JoinHandle};
+use std::{collections::BTreeMap, path::PathBuf, thread::JoinHandle, time::Duration};
 
 use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
@@ -27,9 +32,13 @@ pub enum Rec {
     Update { sym: Sym, recv: Ts, exch: Ts, px: Fx, qty: Fx },
     /// One side of one book, best level first.
     Snapshot { sym: Sym, recv: Ts, exch: Ts, side: Side, levels: Vec<(Fx, Fx)> },
+    /// What follows from this source belongs to rotation period `epoch` (wall µs / period).
+    Rotate { epoch: i64 },
 }
 
 pub type Batch = Vec<Rec>;
+/// A batch tagged with the core that produced it: rotation is tracked per source.
+pub type Tagged = (usize, Batch);
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Stats {
@@ -41,14 +50,66 @@ fn ts(us: Ts) -> anyhow::Result<DateTime<Utc>> {
     DateTime::from_timestamp_micros(us).ok_or_else(|| anyhow::anyhow!("timestamp out of range: {us}"))
 }
 
-/// Starts the writer thread. It exits after the last sender is dropped and the channel is
-/// drained, flushing the final chunk and syncing the file.
-pub fn spawn(path: PathBuf, cap: usize) -> anyhow::Result<(mpsc::Sender<Batch>, JoinHandle<anyhow::Result<Stats>>)> {
+struct Part {
+    w: AlignedSbeWriter,
+    tmp: PathBuf,
+    fin: PathBuf,
+}
+
+impl Part {
+    fn finish(self) -> anyhow::Result<()> {
+        let Part { mut w, tmp, fin } = self;
+        w.flush()?;
+        drop(w);
+        if fin != std::path::Path::new("/dev/stdout") {
+            std::fs::OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
+            if tmp != fin {
+                std::fs::rename(&tmp, &fin)?;
+                tracing::info!(file = %fin.display(), "rotated output file complete");
+            }
+        }
+        Ok(())
+    }
+}
+
+/// `orderbook.sbe` for period starting 2026-10-23 12:00 becomes `orderbook.20261023T1200Z.sbe`.
+fn period_path(base: &std::path::Path, start_us: Ts) -> anyhow::Result<PathBuf> {
+    let stem = base.file_stem().and_then(|s| s.to_str()).unwrap_or("orderbook");
+    let ext = base.extension().and_then(|s| s.to_str()).unwrap_or("sbe");
+    Ok(base.with_file_name(format!("{stem}.{}.{ext}", ts(start_us)?.format("%Y%m%dT%H%MZ"))))
+}
+
+/// Starts the writer thread for `sources` producers. It exits after the last sender is dropped
+/// and the channel is drained, flushing and syncing every open file.
+pub fn spawn(
+    path: PathBuf,
+    cap: usize,
+    rotate: Option<Duration>,
+    sources: usize,
+) -> anyhow::Result<(mpsc::Sender<Tagged>, JoinHandle<anyhow::Result<Stats>>)> {
     let target = if path.as_os_str() == "-" { PathBuf::from("/dev/stdout") } else { path };
-    let mut w = AlignedSbeWriter::create(&target, CHUNK)?;
-    let (tx, mut rx) = mpsc::channel::<Batch>(cap);
+    let period = rotate.map(|p| p.as_micros().max(1) as i64);
+    anyhow::ensure!(
+        period.is_none() || target != std::path::Path::new("/dev/stdout"),
+        "rotation needs a file path, not stdout"
+    );
+    let open = move |epoch: i64| -> anyhow::Result<Part> {
+        let fin = match period {
+            Some(p) => period_path(&target, epoch * p)?,
+            None => target.clone(),
+        };
+        let tmp = if period.is_some() { fin.with_extension("sbe.part") } else { fin.clone() };
+        Ok(Part { w: AlignedSbeWriter::create(&tmp, CHUNK)?, tmp, fin })
+    };
+    let now_us = chrono::Utc::now().timestamp_micros();
+    let start = period.map_or(0, |p| now_us / p);
+    // Open before the thread starts so a bad path fails the process at once.
+    let mut files = BTreeMap::from([(start, open(start)?)]);
+    let (tx, mut rx) = mpsc::channel::<Tagged>(cap);
     let h = std::thread::Builder::new().name("writer".into()).spawn(move || {
         let mut stats = Stats::default();
+        // The period each source is currently writing into.
+        let mut at = vec![start; sources.max(1)];
         // Reused across messages: the symbol `String` is the only per-message allocation.
         let mut upd = PriceLevelUpdateDomain {
             backtest_timestamp: DateTime::UNIX_EPOCH,
@@ -57,8 +118,24 @@ pub fn spawn(path: PathBuf, cap: usize) -> anyhow::Result<(mpsc::Sender<Batch>, 
             quantity: 0,
             symbol: String::new(),
         };
-        while let Some(batch) = rx.blocking_recv() {
+        while let Some((src, batch)) = rx.blocking_recv() {
             for rec in batch {
+                if let Rec::Rotate { epoch } = rec {
+                    if period.is_some() && epoch > at[src] {
+                        at[src] = epoch;
+                        let low = *at.iter().min().unwrap_or(&epoch);
+                        while files.first_key_value().is_some_and(|(&e, _)| e < low) {
+                            files.pop_first().map(|(_, p)| p.finish()).transpose()?;
+                        }
+                    }
+                    continue;
+                }
+                let e = at[src];
+                let w = match files.entry(e) {
+                    std::collections::btree_map::Entry::Occupied(o) => o.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(v) => v.insert(open(e)?),
+                };
+                let w = &mut w.w;
                 match rec {
                     Rec::Update { sym, recv, exch, px, qty } => {
                         upd.backtest_timestamp = ts(recv)?;
@@ -97,13 +174,12 @@ pub fn spawn(path: PathBuf, cap: usize) -> anyhow::Result<(mpsc::Sender<Batch>, 
                         w.write_msg(&snap)?;
                         stats.snapshots += 1;
                     }
+                    Rec::Rotate { .. } => unreachable!("handled above"),
                 }
             }
         }
-        w.flush()?;
-        drop(w);
-        if target != std::path::Path::new("/dev/stdout") {
-            std::fs::OpenOptions::new().write(true).open(&target)?.sync_all()?;
+        for (_, p) in files {
+            p.finish()?;
         }
         Ok(stats)
     })?;
@@ -119,12 +195,12 @@ mod tests {
     fn round_trips_through_template_reader() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("out.sbe");
-        let (tx, h) = spawn(path.clone(), 4).unwrap();
+        let (tx, h) = spawn(path.clone(), 4, None, 1).unwrap();
         let sym: Sym = "123:bid".into();
-        tx.blocking_send(vec![
+        tx.blocking_send((0, vec![
             Rec::Snapshot { sym: sym.clone(), recv: 2, exch: 1, side: Side::Bid, levels: vec![(500_000, 10), (400_000, 20)] },
             Rec::Update { sym: sym.clone(), recv: 4, exch: 3, px: 500_000, qty: 0 },
-        ])
+        ]))
         .unwrap();
         drop(tx);
         let stats = h.join().unwrap().unwrap();
@@ -139,5 +215,37 @@ mod tests {
         let u = PriceLevelUpdateDomain::try_from_decoder(u).unwrap();
         assert_eq!((u.price_level, u.quantity, u.backtest_timestamp.timestamp_micros()), (500_000, 0, 4));
         assert!(r.read_msg().unwrap().is_none());
+    }
+
+    fn count(path: &std::path::Path) -> usize {
+        let mut r = AlignedSbeReader::<OrderbookSchema>::open(path).unwrap();
+        std::iter::from_fn(|| r.read_msg().unwrap().map(|_| ())).count()
+    }
+
+    #[test]
+    fn rotation_closes_a_period_once_every_source_has_left_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().join("ob.sbe");
+        let period = Duration::from_secs(3600);
+        let (tx, h) = spawn(base.clone(), 4, Some(period), 2).unwrap();
+        let p = period.as_micros() as i64;
+        let now = chrono::Utc::now().timestamp_micros() / p;
+        let upd = |recv| Rec::Update { sym: "1:bid".into(), recv, exch: recv, px: 1, qty: 1 };
+        let done = |e: i64| period_path(&base, e * p).unwrap();
+        let sync = || std::thread::sleep(Duration::from_millis(100));
+
+        tx.blocking_send((0, vec![upd(1), Rec::Rotate { epoch: now + 1 }, upd(2)])).unwrap();
+        sync();
+        // Source 1 is still in the first period, so its file stays open.
+        assert!(!done(now).exists());
+        tx.blocking_send((1, vec![upd(3), Rec::Rotate { epoch: now + 1 }])).unwrap();
+        sync();
+        assert!(done(now).exists());
+        assert_eq!(count(&done(now)), 2);
+        assert!(!done(now + 1).exists(), "current period stays .part");
+        drop(tx);
+        let stats = h.join().unwrap().unwrap();
+        assert_eq!(stats.updates, 3);
+        assert_eq!(count(&done(now + 1)), 1);
     }
 }
