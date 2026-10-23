@@ -24,6 +24,8 @@ Hardware notes:
 | Soak 1 | Codespace, 90 min | 559k tokens, 452 sockets, 2 cores | 185M | 262 ms (queue) | 262 ms | 0, all 10 files | Ext 2 over-tuned; slow-consumer closes |
 | Soak 2 | Codespace, 30 min | 560k tokens, 2 cores | 64M | 66–145 ms (13 s after freeze) | 2.1 s after freeze | 0, all 4 files | Ext 2 fixed; core CPU is the limit |
 | Profile 2 | Codespace, 10 min | 561k tokens, 452 sockets | 18.6M | 247 ms–13.5 s per file | p99 4.2 s | 0 / 10.3M, all 3 files | Core CPU −38%; rotation fsync stalls everything |
+| A/B, A | Codespace, 15 + 35 min | 566k tokens | 29.9M + 78.7M | 8.4 s / 262 ms (p99) | 1.05 s | 0 / 55.1M, all files | Fix 1 alone removes rotation stalls |
+| A/B, B | Codespace, 15 + 35 min | 566k tokens | 29.9M + 78.7M | 8.4 s / 524 ms (p99) | 1.0 s / 0.52 s | 0 / 54.7M, all files | Fix 2 small gain; fix 3 causes resolve-loop disconnects |
 
 ---
 
@@ -491,3 +493,148 @@ loop seen last turn.
 - Hash cost: cache each side's encoded levels so that a delta re-encodes one level, not the whole
   book. Also skip the standby bookkeeping in `HashCheck::on_event`.
 - Readers: decode through a tagged or borrowed serde path to cut allocations.
+
+---
+
+## Turn — Fixes 1–4 built, then an A/B of fixes 2 and 3
+
+**Ask:** build the four fixes from the last turn. Then run an A/B: A = fixes 1 and 4, B = A plus
+fixes 2 and 3. Use more than one rotation interval, and decide whether 2 and 3 make the collector
+better in general, not just on the profiled run.
+
+The fixes are general by design. Nothing names a market, enlarges a queue, or tunes a timeout to
+this 4-core host. Fix 3 measures message rates at runtime and decides for itself.
+
+### What was built
+
+**A — commit a0c6d43**
+1. **Fix 1, finish rotated files on a background thread.** The writer hands the old file to a
+   `finisher` thread, which flushes, fsyncs and renames it. The writer goes straight back to
+   draining its channel.
+2. **Fix 4, cheaper hash bookkeeping.** `recent` keeps prices as numbers (`VecDeque<Fx>`), not
+   strings.
+   - We also benchmarked a reusable encode buffer. It gave nothing: SHA1 is about 62% of the digest
+     cost. One digest costs 645 / 1,829 / 4,790 ns at book depth 5 / 20 / 60. We reverted it.
+   - We dropped the planned per-level encoding cache. By that benchmark it would save about 2% of a
+     core, which is not worth the extra state.
+
+**B — commit 6e4df8b = A plus:**
+1. **Fix 2, spread rotation snapshots.** Rotation no longer snapshots every published book in one
+   tick. Announced tokens join a queue, drained over up to 10 ticks
+   (`ROTATE_SPREAD_SECS`, and never more than half the period).
+   - A token that changes before its turn is snapshotted first, on the spot (`rot_early`). So
+     every file still starts each book with a snapshot. The verifier is unchanged and stays strict.
+2. **Fix 3, split hot shards.** Every 60 ticks, after a 180-tick warm-up, each core sums the
+   measured rates per shard.
+   - It needs at least 3 live shards.
+   - If the hottest shard is over `max(median × split_ratio, 20k msg/s)` and both of its sockets
+     are up, the core moves the shard's hottest markets to a new shard, until about half its rate
+     has moved.
+   - The handover is make-before-break, like recycling: the new sockets subscribe first, and the old
+     ones unsubscribe once every moved book has arrived (or after the grace period).
+   - The new shard is closed to markets listed later. `--split-ratio` defaults to 3, and 0 turns
+     splitting off.
+
+**Tests:** 48 unit tests, 6 of them new: lazy rotation, early snapshot, make-before-break split,
+no split near the median, handover after grace with a market resolving mid-split, closed shard. The
+3 integration tests pass and clippy is clean. A local 300 s smoke run of B with 1-minute files
+gave 6 files, all verified, 0 mismatches.
+
+### How the A/B ran
+
+- Two Codespaces of the same type (WestEurope, 4 vCPU, 16 GB), one per arm.
+- Both runs were scripted from the same start second, so they saw the same market and crossed the
+  same rotations. That was 23 Oct, 17:39–18:54 UTC.
+- No perf was attached. Per-thread CPU came from `/proc` every 10 s.
+- Each file was verified (niced) and deleted as soon as it was finished.
+- Script: `bench/ab.sh`.
+
+| Config | Duration | Files | Freeze (SIGSTOP 15 s) |
+|---|---|---|---|
+| full-rot5 | 900 s, all markets | 5 min | at t=600 s |
+| full-rot15 | 2,100 s, all markets | 15 min | at t=1,500 s |
+| small-rot5 | 900 s, `--max-markets 4000` | 5 min | none |
+
+### Results
+
+**Correctness, both arms, every config:** every file verified with **0 mismatches**.
+- full-rot5: 16.0M (A) and 15.8M (B) snapshots replayed.
+- full-rot15: 39.2M and 38.9M.
+- small-rot5: 0.24M each.
+
+**Full universe** (283k markets, ~566k tokens, ~450 sockets). Percentages are of one core.
+
+| | rot5 A | rot5 B | rot15 A | rot15 B |
+|---|---|---|---|---|
+| Updates | 29.92M | 29.91M | 78.70M | 78.71M |
+| Order-book threads, mean (steady) | 76% | 72% | 83% | 80% |
+| Order-book threads, peak 10 s | 426% | 363% | 1,120% | 1,068% |
+| Socket readers, mean | 109% | 107% | 129% | 124% |
+| Writer, mean | 10% | 10% | 11% | 11% |
+| Blocked time, rotation windows | **0** | **0** | **0** | **0** |
+| Blocked time, freeze window | 502 s | 487 s | 957 s | 1,112 s |
+| Writer backpressure warnings | 0 | 0 | 2 | 2 |
+| Slow-consumer closes | 11 | 3 | 2 | 3 |
+| **Disconnects** | 15 | **163** | 34 | **633** |
+| …of which "invalid subscription payload" | 0 | 149 | 0 | 592 |
+| Source switches | 49,300 | 40,082 | 91,885 | 79,088 |
+| Lag switches | 114 | 1,496 | 683 | 1,166 |
+| Exch→recv p99 | 8.4 s | 8.4 s | 262 ms | 524 ms |
+| Core queue p99 | 1.05 s | 1.00 s | 1.05 s | 0.52 s |
+| `rot_early` | — | 46,755 | — | 54,564 |
+| Splits (tokens moved) | — | 19 (394) | — | 8 (20) |
+
+Blocked time is reader time spent waiting on a full core queue, summed over all sockets, per 30 s
+window. The rot5 p99 latencies include the freeze.
+
+**small-rot5:** CPU 1–3% everywhere, no stalls, no disconnects, no splits. The two arms are **not
+comparable on volume**. Each Codespace wrote its own universe cache in a different order, so
+`--max-markets 4000` took a different 4,000 markets on each (A: 792k updates, B: 422k). Only the
+correctness and idle-cost results carry over.
+
+### What it shows
+
+1. **Fix 1 alone removed the rotation stall.**
+   - Arm A had zero blocked time in every rotation window across 11 rotations, at both intervals.
+     Profile 2 had 330 s and 1,153 s blocked in its two rotation windows.
+   - Writer backpressure appeared only around the freeze.
+   - So by the time fix 2 arrives, there is no rotation stall left for it to remove.
+2. **Fix 2 is correct and cheap, but its gain is small.**
+   - Order-book CPU was 3–4 points lower on average, and 5–15% lower at the peak.
+   - That is about the size of the difference two VMs can show anyway, so we do not claim it as a
+     proven speed-up.
+   - What it does guarantee is structural: rotation now emits at most a tenth of the books per tick
+     instead of all 1.1M at once, whatever the universe size.
+   - About 47–55k books per file were snapshotted early because they changed before their turn. The
+     verifier stays strict and passes.
+   - **Keep it.**
+3. **Fix 3, as built, makes things worse.** Disconnects went up 11× at 5-minute files and 19× at
+   15-minute files. Lag switches went up too. Slow-consumer closes fell from 11 to 3 at 5-minute
+   files, but rose from 2 to 3 at 15-minute files. The cause is the market, not the code path we
+   tested:
+   - **The hot markets are short-lived.** A shard's rate is dominated by the recurring crypto
+     up/down markets, which last 5–15 minutes. A split moves exactly those markets. When they all
+     resolve, the venue closes the socket with "all subscribed assets resolved".
+   - **Then a reconnect loop.** The reader still holds those tokens. It reconnects, re-sends them,
+     gets "invalid subscription payload" (policy close), and retries until the core drops the
+     markets. Splits made 98% of all disconnects in B. The bug exists in A too, but a token-count
+     shard almost never has all of its markets resolve.
+   - **Splitting does not cool the shard.** New hot markets keep landing on the open tail shard. On
+     each core, shard 103 was split 6 times in 15 minutes, and the hottest sockets in B's windows
+     were still `206`/`207` at 33–39 MB per 30 s.
+   - Rebalancing by measured rate assumes a shard's rate is stable. On Polymarket it is not. The
+     load moves to whatever markets are newest.
+
+**Verdict:** A + fix 2 is a general improvement: the same output, the same correctness, no rotation
+burst, and slightly less core CPU. Fix 3 is a regression in its current form. It should not ship
+switched on.
+
+**Open:**
+- **The resolved-assets reconnect loop is a real bug in both arms.** When the venue says every
+  subscribed asset resolved, the reader should not resubscribe those tokens, and the core should
+  drop them.
+- **Fix 3 should default to off** (`--split-ratio 0`) until it accounts for market lifetime. One
+  way is to place newly listed markets by their expected rate, for example from the series they
+  belong to, so the tail shard does not keep re-heating.
+- If fix 3 is reworked, rerun it against a fresh arm A at the same time. Pin the universe cache so
+  that the small config compares the same markets.
