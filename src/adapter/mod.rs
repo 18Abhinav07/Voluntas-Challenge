@@ -137,6 +137,11 @@ pub trait ExchangeAdapter: Send + Sync + 'static {
     fn subscribe_initial(&self, tokens: &[Sym]) -> String;
     fn subscribe(&self, tokens: &[Sym]) -> String;
     fn unsubscribe(&self, tokens: &[Sym]) -> String;
+    /// Whether a close frame's reason says every asset the socket subscribed to has resolved.
+    /// Resubscribing those assets is refused, so the socket must drop them instead.
+    fn all_resolved(&self, _close_reason: &str) -> bool {
+        false
+    }
 
     /// Decodes one text frame. Must not allocate per level beyond the output vectors.
     fn decode(&self, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()>;

@@ -54,8 +54,9 @@ struct Args {
     #[arg(long, default_value_t = 60)]
     recycle_mins: u64,
     /// Split a shard off when its measured message rate passes this many times the median
-    /// shard's (0 = never).
-    #[arg(long, default_value_t = 3.0)]
+    /// shard's (0 = never, the default: on Polymarket the hot markets are the short-lived ones,
+    /// so a split shard re-heats as new ones list and empties as they resolve; see the log).
+    #[arg(long, default_value_t = 0.0)]
     split_ratio: f32,
     /// Cut output into files of this many minutes, named by period start (0 = one file).
     #[arg(long, default_value_t = 0)]
@@ -204,6 +205,7 @@ fn apply(core: &mut Core<Meta>, rt: &mut Runtime, msg: Inbound) {
         }
         Inbound::Up { conn } => core.on_up(conn, now),
         Inbound::Down { conn, .. } => core.on_down(conn, now_us()),
+        Inbound::Resolved { conn, tokens } => core.on_resolved(conn, &tokens, now_us(), rt),
         Inbound::Gone { conn } => {
             rt.conns.remove(&conn);
             core.on_gone(conn, now_us());

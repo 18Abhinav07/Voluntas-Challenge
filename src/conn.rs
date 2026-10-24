@@ -116,6 +116,9 @@ pub enum Inbound {
     Up { conn: ConnId },
     /// Lost the socket; the core must stop trusting this replica until its books return.
     Down { conn: ConnId, reason: String },
+    /// The venue closed the socket because every token in `tokens` resolved. The actor has
+    /// dropped them; it stays idle without a socket until it is given new tokens.
+    Resolved { conn: ConnId, tokens: Vec<Sym> },
     /// The actor exited (closed or cancelled).
     Gone { conn: ConnId },
 }
@@ -211,13 +214,41 @@ pub fn spawn<A: ExchangeAdapter>(spec: ConnSpec<A>) -> ConnHandle {
 enum Exit {
     Closed,
     Lost(String),
+    Resolved(String),
+}
+
+/// Applies a command that arrived while no socket is open, so the next session subscribes to
+/// the current set. A refresh or reconnect is moot: the next session subscribes afresh anyway.
+/// Returns false when the actor should exit.
+fn apply_offline(tokens: &mut BTreeSet<Sym>, cmd: Option<ConnCmd>) -> bool {
+    match cmd {
+        None | Some(ConnCmd::Close) => return false,
+        Some(ConnCmd::Subscribe(t)) => tokens.extend(t),
+        Some(ConnCmd::Unsubscribe(t)) => {
+            for x in &t {
+                tokens.remove(x);
+            }
+        }
+        Some(ConnCmd::Resnapshot(_) | ConnCmd::Reconnect) => {}
+    }
+    true
 }
 
 async fn run<A: ExchangeAdapter>(spec: ConnSpec<A>, mut cmds: mpsc::UnboundedReceiver<ConnCmd>) {
     let mut tokens: BTreeSet<Sym> = spec.tokens.iter().cloned().collect();
     let stats = register_stats(spec.id);
     let mut failures = 0u32;
-    loop {
+    'run: loop {
+        // With nothing to subscribe there is nothing to connect for.
+        while tokens.is_empty() {
+            let cmd = tokio::select! {
+                _ = spec.cancel.cancelled() => None,
+                c = cmds.recv() => c,
+            };
+            if !apply_offline(&mut tokens, cmd) {
+                break 'run;
+            }
+        }
         let started = Instant::now();
         let exit = tokio::select! {
             _ = spec.cancel.cancelled() => Exit::Closed,
@@ -231,6 +262,16 @@ async fn run<A: ExchangeAdapter>(spec: ConnSpec<A>, mut cmds: mpsc::UnboundedRec
                     break;
                 }
             }
+            Exit::Resolved(reason) => {
+                tracing::info!(conn = spec.id, tokens = tokens.len(), "every subscribed asset resolved; dropping them");
+                let gone = std::mem::take(&mut tokens).into_iter().collect();
+                if spec.out.send(Inbound::Resolved { conn: spec.id, tokens: gone }).await.is_err()
+                    || spec.out.send(Inbound::Down { conn: spec.id, reason }).await.is_err()
+                {
+                    break;
+                }
+                continue; // idle until new tokens come; no backoff needed for that
+            }
         }
         // A session that stayed up for a while resets the backoff.
         failures = if started.elapsed() > Duration::from_secs(60) { 1 } else { failures + 1 };
@@ -239,6 +280,13 @@ async fn run<A: ExchangeAdapter>(spec: ConnSpec<A>, mut cmds: mpsc::UnboundedRec
         tokio::select! {
             _ = spec.cancel.cancelled() => break,
             _ = sleep(wait) => {}
+        }
+        // Commands sent while the socket was down: without them the next session would
+        // resubscribe tokens the core already dropped (a resolved market, a finished split).
+        while let Ok(c) = cmds.try_recv() {
+            if !apply_offline(&mut tokens, Some(c)) {
+                break 'run;
+            }
         }
     }
     drop_stats(spec.id);
@@ -293,7 +341,13 @@ async fn session<A: ExchangeAdapter>(
                 last_frame = Instant::now();
                 let text = match msg {
                     Some(Ok(Message::Text(t))) => t,
-                    Some(Ok(Message::Close(f))) => return Exit::Lost(format!("server closed: {f:?}")),
+                    Some(Ok(Message::Close(f))) => {
+                        let reason = format!("server closed: {f:?}");
+                        return match f {
+                            Some(f) if a.all_resolved(&f.reason) => Exit::Resolved(reason),
+                            _ => Exit::Lost(reason),
+                        };
+                    }
                     Some(Ok(_)) => continue, // binary/ping/pong: tungstenite answers pings itself
                     Some(Err(e)) => return Exit::Lost(format!("read: {e}")),
                     None => return Exit::Lost("stream ended".into()),
@@ -333,6 +387,8 @@ async fn session<A: ExchangeAdapter>(
                         let _ = sink.send(Message::Close(None)).await;
                         return Exit::Closed;
                     }
+                    // The venue rejects an empty list as an invalid payload and closes the socket.
+                    Some(ConnCmd::Subscribe(t) | ConnCmd::Unsubscribe(t) | ConnCmd::Resnapshot(t)) if t.is_empty() => continue,
                     Some(ConnCmd::Subscribe(t)) => {
                         tokens.extend(t.iter().cloned());
                         vec![a.subscribe(&t)]
@@ -398,6 +454,17 @@ pub async fn resolve_edges(url: &str) -> anyhow::Result<Vec<SocketAddr>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offline_commands_update_the_token_set() {
+        let mut t: BTreeSet<Sym> = BTreeSet::new();
+        assert!(apply_offline(&mut t, Some(ConnCmd::Subscribe(vec!["a".into(), "b".into()]))));
+        assert!(apply_offline(&mut t, Some(ConnCmd::Unsubscribe(vec!["a".into()]))));
+        assert!(apply_offline(&mut t, Some(ConnCmd::Reconnect)));
+        assert_eq!(t.into_iter().collect::<Vec<_>>(), vec![Sym::from("b")]);
+        assert!(!apply_offline(&mut BTreeSet::new(), Some(ConnCmd::Close)));
+        assert!(!apply_offline(&mut BTreeSet::new(), None));
+    }
 
     #[tokio::test(start_paused = true)]
     async fn outage_gap_is_not_kept_once_opens_recover() {

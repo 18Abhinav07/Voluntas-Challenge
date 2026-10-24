@@ -222,6 +222,10 @@ impl ExchangeAdapter for Polymarket {
         serde_json::json!({"assets_ids": tokens, "operation": "unsubscribe"}).to_string()
     }
 
+    fn all_resolved(&self, close_reason: &str) -> bool {
+        close_reason == "all subscribed assets resolved"
+    }
+
     fn decode(&self, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()> {
         // `PONG`, and plain-text status replies such as `NO NEW ASSETS` (re-subscribing a token
         // the socket already has).

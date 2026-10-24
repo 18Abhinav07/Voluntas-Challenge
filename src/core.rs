@@ -113,7 +113,7 @@ impl Default for Config {
             recycle_parallel: 2,
             conn_id_base: 0,
             quiet: Quiet::default(),
-            split_ratio: Some(3.0),
+            split_ratio: None,
             split_min_rate: 20_000.0,
         }
     }
@@ -206,6 +206,8 @@ pub struct Metrics {
     pub unplaced: u64,
     /// Rotation snapshots taken early because an update arrived before the drain reached them.
     pub rot_early: u64,
+    /// Sockets the venue closed because every asset they carried resolved.
+    pub resolved_closes: u64,
     /// Hot shards split, and tokens moved by those splits.
     pub splits: u64,
     pub split_tokens: u64,
@@ -221,7 +223,7 @@ impl Metrics {
         macro_rules! sum { ($($f:ident),*) => { $(self.$f += o.$f;)* } }
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
-            quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, splits, split_tokens);
+            quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }
@@ -557,6 +559,21 @@ impl<M> Core<M> {
         }
         for (c, ts) in by_conn {
             fx.send(c, ConnCmd::Unsubscribe(ts));
+        }
+    }
+
+    /// The venue closed `conn` because every token it carried resolved. Their
+    /// `market_resolved` events may never come (both replicas are closed at the same moment),
+    /// so end those markets here. A market listed in that same instant could be ended with
+    /// them; the next discovery pass lists it again.
+    pub fn on_resolved(&mut self, conn: ConnId, tokens: &[Sym], recv: Ts, fx: &mut dyn Effects) {
+        self.metrics.resolved_closes += 1;
+        let gone: HashSet<&Sym> = tokens.iter().collect();
+        let markets: Vec<Sym> =
+            self.markets.iter().filter(|(_, ts)| ts.iter().any(|t| gone.contains(t))).map(|(m, _)| m.clone()).collect();
+        tracing::info!(conn, markets = markets.len(), "socket's assets all resolved; ending their markets");
+        for m in &markets {
+            self.remove_market(m, recv, fx);
         }
     }
 
@@ -1488,6 +1505,20 @@ mod tests {
     }
 
     #[test]
+    fn socket_closed_as_all_resolved_ends_its_markets() {
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[(600, 1)])], now, &mut fx);
+        core.out.clear();
+        // No market_resolved event: the venue just closes the socket.
+        core.on_resolved(0, &["a".into(), "b".into()], 2, &mut fx);
+        assert_eq!(core.metrics.resolved_closes, 1);
+        assert_eq!(core.out.len(), 2);
+        assert!(core.out.iter().all(|r| matches!(r, Rec::Update { qty: 0, .. })));
+        assert_eq!(core.token_count(), 0);
+        assert_eq!(fx.sent.iter().filter(|(_, s)| s.starts_with("Unsubscribe")).count(), 2);
+    }
+
+    #[test]
     fn resolved_market_zeroes_levels_and_unsubscribes() {
         let (mut core, mut fx, now) = setup();
         core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[(600, 1)])], now, &mut fx);
@@ -1747,7 +1778,8 @@ mod tests {
     /// Three shards of two replicas: [a..f] on 0/1, [g..h3] on 2/3, [i j] on 4/5, all up with
     /// books on both replicas and 10 deltas a minute per token.
     fn three_shards() -> (Core<()>, Fx, Instant) {
-        let mut core = Core::new(Config { tokens_per_conn: 6, split_min_rate: 100.0, ..Config::default() }, Box::new(NoCheck));
+        let cfg = Config { tokens_per_conn: 6, split_ratio: Some(3.0), split_min_rate: 100.0, ..Config::default() };
+        let mut core = Core::new(cfg, Box::new(NoCheck));
         let mut fx = Fx::default();
         let now = Instant::now();
         core.add(vec![inst("m1", &["a", "b"]), inst("m2", &["c", "d"]), inst("m3", &["e", "f"])], &mut fx);

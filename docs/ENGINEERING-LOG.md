@@ -638,3 +638,50 @@ switched on.
   belong to, so the tail shard does not keep re-heating.
 - If fix 3 is reworked, rerun it against a fresh arm A at the same time. Pin the universe cache so
   that the small config compares the same markets.
+
+## Turn — Resolved-assets reconnect loop fixed, splitting off by default
+
+These are the two "Open" items from the A/B above.
+
+**The bug.** When every market on a socket resolved, Polymarket closed the socket with
+`Normal, "all subscribed assets resolved"`. The `market_resolved` events often never arrived,
+because both replicas were closed in the same instant. The reader kept its tokens, reconnected,
+re-sent them, and got a `Policy, "invalid subscription payload"` close. It repeated this until
+something else dropped the markets. Two more gaps made it worse:
+- The core's `Unsubscribe` commands sat in the channel during the backoff, because `cmds` was only
+  read inside a live session.
+- An empty token list (for example from a split whose live set was empty) could be sent as a
+  subscribe or unsubscribe. The venue rejects that payload.
+
+**The fix.**
+- **Adapter.** A new trait method, `ExchangeAdapter::all_resolved(close_reason)`, defaults to
+  false. Polymarket matches the exact reason string. The venue knowledge stays in the adapter.
+- **Reader (`conn.rs`).**
+  - That close frame now ends the session as `Exit::Resolved` instead of `Exit::Lost`.
+  - The reader drops its tokens and tells the core with the new `Inbound::Resolved { conn, tokens }`,
+    followed by `Down`. It does not back off and does not reconnect.
+  - While it holds no tokens, it opens no socket. It waits on its command channel and starts again
+    when the core gives it tokens. `Close`, or the channel closing, ends it.
+  - After each backoff, it applies commands that queued while it was offline, through
+    `apply_offline`, before reconnecting. A market removed during the backoff is therefore not
+    re-sent.
+  - Empty-list subscribe, unsubscribe and resnapshot commands are skipped.
+- **Core.** `Core::on_resolved` ends every market that has a token in the list, through
+  `remove_market`. That emits zero-quantity updates for its levels and unsubscribes the other
+  replica. A new metric, `resolved_closes`, counts these closes. A market listed in that same
+  instant could be ended too. The next discovery pass lists it again, so this heals itself.
+- **Splitting off by default.** `--split-ratio` now defaults to `0`, and `Config::split_ratio` to
+  `None`. The A/B showed that splits chase short-lived markets: the split shard keeps re-heating as
+  new markets list, then empties as they resolve. The code stays, and you can opt in.
+
+**Tests:** 50 unit tests and 3 golden tests pass. `cargo clippy --all-targets` is clean. New tests:
+- `socket_closed_as_all_resolved_ends_its_markets`: with no `market_resolved` event, the levels go
+  to zero, the tokens are gone, and both replicas are unsubscribed.
+- `offline_commands_update_the_token_set`: subscribe, unsubscribe and reconnect commands update the
+  token set offline, and close or a dropped channel stops the reader.
+- The split tests now opt in with `split_ratio: Some(3.0)`.
+
+**Not yet verified live.** No full-universe run has been done on this build. The check is a 15- or
+35-minute run with splitting on: "invalid subscription payload" should not appear,
+`resolved_closes` should count roughly once per emptied socket, and the disconnect count should be
+close to arm A's.
