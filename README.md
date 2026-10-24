@@ -150,8 +150,20 @@ All runs were against live Polymarket. A GitHub Codespace in WestEurope (4 vCPU,
 full-universe runs.
 
 - **Coverage:** about 283k markets, which is about 566k tokens, on about 450 sockets.
-- **Volume:** a 15-minute run writes about 30M updates. The 90-minute soak wrote 185M updates.
-- **Memory:** RSS was flat at 3.6–3.9 GB over 90 minutes.
+- **2.5-hour soak (build 1a4d84c):**
+  - 320M updates and 184M snapshots in 16 files of 10 minutes each;
+  - 0 replay mismatches in any file;
+  - 0 restarts; 535 venue disconnects, all healed by reconnect and failover;
+  - RSS rose from 2.8 to 3.3 GB as the universe grew, by 279k listings and 3.6k removals;
+  - CPU 186–197% of 400%.
+- **Volume:** a 15-minute run writes about 30M updates. One 10-minute file is about 5 GB.
+- **Memory:** RSS 2.8–3.3 GB on the full universe.
+- **Latency (2.5 h):** `wire` p99 ≤ 16.4 ms and `queue` p99 ≤ 65.5 ms. Both are histogram bucket
+  bounds, not exact values.
+  - The host clock drifted from +19 to +88 ms against time.google.com, which the clock check
+    logged, so `wire` reads low by that much.
+  - Eight disk stalls of 1.0–1.5 s made the writer apply backpressure. That is the Codespace disk
+    at about 8.5 MB/s sustained, not the collector.
 - **Faults injected:**
   - Killing all 224 sockets to one edge moved those tokens to their replicas with no replay error.
   - A 15 s process freeze recovered.

@@ -1044,3 +1044,37 @@ Tests and clippy passed after every step.
 
 **Not done:** no live Kalshi run, because it needs an account and key. `KALSHI.md` "Not done"
 lists what to check first.
+
+## Turn — 2.5-hour soak
+
+**Run:** Codespace WestEurope (4 vCPU, 16 GB), build 1a4d84c, under `--supervise`, with 10-minute
+rotation and no injected faults. 2026-10-24 09:11:57–11:42:23 UTC (14:41–17:12 IST), 9011 s.
+
+| Check | Result |
+|---|---|
+| Coverage | 551k tokens, 548k sourced, 452 sockets, 2 cores |
+| Written | 320.3M updates, 183.5M snapshots, 16 files (about 5 GB per 10 min) |
+| `verify` | **0 mismatches in all 16 files**; 162M snapshots replayed against the rebuilt book |
+| Supervisor | 0 restarts; child exited 0 after 9010.9 s |
+| Memory | RSS 2818 → 3297 MB. The rise follows the universe: 279k markets added, 3.6k removed, symbols 1.093M → 1.101M |
+| CPU | 172–197% of 400% |
+| wire / queue p99 | ≤ 16.4 ms / ≤ 65.5 ms (bucket bounds); max 6.0 s / 1.9 s |
+| Venue churn | 535 disconnects (481 WebSocket resets, 32 server Away/Again closes); 16 quiet sockets reconnected; 348 recycles; 0 unplaced tokens |
+| Source | 1.63M switches, 272 lag switches |
+| Hash check | 319.5M ok, 0.90M miss, 1.04M healed, 12.1k divergent |
+| Writer | 8 backpressure waits of 1.0–1.5 s, each logged twice (once per core) |
+| Clock | offset +19.3 → +87.6 ms; warned from +28 ms on |
+
+**What it shows:**
+- 2.5 h of the live full universe, with venue disconnects every few seconds, and the output still
+  replays exactly. No restart was needed.
+- **Memory:** the RSS climb tracks the universe growing. It is not a leak: it rises in steps when
+  listings arrive and is flat in between, for example 3031 MB from t=609 to t=1020 s.
+- **Clock:** the drift is the Codespace's clock, at about 0.45 ms a minute. The clock check
+  flagged it as designed. A production host runs chrony, and LATENCY explains how to correct
+  `wire` by the logged offset.
+- **Backpressure** waits fall on file rotations (for example 10:00:05 and 10:40:02) and
+  disk-bound moments. The writer blocks the cores instead of dropping data, which is the intended
+  trade-off (D11). A faster disk (NVMe on a real host) removes it.
+- `queue` p99 rose from ≤ 32.8 ms in the 25-min gate to ≤ 65.5 ms here: one bucket up, from the
+  same stalls.
