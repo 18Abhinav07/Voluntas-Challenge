@@ -1,0 +1,14 @@
+== tests 2026-10-24T18:36:08Z
+test result: ok. 78 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.03s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 56.28s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.17s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+== bench 2026-10-24T18:37:22Z
+== main start 2026-10-24T18:37:26Z dur=3600 rot=10 perf_at=1800 kill_at=3300
+kill -9 child 11165 at t=3304
+supervisor exit 0 at 2026-10-24T19:37:33Z
+== sample 2026-10-24T19:37:47Z
+64M	/home/ubuntu/results/sample/ob.sbe

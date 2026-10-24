@@ -1,0 +1,11 @@
+309 System time : 0.000002091 seconds slow of NTP time|RMS offset : 0.000009313 seconds|Root dispersion : 0.000032987 seconds|
+600 System time : 0.000000384 seconds fast of NTP time|RMS offset : 0.000004621 seconds|Root dispersion : 0.000030881 seconds|
+908 System time : 0.000000352 seconds fast of NTP time|RMS offset : 0.000002310 seconds|Root dispersion : 0.000029478 seconds|
+1209 System time : 0.000000232 seconds slow of NTP time|RMS offset : 0.000001110 seconds|Root dispersion : 0.000040989 seconds|
+1507 System time : 0.000000413 seconds slow of NTP time|RMS offset : 0.000000616 seconds|Root dispersion : 0.000031035 seconds|
+1809 System time : 0.000000771 seconds slow of NTP time|RMS offset : 0.000000554 seconds|Root dispersion : 0.000023532 seconds|
+2107 System time : 0.000000728 seconds fast of NTP time|RMS offset : 0.000000517 seconds|Root dispersion : 0.000033273 seconds|
+2408 System time : 0.000000481 seconds slow of NTP time|RMS offset : 0.000000476 seconds|Root dispersion : 0.000026217 seconds|
+2706 System time : 0.000000542 seconds slow of NTP time|RMS offset : 0.000000355 seconds|Root dispersion : 0.000033747 seconds|
+3007 System time : 0.000000348 seconds fast of NTP time|RMS offset : 0.000000589 seconds|Root dispersion : 0.000065729 seconds|
+3304 System time : 0.000000187 seconds fast of NTP time|RMS offset : 0.000000447 seconds|Root dispersion : 0.000042557 seconds|

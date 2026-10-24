@@ -1,0 +1,1 @@
+verify probe.sbe 128M 0s span:      599.6s, 8000 symbols messages:  90052 snapshots, 680449 updates (1135/s) replay:    82052 snapshots matched the rebuilt book, 0 did not crossed:   10 updates left a crossed book (informational) latency:   recv-exch ms p1 9 p50 12 p90 25 p99 73 p99.9 232 max 5993 OK 

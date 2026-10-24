@@ -1,0 +1,6 @@
+decode: 39034 frames, 25.3 MB, 38224 events: 1410 ns/frame, 460 MB/s
+core: 76448 event applications (2 replicas): 4665 ns/event, 2.43 allocs/event
+depth from 692 captured books: levels/side p50 25 p90 98 p99 98 max 99
+mem: 283000 markets, 566000 tokens, 454 sockets, filled in 1.8s (sourced 566000)
+mem: heap 2589 MB = 4574 B/token (empty books 652 B/token); RSS 2990 MB (+2864 MB)
+mem: of which levels 3808 B/token (79 levels per token on average)

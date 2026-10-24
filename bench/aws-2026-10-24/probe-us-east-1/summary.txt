@@ -1,0 +1,50 @@
+===== probe
+-- resources: steady mean (t>180) and peak; CPU in % of one CPU per thread group
+core=2.0 tokio=3.3 wr_mbs=0.3 finisher=0.0 load=0.1 main=0.0 rss_mb=144.5 writer=0.0 rx_mbps=0.0 
+core=4 tokio=12 wr_mbs=6 finisher= load=0.48 main= rss_mb=152 writer= rx_mbps= 
+-- verify
+verify probe.sbe 128M 0s span:      598.6s, 8000 symbols messages:  90008 snapshots, 679122 updates (1135/s) replay:    82008 snapshots matched the rebuilt book, 0 did not crossed:   10 updates left a crossed book (informational) latency:   recv-exch ms p1 41 p50 43 p90 62 p99 349 p99.9 725 max 6011 OK 
+-- mismatches total: 0 in 1 files
+-- host delay (app - kernel), every window
+ INFO collector: host delay window=frames 38455 app-kernel us p50<=64 p90<=256 p99<=16384 p99.9<=32768 max<=32768
+ INFO collector: host delay window=frames 39266 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 37136 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 33698 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 33228 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 36710 app-kernel us p50<=128 p90<=256 p99<=512 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 34280 app-kernel us p50<=64 p90<=256 p99<=512 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 41120 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=1024 max<=2048
+ INFO collector: host delay window=frames 35524 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 38259 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=512 max<=1024
+ INFO collector: host delay window=frames 39565 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 39470 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 33319 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 38174 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=1024 max<=2048
+ INFO collector: host delay window=frames 37593 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 35576 app-kernel us p50<=64 p90<=128 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 38187 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 40844 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 37931 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=2048
+-- clock
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.1 rtt_ms=0.4
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+301 System time : 0.000000851 seconds slow of NTP time|RMS offset : 0.000003883 seconds|Root dispersion : 0.000037581 seconds|
+602 System time : 0.000000297 seconds slow of NTP time|RMS offset : 0.000001563 seconds|Root dispersion : 0.000026601 seconds|
+-- status (every 10th, and the last)
+ INFO collector: status tokens=4000 sourced=4000 conns=4 per_core=[4000] stalls=0 queue_hwm_mb=0.7919769287109375 queue_waits=0 m=Metrics { updates: 23362, snapshots: 10330, switches: 39, lag_switches: 0, hash_ok: 27179, hash_miss: 124, hash_healed: 130, divergent: 2, hash_agreed: 122, resnapshots: 39, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 2000, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, switch_snaps: 39, wire: n=23374 p50<=65.5ms p99<=744.0ms max=744.0ms, queue: n=23522 p50<=0.1ms p99<=25.0ms max=25.0ms, src_behind: n=10792 mean=1.1 p50=0 p90=1 p99=13ms }
+ INFO collector: status tokens=4000 sourced=4000 conns=4 per_core=[4000] stalls=0 queue_hwm_mb=0.7919769287109375 queue_waits=0 m=Metrics { updates: 351342, snapshots: 51840, switches: 794, lag_switches: 0, hash_ok: 352174, hash_miss: 2842, hash_healed: 1114, divergent: 29, hash_agreed: 2789, resnapshots: 794, book_miss: 2, book_diffs: 2, disconnects: 0, recycles: 0, markets_added: 2000, markets_removed: 0, quiet_resubs: 4, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, switch_snaps: 794, wire: n=351782 p50<=65.5ms p99<=524.3ms max=2186.9ms, queue: n=355340 p50<=0.1ms p99<=1.0ms max=25.0ms, src_behind: n=158884 mean=6.0 p50=0 p90=3 p99=148ms }
+ INFO collector: status tokens=4000 sourced=4000 conns=4 per_core=[4000] stalls=0 queue_hwm_mb=0.7919769287109375 queue_waits=0 m=Metrics { updates: 626660, snapshots: 84454, switches: 1101, lag_switches: 0, hash_ok: 625932, hash_miss: 4340, hash_healed: 1489, divergent: 33, hash_agreed: 4279, resnapshots: 1101, book_miss: 2, book_diffs: 2, disconnects: 0, recycles: 0, markets_added: 2000, markets_removed: 0, quiet_resubs: 54, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, switch_snaps: 1101, wire: n=627220 p50<=65.5ms p99<=524.3ms max=2186.9ms, queue: n=631858 p50<=0.1ms p99<=0.5ms max=25.0ms, src_behind: n=284408 mean=4.1 p50=0 p90=2 p99=105ms }
+-- thread budget
+ INFO collector: thread budget cpus=2 cores=1 io=2 pinned=false
+ INFO collector: core threads started cores=1
+-- edges / per-socket latency (last 3 windows)
+ INFO collector: socket latency conn=2 replica=0 edge=104.18.34.205 first=38686 late=17 wire=n=120178 mean=51.7 p50=42 p90=59 p99=240ms behind=n=107224 mean=3.7 p50=0 p90=2 p99=90ms
+ INFO collector: socket latency conn=3 replica=1 edge=172.64.153.51 first=68552 late=60 wire=n=120150 mean=50.1 p50=42 p90=57 p99=210ms behind=n=107173 mean=2.0 p50=0 p90=1 p99=65ms
+ INFO collector: edge latency edge=104.18.34.205 sockets=2 first=165812 late=32 wire=n=333618 mean=56.0 p50=43 p90=63 p99=353ms behind=n=301539 mean=4.0 p50=0 p90=2 p99=100ms
+ INFO collector: edge latency edge=172.64.153.51 sockets=2 first=135754 late=419 wire=n=333532 mean=56.1 p50=43 p90=60 p99=365ms behind=n=301137 mean=4.1 p50=0 p90=2 p99=120ms
+-- warn/error
+slow consumer closes: 0
+writer backpressure: 0
+-- supervisor
+-- done
+ INFO collector: done updates=679122 snapshots=90008 m=Metrics { updates: 679122, snapshots: 90008, switches: 1281, lag_switches: 0, hash_ok: 677279, hash_miss: 4897, hash_healed: 2233, divergent: 33, hash_agreed: 4836, resnapshots: 1281, book_miss: 2, book_diffs: 2, disconnects: 0, recycles: 0, markets_added: 2000, markets_removed: 0, quiet_resubs: 56, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, switch_snaps: 1281, wire: n=679705 p50<=65.5ms p99<=524.3ms max=2186.9ms, queue: n=684812 p50<=0.1ms p99<=0.5ms max=25.0ms, src_behind: n=307327 mean=3.9 p50=0 p90=2 p99=101ms }

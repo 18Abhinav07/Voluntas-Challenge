@@ -1,0 +1,97 @@
+[23:27:20] == preflight
+[23:27:23] identity 325365226388
+[23:27:29] eu-west-2 c7i.xlarge vcpus=4 quota=5.0 vpc=vpc-01b3bffcddcab9882 launchable
+[23:27:35] eu-west-1 c7i-flex.large vcpus=2 quota=5.0 vpc=vpc-08987523e57b058da launchable
+[23:27:42] us-east-1 c7i-flex.large vcpus=2 quota=5.0 vpc=vpc-0fe04571805e828d1 launchable
+[23:27:42] preflight OK
+[23:27:42] == launch from 49.43.153.37: main c7i.xlarge in eu-west-2, probes c7i-flex.large in eu-west-1 us-east-1; out /Users/18abhinav07/Documents/Voluntas-Challenge/bench/aws-2026-10-24
+[23:27:51] FATAL: eu-west-2: run-instances
+[23:27:51] eu-west-1 launched i-0ce7d08c8c1dca6db (c7i-flex.large, halts itself in 75 min)
+[23:27:53] us-east-1 launched i-024e0fcdc6095bf5f (c7i-flex.large, halts itself in 75 min)
+[23:28:15] eu-west-1 ssh up at 3.248.254.114
+[23:28:18] us-east-1 ssh up at 3.83.146.5
+[23:28:18] FATAL: main host did not come up
+[23:28:21] pull probe-us-east-1 failed
+[23:28:24] pull probe-eu-west-1 failed
+[23:28:24] == teardown
+[23:28:29] eu-west-2 deleted sg-086ea460dd6486f44
+[23:28:31] eu-west-2 left running: 0
+[23:28:33] eu-west-1 terminating i-0ce7d08c8c1dca6db
+[23:29:08] eu-west-1 deleted sg-0361ce6317c94484a
+[23:29:10] eu-west-1 left running: 0
+[23:29:13] us-east-1 terminating i-024e0fcdc6095bf5f
+[23:29:48] us-east-1 deleted sg-014756a6c7e0b1908
+[23:29:50] us-east-1 left running: 0
+[23:30:58] == preflight
+[23:31:00] identity 325365226388
+[23:31:03] account plan FREE, credits 120.0
+[23:31:10] eu-west-2 c7i.xlarge vcpus=4 quota=5.0 vpc=vpc-01b3bffcddcab9882 NOT launchable: c7i.xlarge is not free-tier eligible and the account is on the Free plan
+[23:31:16] eu-west-1 c7i-flex.large vcpus=2 quota=5.0 vpc=vpc-08987523e57b058da launchable
+[23:31:24] us-east-1 c7i-flex.large vcpus=2 quota=8.0 vpc=vpc-0fe04571805e828d1 launchable
+[23:31:24] FATAL: preflight failed (a Free-plan account can only launch free-tier types; upgrading to the Paid plan keeps the credits)
+[23:31:24] == preflight
+[23:31:26] identity 325365226388
+[23:31:29] account plan FREE, credits 120.0
+[23:31:35] eu-west-2 m7i-flex.large vcpus=2 quota=5.0 vpc=vpc-01b3bffcddcab9882 launchable
+[23:31:41] eu-west-1 m7i-flex.large vcpus=2 quota=8.0 vpc=vpc-08987523e57b058da launchable
+[23:31:50] us-east-1 m7i-flex.large vcpus=2 quota=8.0 vpc=vpc-0fe04571805e828d1 launchable
+[23:31:50] preflight OK
+[23:42:37] == preflight
+[23:42:40] identity 325365226388
+[23:42:43] account plan PAID, credits 120.0
+[23:42:49] eu-west-2 c7i.xlarge vcpus=4 quota=5.0 vpc=vpc-01b3bffcddcab9882 launchable
+[23:42:55] eu-west-1 c7i-flex.large vcpus=2 quota=8.0 vpc=vpc-08987523e57b058da launchable
+[23:43:03] us-east-1 c7i-flex.large vcpus=2 quota=8.0 vpc=vpc-0fe04571805e828d1 launchable
+[23:43:03] preflight OK
+[23:44:01] == preflight
+[23:44:04] identity 325365226388
+[23:44:06] account plan PAID, credits 140.0
+[23:44:11] eu-west-2 c7i.xlarge vcpus=4 quota=5.0 vpc=vpc-01b3bffcddcab9882 launchable
+[23:44:17] eu-west-1 c7i-flex.large vcpus=2 quota=8.0 vpc=vpc-08987523e57b058da launchable
+[23:44:24] us-east-1 c7i-flex.large vcpus=2 quota=8.0 vpc=vpc-0fe04571805e828d1 launchable
+[23:44:24] preflight OK
+[23:44:24] == launch from 49.43.153.37: main c7i.xlarge in eu-west-2, probes c7i-flex.large in eu-west-1 us-east-1; out /Users/18abhinav07/Documents/Voluntas-Challenge/bench/aws-2026-10-24
+[23:44:33] eu-west-2 launched i-020f1ad5c67b8f900 (c7i.xlarge, halts itself in 240 min)
+[23:44:33] eu-west-1 launched i-09ea1b857c15b4a2c (c7i-flex.large, halts itself in 75 min)
+[23:44:35] us-east-1 launched i-0575ddc23a8cf7ca4 (c7i-flex.large, halts itself in 75 min)
+[23:44:55] eu-west-2 ssh up at 13.135.161.142
+[23:44:55] eu-west-1 ssh up at 34.245.17.5
+[23:44:59] us-east-1 ssh up at 18.212.172.232
+[23:44:59] rev 7170677
+[23:49:25] main built
+[23:53:33] == smoke on eu-west-2 eu-west-1 us-east-1
+[23:54:34] GO: eu-west-2 eu-west-1 us-east-1
+[23:54:34] == probe at 23:55:34 on eu-west-2 eu-west-1 us-east-1
+PROBE_OK 2026-10-24T18:35:37Z
+PROBE_OK 2026-10-24T18:35:36Z
+PROBE_OK 2026-10-24T18:35:36Z
+[00:05:54] pulled main-eu-west-2
+[00:05:57] pulled probe-eu-west-1
+[00:06:02] pulled probe-us-east-1
+[00:06:05] eu-west-1 probe terminated i-09ea1b857c15b4a2c
+[00:06:06] us-east-1 probe terminated i-0575ddc23a8cf7ca4
+[00:06:06] == main run (tests, bench, 60 min full universe, sample)
+[00:16:36] pulled main-eu-west-2
+[00:16:38] t=10m 550 rss_mb=1731 rx_mbps=0 wr_mbs=0 load=0.90 core=38 finisher=0 main=0 tokio=41 writer=5 |verify ob.20261024T1830Z.sbe 1.2G 7s span:      153.7s, 1099808 symbols messages:  2983318 snapshots, 4593959 updates (29895/s) replay:    1883510 snapshots mat|
+[00:27:22] pulled main-eu-west-2
+[00:27:25] t=21m 1189 rss_mb=1811 rx_mbps=0 wr_mbs=0 load=1.35 core=40 finisher=0 main=0 tokio=44 writer=5 |verify ob.20261024T1840Z.sbe 5.3G 46s span:      600.0s, 1103316 symbols messages:  12099636 snapshots, 24780369 updates (41301/s) replay:    10996320 snapshots|
+[00:38:00] pulled main-eu-west-2
+[00:38:03] t=31m 1829 rss_mb=1867 rx_mbps=0 wr_mbs=0 load=1.38 core=65 finisher=0 main=0 tokio=78 writer=17 |verify ob.20261024T1850Z.sbe 5.4G 47s span:      600.0s, 1105904 symbols messages:  12148028 snapshots, 25518082 updates (42530/s) replay:    11042124 snapshots|
+[00:48:33] pulled main-eu-west-2
+[00:48:35] t=42m 2459 rss_mb=1892 rx_mbps=0 wr_mbs=33 load=1.15 core=46 finisher=0 main=0 tokio=56 writer=6 |verify ob.20261024T1900Z.sbe 5.4G 47s span:      600.0s, 1112160 symbols messages:  12203522 snapshots, 25886732 updates (43145/s) replay:    11091362 snapshots|
+[00:59:06] pulled main-eu-west-2
+[00:59:09] t=52m 3098 rss_mb=1917 rx_mbps=0 wr_mbs=8 load=1.21 core=47 finisher=0 main=3 tokio=53 writer=6 |verify ob.20261024T1910Z.sbe 5.4G 46s span:      600.0s, 1109256 symbols messages:  12169078 snapshots, 25935265 updates (43225/s) replay:    11059822 snapshots|
+[01:09:36] pulled main-eu-west-2
+[01:09:38] t=63m 3595 rss_mb=1646 rx_mbps=0 wr_mbs=0 load=1.19 core=47 finisher=0 main=0 tokio=57 writer=6 |verify ob.20261024T1930Z.r1.sbe 2.7G 13s span:      296.7s, 1101760 symbols messages:  6288884 snapshots, 12258989 updates (41324/s) replay:    5187124 snapshot|
+[01:10:47] pulled main-eu-west-2
+[01:10:47] markers: SETUP_OK SMOKE_OK PROBE_OK TESTS_OK BENCH_OK MAIN_OK SAMPLE_OK ALL_DONE 
+[01:10:47] RUN_DONE
+[01:10:50] pulled main-eu-west-2
+[01:10:50] == teardown
+[01:10:54] eu-west-2 terminating i-020f1ad5c67b8f900
+[01:11:28] eu-west-2 deleted sg-0fc2ff734532d7def
+[01:11:30] eu-west-2 left running: 0
+[01:11:34] eu-west-1 deleted sg-07c14cea0e9ef0371
+[01:11:36] eu-west-1 left running: 0
+[01:11:40] us-east-1 deleted sg-05370ca07788940ce
+[01:11:43] us-east-1 left running: 0

@@ -1358,3 +1358,57 @@ this network (a curl to it timed out too). The live gate runs on a Codespace ins
   for each sampled one. Gamma lists them, but the venue has no book to send.
 - So coverage is complete for every token that has a book. Run 1 showing all sourced is not
   explained yet; it was one core thread on a slightly earlier universe.
+
+## Turn — The AWS run
+
+The one-shot run from `docs/AWS-RUN.md`, on build 7170677. The first attempt failed at launch
+because the account was on the Free plan, which allows only free-tier instance types
+(`--dry-run` does not apply that limit). Preflight now reads the plan. After the upgrade to
+Paid, every phase passed: `SETUP SMOKE PROBE TESTS BENCH MAIN SAMPLE ALL_DONE`. Teardown left
+0 instances, security groups, key pairs or volumes in all three regions. Results:
+`bench/aws-2026-10-24/` (the 64 MB sample capture is kept out of git).
+
+**Hosts:** main c7i.xlarge in eu-west-2a (Xeon Platinum 8488C, 4 vCPU = 2 cores × 2 threads,
+kernel 7.0.0-1014-aws, no PTP device exposed); probes c7i-flex.large in eu-west-1 and
+us-east-1. Clock: chrony on Amazon Time Sync, RMS offset 0.4–9 µs over the hour; the
+collector's own NTP check read 0.0 ms offset, 0.1 ms RTT.
+
+**Region probe** (10 min, 2,000 markets, `--lat-detail --kernel-ts`, same start second):
+
+| Region | Updates | Replay | recv − exch p50 / p90 / p99 / p99.9 | Host delay p50 / p99 |
+|---|---|---|---|---|
+| eu-west-2 London | 675k | 81,288 matched, 0 not | 7 / 21 / 118 / 381 ms | ≤ 128 / ≤ 512 µs |
+| eu-west-1 Ireland | 680k | 82,052 matched, 0 not | 12 / 25 / 73 / 232 ms | ≤ 32 / ≤ 256 µs |
+| us-east-1 Virginia | 679k | 82,008 matched, 0 not | 43 / 62 / 349 / 725 ms | ≤ 64 / ≤ 256 µs |
+
+- London is the right region by median; Ireland has the tighter tail. Virginia adds about
+  35 ms, which is the transatlantic path to the venue's origin.
+
+**Offline, on the main host:** `cargo test --release` 78 + 9 + 3 + 3 passed. `bench cpu`:
+decode 1,410 ns/frame (460 MB/s), core 4,665 ns/event, 2.43 allocs/event. `bench mem 283000`:
+4,574 B/token heap, RSS 2,990 MB with every book filled to its captured depth.
+
+**Full universe, 60 min supervised** (`--supervise --pin --kernel-ts --rotate-mins 10`):
+
+| Check | Result |
+|---|---|
+| Coverage | 548k–554k tokens sourced of 549k–556k listed, on 442–452 sockets; 280,559 markets seen, 467 removed during the hour |
+| Throughput | 41–43k updates/s steady; 9 MB/s to disk (5.4 GB per 10-min file) |
+| Replay (`verify`, 8 files, about 33 GB) | about 55M snapshots matched the rebuilt book, **0 did not** |
+| Host delay (app − kernel), 119 windows | p50 ≤ 32 µs in every window; p90 ≤ 64 µs, p99 ≤ 128–256 µs, p99.9 ≤ 512 µs–1 ms in most; worst window p99 ≤ 2 ms |
+| recv − exch | p50 8–9 ms, p90 20–34 ms, p99 50–348 ms |
+| Wire / queue (collector's own) | wire p50 ≤ 16 ms, p99 ≤ 66 ms; core queue p50 ≤ 0 ms, p99 ≤ 8 ms |
+| CPU (steady mean, % of one CPU) | core threads 47, tokio 54, writer 6; load 1.2 on 4 vCPU |
+| RSS | 1,815 MB mean, 1,919 MB peak, flat across the hour |
+| Writer queue | peak 20 MB, 0 waits; stalls 0; writer backpressure 0 |
+| `kill -9` at 55 min | supervisor restarted in 1 s, recovered the open file with `dropped_bytes=0`; the restarted child ran 298 s and exited 0 |
+| Server "slow consumer" closes | 29 in the hour, each reconnected; 6 quiet-socket reconnects |
+
+- On a real 4-vCPU host, the host delay is about 4× better than on the Codespace (p50 ≤ 32 µs
+  against ≤ 128 µs) and the p99 tail is about 16× better.
+- The `recv − exch` max of 600–1,100 s is the venue stamping the initial snapshots with the
+  time of the last book change, not real delay. The percentiles are unaffected.
+- Open: the sampler's `rx_mbps` read 0 all hour (wrong interface name on these hosts), and the
+  summary's host-delay section came out empty. Both are kit bugs; the numbers above come from
+  `collect-main.log` directly.
+- Cost: about 1.5 h of c7i.xlarge and 0.4 h per probe, roughly $0.50 of the credits.
