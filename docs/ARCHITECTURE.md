@@ -30,13 +30,18 @@ flowchart LR
 | **main** (`main.rs`) | tokio | Discovery, lookups of new markets, routing to cores, the 1 s tick, shutdown |
 | **socket actor** (`conn.rs`) | tokio task each | One websocket: connect, subscribe, ping, watchdog, reconnect, decode |
 | **adapter** (`adapter/`) | called by the actor and main | Everything venue-specific: URLs, frames, decode, discovery, integrity |
-| **core** (`core.rs`) | 1–8 OS threads | All book state for its markets, the choice of source, all output records |
+| **core** (`core/`) | 1–8 OS threads | All book state for its markets, the choice of source, all output records |
 | **writer** (`writer.rs`) | 1 OS thread | The output files, and nothing else |
 | **finisher** (`writer.rs`) | 1 OS thread | Closing finished rotated files |
 
 Each core is a single-threaded state machine. It never touches the network or disk itself. It
 asks for side effects (open a socket, send a command, look up a market) through an `Effects`
-trait. That keeps it deterministic, and the 39 core unit tests drive it directly.
+trait. That keeps it deterministic, and the 46 core unit tests drive it directly.
+
+`src/core/` is split by concern: the data model, intake and tick loop in `mod.rs`, then
+`plan.rs` (shards), `conns.rs` (socket lifecycle, recycling), `emit.rs` (output, rotation,
+switches), `health.rs` (integrity ladder, quiet and lag checks), `speed.rs` (Ext 4) and
+`metrics.rs`. Each is an `impl Core` block over the same state.
 
 ## Sharding and replicas
 
@@ -141,15 +146,18 @@ Everything venue-specific is behind `ExchangeAdapter` (`src/adapter/mod.rs`):
 ```rust
 pub trait ExchangeAdapter: Send + Sync + 'static {
     type Meta: Clone + Send + Sync + Serialize + DeserializeOwned + 'static;
+    type Session: Default + Send; // per-socket venue state, owned by the socket actor
     const NAME: &'static str;
     fn ws_url(&self) -> &str;
+    fn ws_request(&self) -> anyhow::Result<Request> { /* plain GET of ws_url() */ }
     fn ping_interval(&self) -> Duration;
-    fn ping_frame(&self) -> &'static str;
-    fn subscribe_initial(&self, tokens: &[Sym]) -> String;
-    fn subscribe(&self, tokens: &[Sym]) -> String;
-    fn unsubscribe(&self, tokens: &[Sym]) -> String;
+    fn ping_frame(&self) -> Option<&'static str>; // None = websocket Ping frames
+    fn subscribe_initial(&self, s: &mut Self::Session, tokens: &[Sym]) -> Vec<String>;
+    fn subscribe(&self, s: &mut Self::Session, tokens: &[Sym]) -> Vec<String>;
+    fn unsubscribe(&self, s: &mut Self::Session, tokens: &[Sym]) -> Vec<String>;
+    fn resnapshot(&self, s: &mut Self::Session, tokens: &[Sym]) -> Vec<String> { /* unsub + sub */ }
     fn all_resolved(&self, _close_reason: &str) -> bool { false }
-    fn decode(&self, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()>;
+    fn decode(&self, s: &mut Self::Session, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()>;
     fn discover(&self, pages: mpsc::Sender<Vec<Instrument<Self::Meta>>>) -> impl Future<Output = anyhow::Result<()>> + Send;
     fn lookup(&self, markets: &[Sym]) -> impl Future<Output = anyhow::Result<Vec<Instrument<Self::Meta>>>> + Send;
     fn integrity(&self) -> Box<dyn Integrity<Self::Meta>>;
@@ -161,8 +169,14 @@ pub trait ExchangeAdapter: Send + Sync + 'static {
 - `Integrity` is the venue's own consistency check, which feeds the ladder above.
 - The core, the socket actor, the writer and `verify` know nothing about Polymarket.
 
-The trait has four gaps that a second venue would expose. [KALSHI.md](KALSHI.md) works through
-them against Kalshi.
+- A `decode` error of type `Resync` (a sequence gap, say) makes the socket actor drop the
+  socket. The core then fails its tokens over and reconnects, the same path as a lost socket.
+
+Two adapters implement it: `polymarket.rs` and `kalshi.rs`. `main.rs` is generic over the
+trait, and `--venue` picks one. Kalshi needed a signed handshake, per-socket state (relative
+deltas, `seq`, subscription ids) and a different re-snapshot. Those are the `ws_request`,
+`Session` and `resnapshot` hooks, and Polymarket's defaults are unchanged. The design and its
+open questions are in [KALSHI.md](KALSHI.md).
 
 ## Output and rotation
 

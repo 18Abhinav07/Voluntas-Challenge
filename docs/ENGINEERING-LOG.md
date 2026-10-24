@@ -1104,3 +1104,30 @@ path ran again on the final build with zero replay errors.
 **About `stalls`:** the counter is reader waits on a full core queue, which is backpressure, not
 loss. It is 0 in normal running and rises only after a freeze or a slow disk. It resets on a
 restart, because it lives in the child.
+
+## Turn — Grading and deployment docs
+
+**Changed:**
+- **`docs/GRADING.md`** (new):
+  - a five-minute check: build, test, a 2-minute live run, `verify`;
+  - a table from each README claim to the test or run that shows it, with the command to rerun it;
+  - required flags against experiment flags;
+  - what every counter in `status` / `done` means and what a healthy value looks like;
+  - how to correct `wire` by the logged clock offset.
+- **`docs/DEPLOY.md`** (new):
+  - host requirements, measured in the soak;
+  - the AWS, GCP and Hetzner machines that match the tested Codespace;
+  - chrony, a systemd unit (`--supervise` inside, `KillSignal=SIGINT`), and shipping finished
+    files to object storage after `verify`.
+  - Only the Codespace has been run; the other rows are on paper.
+- **README:**
+  - Kalshi described as built but never run live;
+  - a pointer to GRADING; `--venue` in the flag table; the Kalshi e2e tests;
+  - the Layout shows `core/`, `supervise.rs` and `clock.rs`;
+  - "Polymarket only" in Known limits became "Kalshi untested live".
+- **ARCHITECTURE:** the `core/` module map, the current trait (`Session`, `ws_request`,
+  `resnapshot`, `Resync`), and both adapters.
+- **LATENCY / DECISIONS:** `core.rs` references now point at the `core/` files, and D1's cost
+  reflects the adapter.
+
+**Open:** the zip and the email to jobs@voluntas.io, both waiting on Abhinav's go-ahead.

@@ -8,8 +8,8 @@ Each entry gives the choice, what was rejected, and the evidence. The numbers co
 - **Choice:** Polymarket.
 - **Why:** Kalshi is US-only and its API could not be reached from where this was built (India).
   The challenge allows Polymarket in that case.
-- **Cost:** Ext 3 has one implementation. [KALSHI.md](KALSHI.md) maps Kalshi onto the trait and
-  lists what the trait would need.
+- **Cost:** the Kalshi adapter (`--venue kalshi`, [KALSHI.md](KALSHI.md)) is tested only on
+  documented frames and against a mock venue. It has never run live.
 
 ## D2. Two symbols per token: `<token>:bid` and `<token>:ask`
 

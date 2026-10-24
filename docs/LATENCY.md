@@ -15,7 +15,7 @@ Two histograms run in every core, and their sum is in the status line every 30 s
 
 `verify` also prints `recv_ts − exch_ts` quantiles (p1 to max) for every update in a file.
 
-With `--lat-detail` each core also keeps, **per socket** (`core.rs` `note_arrival`):
+With `--lat-detail` each core also keeps, **per socket** (`core/speed.rs` `note_arrival`):
 
 | Name | What it is | Clock offset |
 |---|---|---|
@@ -36,7 +36,9 @@ edge IP) and one per edge. It costs a 16-entry window per market, so it is off b
 - **`wire` includes the clock offset.** On the Codespace the clock drifted about 1 ms per minute
   against the exchange. Over the 90-minute soak the median moved from −15 ms to −92 ms: a
   negative latency, which is only possible because of the offset. Absolute `wire` figures are
-  therefore only good for comparing runs on the same host and in the same hour.
+  therefore only good for comparing runs on the same host and in the same hour. Since D21 the
+  collector logs the offset every 10 minutes. [GRADING.md](GRADING.md) shows how to correct
+  `wire` with it, and the 2.5 h soak's drift (+19 → +88 ms).
 - `queue` uses one clock and has none of these problems.
 
 ## What is built
@@ -45,10 +47,10 @@ edge IP) and one per edge. It costs a 16-entry window per market, so it is off b
 |---|---|---|
 | `TCP_NODELAY` on every socket | `conn.rs` `connect` | no Nagle delay on our pings and commands |
 | Each replica pinned to a different edge IP | `conn.rs` `resolve_edges` | the replicas fail independently. Replica `r` uses edge `r mod edges`; each socket's edge is logged when it opens. |
-| The source is the replica that is ahead | `core.rs` `switch`, `check_lag` | on a switch, the replica that has seen the most is chosen. A source that falls 3 s behind a peer is replaced. |
+| The source is the replica that is ahead | `core/emit.rs` `switch`, `core/health.rs` `check_lag` | on a switch, the replica that has seen the most is chosen. A source that falls 3 s behind a peer is replaced. |
 | Bounded queues with backpressure | `main.rs`, `writer.rs` | nothing is dropped. A slow stage shows up as `queue` latency, not as loss. |
 | Rotation work off the hot path | `writer.rs` finisher thread, spread snapshots | the fsync at rotation used to stall every socket for 1–6 s |
-| Make-before-break recycling | `core.rs` | an hourly reconnect never leaves a shard without a live socket |
+| Make-before-break recycling | `core/conns.rs` | an hourly reconnect never leaves a shard without a live socket |
 
 The source rule is the closest thing to the challenge's "open many, keep the fast ones". Each
 shard has two independent sockets, and the output follows whichever is ahead. It is a
