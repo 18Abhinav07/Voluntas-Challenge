@@ -15,7 +15,8 @@ MAIN_REGION=${MAIN_REGION:-eu-west-2}; MAIN_TYPE=${MAIN_TYPE:-c7i.xlarge}
 PROBES=${PROBES:-"eu-west-1 us-east-1"}; PROBE_TYPE=${PROBE_TYPE:-c7i-flex.large}
 LIFE_MAIN=${LIFE_MAIN:-240}; LIFE_PROBE=${LIFE_PROBE:-75}
 TAG=voluntas-run
-STATE=${STATE:-$HOME/.cache/voluntas-run} # holds the ssh key: never inside the repo; OUT=${OUT:-$PWD/bench/aws-$(date +%F)}
+STATE=${STATE:-$HOME/.cache/voluntas-run} # holds the ssh key: never inside the repo
+OUT=${OUT:-$PWD/bench/aws-$(date +%F)}
 mkdir -p "$STATE" "$OUT"
 KEY=$STATE/key
 SSH="ssh -i $KEY -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$STATE/known_hosts -o ConnectTimeout=10 -o ServerAliveInterval=30 -o BatchMode=yes"
@@ -30,7 +31,10 @@ preflight() {
   log "== preflight"
   aws sts get-caller-identity --query Arn --output text > /dev/null || die "no AWS credentials: run 'aws login --profile $AWS_PROFILE'"
   log "identity $(aws sts get-caller-identity --query Account --output text)"
-  local ok=1 r t need q msg
+  local ok=1 r t need q msg plan
+  # run-instances --dry-run does not apply the Free plan's instance-type limit; ask directly.
+  plan=$(aws freetier get-account-plan-state --region us-east-1 --query accountPlanType --output text 2>/dev/null) || plan=?
+  log "account plan $plan, credits $(aws freetier get-account-plan-state --region us-east-1 --query accountPlanRemainingCredits.amount --output text 2>/dev/null)"
   for r in $MAIN_REGION $PROBES; do
     if [ $r = $MAIN_REGION ]; then t=$MAIN_TYPE; else t=$PROBE_TYPE; fi
     need=$(aws ec2 describe-instance-types --region $r --instance-types $t --query 'InstanceTypes[0].VCpuInfo.DefaultVCpus' --output text 2>/dev/null) || need=?
@@ -42,6 +46,9 @@ preflight() {
     esac
     local vpc; vpc=$(aws ec2 describe-vpcs --region $r --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text 2>/dev/null)
     [ "$vpc" = None ] || [ -z "$vpc" ] && { ok=0; vpc="NONE (create one: aws ec2 create-default-vpc --region $r)"; }
+    if [ "$plan" = FREE ] && [ "$(aws ec2 describe-instance-types --region $r --instance-types $t --query 'InstanceTypes[0].FreeTierEligible' --output text 2>/dev/null)" != True ]; then
+      ok=0; msg="NOT launchable: $t is not free-tier eligible and the account is on the Free plan"
+    fi
     log "$r $t vcpus=$need quota=$q vpc=$vpc $msg"
     [ "$q" != ? ] && [ "$need" != ? ] && [ "${q%.*}" -lt "$need" ] && { ok=0; log "$r: quota $q < $need vCPU"; }
   done
