@@ -234,6 +234,9 @@ struct ConnState {
     slow_windows: u32,
 }
 
+/// A socket's state for the unsourced-shard log: id, up, valid replicas, books outstanding.
+pub type SockState = (ConnId, bool, usize, usize);
+
 pub struct Core<M> {
     cfg: Config,
     integrity: Box<dyn Integrity<M>>,
@@ -327,6 +330,33 @@ impl<M> Core<M> {
 
     pub fn sourced_count(&self) -> usize {
         self.tokens.values().filter(|t| t.source.is_some()).count()
+    }
+
+    /// Shards holding tokens without a source, worst first: (shard, unsourced, shard size, and
+    /// per socket: id, up, valid replicas, replicas with a book request outstanding).
+    pub fn unsourced_shards(&self, max: usize) -> Vec<(usize, usize, usize, Vec<SockState>)> {
+        let mut by: HashMap<usize, usize> = HashMap::default();
+        for t in self.tokens.values().filter(|t| t.source.is_none()) {
+            *by.entry(t.shard).or_default() += 1;
+        }
+        let mut v: Vec<_> = by.into_iter().collect();
+        v.sort_unstable_by_key(|&(s, n)| (std::cmp::Reverse(n), s));
+        v.truncate(max);
+        v.into_iter()
+            .map(|(s, n)| {
+                let sh = &self.shards[s];
+                let conns = sh
+                    .conns
+                    .iter()
+                    .map(|&c| {
+                        let reps = sh.tokens.iter().filter_map(|t| self.tokens.get(t)?.replicas.get(&c));
+                        let (valid, due) = reps.fold((0, 0), |(v, d), r| (v + r.valid as usize, d + r.book_due.is_some() as usize));
+                        (c, self.conns.get(&c).is_some_and(|cs| cs.up_since.is_some()), valid, due)
+                    })
+                    .collect();
+                (s, n, sh.tokens.len(), conns)
+            })
+            .collect()
     }
 
     pub fn conn_count(&self) -> usize {

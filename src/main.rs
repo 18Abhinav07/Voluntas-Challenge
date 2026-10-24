@@ -456,6 +456,9 @@ async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metr
                 },
                 _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
                 _ = report.tick() => {
+                    for (shard, unsourced, size, conns) in core.unsourced_shards(3) {
+                        tracing::info!(core = idx, shard, unsourced, size, ?conns, "unsourced shard (conn, up, valid, book due)");
+                    }
                     let _ = status.send(Status {
                         core: idx,
                         tokens: core.token_count(),
