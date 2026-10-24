@@ -1171,3 +1171,137 @@ three rounds). Fixed to run from the repo root and relaunched; those rounds were
 flag list; README flag rows.
 
 **Tests:** 90 passed (one new), clippy clean.
+
+## Turn — Plan for the last performance round, and the submission
+
+**Why:** the remaining gaps against a production market-data collector are memory (about 3 GB
+RSS, about 5.4 KB per token), CPU on the hot path, thread oversubscription, disk stalls reaching
+the books, and timestamps that are neither kernel-level nor clock-synced.
+
+**Plan:** [PERF-PLAN.md](PERF-PLAN.md). In brief:
+- Step 0: offline harnesses for bytes per token and ns per event, and baselines.
+- Memory: mimalloc, flat books with inline storage, inline replicas, symbol interning, lazy
+  hash state.
+- CPU: FxHash on interned ids, LTO, SIMD JSON (kept only if it wins and the golden tests stay
+  exact).
+- Threading: a tokio worker budget, a writer queue bounded in bytes with a high-water counter,
+  Linux pinning.
+- Time accuracy (Linux): kernel receive timestamps, chrony on AWS.
+- A region test, then a 60-minute full-universe AWS run as the final gate.
+- Submission: a "Start here" block, `scripts/demo.sh`, a sample capture, a Dockerfile, CI.
+
+**Code read for the plan:**
+- `recv_ts` is taken in `conn.rs` when the websocket frame completes. That time includes TLS,
+  websocket parsing and tokio scheduling.
+- `#[tokio::main]` uses the default worker count, so on 4 vCPU there are 8 busy threads.
+- Every map uses std SipHash over `Arc<str>` token ids.
+- Each token holds 3 `BTreeMap` books.
+
+Nothing has been changed in the code yet.
+
+## Turn — The performance round: memory, CPU, threads, kernel timestamps
+
+**Why:** carry out [PERF-PLAN.md](PERF-PLAN.md). Each step was measured offline with
+`examples/bench.rs` before and after. `mem` is 283k markets (566k tokens) on 454 sockets, every
+book on both replicas. `cpu` replays `frames_trades` through decode, then the core on 2 replicas.
+
+**Results** (Mac M-series; `cargo run --release --example bench -- mem|cpu`):
+
+| Step | Commit | Heap B/token | Empty books B/token | RSS | Core ns/event | Allocs/event | Decode ns/frame |
+|---|---|---|---|---|---|---|---|
+| Baseline | 658bc57 | 7,598 | 1,528 | 4.5 GB | 6,600 | 2.87 | 1,821 |
+| M1 mimalloc + C2 fat LTO | 028f1d5 | | | | | | 1,289 |
+| M2 flat books (one sorted `Vec` per book, bids then asks) | f5752a8 | 5,777 | 1,434 | | 6,279 | | |
+| M4 replicas inline (`Vec<(ConnId, Replica)>`) | f5752a8 | 5,448 | 1,106 | | | | |
+| M7/M5 boxed `Tok`, one token `Sym` (the writer appends `:bid`/`:ask`) | f5752a8 | 5,089 | 746 | 3.3 GB | 6,196 | 2.43 | |
+| M6 hash checker: shared `Meta`, only changed ticks stored, lazy market state | fe299a6 | 4,574 | 652 | 3.0 GB | | | |
+| C1 FxHash for the core's and checker's maps | 596044c | | | | 5,970 | | ~1,295 |
+
+- The bench is pessimistic on depth: its books average 79 levels per token, against a
+  per-side p50 of 25 in the captures. Levels alone are 3,808 B/token. What remains is mostly
+  level data: 4,574 − 652 = 3,922 B/token of book contents. The live universe is shallower.
+- Heap overhead outside the levels fell from 1,528 to 652 B/token (−57%). Total heap fell 40%,
+  and core time per event fell 10%.
+
+**Tried and not kept:**
+- M5 full interning (`SymId(u32)`): dropping the two side symbols took most of the gain. A full
+  interner would touch every adapter and the writer for about 100 B/token more.
+- M3 `u32` prices: levels would go from 16 B to 12 B. Skipped, because with padding a
+  `(u32, i64)` is still 16 B.
+- C4 `sonic-rs`: not attempted. Decode is 1.3 µs/frame, below the core's per-frame cost, and
+  it does not show in the profile.
+- C5 events-buffer pool: not attempted. Allocations are 2.43 per event, and malloc does not
+  show in the profile under mimalloc.
+- C6 SHA-1 backends: `ring` was slower than the `sha1` crate. The crate already uses SHA-NI on
+  x86 (AWS). On ARM, SHA-1 compression is the top of the profile (289 samples, against 100
+  for `fixed::encode`).
+
+**Threads and backpressure (bb52484):**
+- **T1:** `main` builds the runtime itself. The tokio worker count is CPUs − core threads − 1
+  (for the writer), at least 1, with `--io-threads` to override. The start-up log has a
+  `thread budget` line.
+- **T2:** the writer queue is bounded in bytes (`--writer-queue-mb`, default 256). A
+  semaphore permit per batch is released once the batch is written, and a batch larger than
+  the bound still goes through alone. Nothing is dropped: past the bound the cores wait. The
+  status line and shutdown log `queue_hwm_mb` and `queue_waits`.
+- **T3:** `--pin` (Linux). The main thread is restricted to the non-core CPUs before the
+  runtime starts, so every thread it starts inherits that set. Each core thread then moves to
+  its own CPU. It warns and does nothing on macOS, or when the CPUs are not more than the core
+  threads.
+
+**Kernel timestamps (e2a0647):**
+- **H1:** `--kernel-ts` (Linux). The websocket's TCP stream is wrapped in `kts::Stamped`,
+  which reads with `recvmsg` and `SO_TIMESTAMPNS`.
+- A frame's `recv_ts` becomes the kernel time of the latest read when the frame completes.
+  This excludes TLS, websocket parsing and tokio scheduling.
+- `app − kernel` per frame goes into a power-of-two histogram, logged every 30 s as `host
+  delay`.
+- Tests: a unit test for the histogram, and on Linux a loopback read that must carry a
+  timestamp within the test's window.
+
+**Local check:** a 45 s smoke run reached discovery, but the websocket host timed out from
+this network (a curl to it timed out too). The live gate runs on a Codespace instead.
+
+**Live gate, run 1** (Codespace WestEurope, 4 vCPU, 16 GB, build e2a0647, full universe,
+`--pin --kernel-ts`, 10 minutes, rotated every 5 minutes):
+
+| Check | Result |
+|---|---|
+| clippy, tests on Linux | clean; 78 + 9 + 3 + 3 passed, incl. the loopback kernel-stamp test |
+| Coverage | 562,702 tokens, all sourced, on 452 sockets |
+| Replay (`verify`, 3 files, 5.4 GB) | 9.67M snapshots matched the rebuilt book, **0 did not** |
+| Peak RSS | **1,729 MB**, against 2.8–3.3 GB in the earlier full runs (−43%) |
+| Writer queue | peak 21.6 MB of 256 MiB, 0 waits; disk never reached the cores |
+| Stalls | 0 |
+| Host delay (app − kernel) | p50 ≤ 128 µs, p90 ≤ 512 µs, p99 ≤ 2–4 ms, p99.9 ≤ 8 ms |
+| recv − exch | p50 23–26 ms, p99 57–321 ms |
+| "Slow consumer" closes | 8, all on one hot shard (`conn=394`/`395`), 16:19–16:21; earlier soaks had 18–27 |
+
+- Live memory is about 3.0 KB per token. About 650 B of it is overhead; the rest is book
+  levels, held three times (two replicas plus the published book) at 16 B each. Getting below
+  1 GB would mean smaller levels (a `u16` tick index plus a separate quantity array) or
+  publishing from the leading replica. Neither is done.
+- **Bug found:** the log said `thread budget cores=2 pinned=true`, then `core threads started
+  cores=1`. `run()` counted the CPUs again after `pin::set` had narrowed the main thread's
+  set, so it saw 2 CPUs and chose 1 core. Fixed in d2a77de: the count is made once in `main`
+  and passed down. Run 1 therefore carried all 562k books on one core thread, with 0 stalls.
+
+**Live gate, run 2** (build d2a77de, same flags, 10 minutes):
+
+| Check | Result |
+|---|---|
+| Core threads | `core threads started cores=2`, `per_core=[281218, 280216]`: the fix works |
+| Replay (3 new files, 5.9 GB) | 10.77M snapshots matched, **0 did not** |
+| Peak RSS | 1,760 MB |
+| Writer queue | peak 20.8 MB, 0 waits; stalls 0; disconnects 0; **0 "slow consumer" closes** |
+| Host delay (app − kernel) | p50 ≤ 256–1,024 µs, p90 ≤ 2–8 ms, p99 ≤ 8–16 ms: about 4× worse than run 1 |
+| Sourced | 558,985 of 561,254 tokens at the end (2.2k short; run 1 had all); lag switches 260 against 6 |
+
+- `lscpu` on the Codespace: 4 vCPUs are 2 physical cores (EPYC 7763) with 2 hyperthreads
+  each; CPUs 2 and 3 are siblings. `--pin` gives the core threads the last two CPUs, so both
+  core threads share **one physical core**. In run 1 the single core thread had that physical
+  core to itself. A slower core thread fills its queue, the readers wait on it, and that wait
+  is inside `app − kernel`. This fits the worse host delay and the extra lag switches.
+- Likely fix: pin core threads to distinct physical cores (one sibling each, from the
+  `thread_siblings` topology). The next runs compare `--pin --io-threads 2` against no
+  pinning.

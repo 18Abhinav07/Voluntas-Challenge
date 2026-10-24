@@ -86,6 +86,10 @@ A small run for trying it out:
 | `--max-conns` | `600` | Cap on steady-state sockets (shards × replicas). |
 | `--core-threads` | `0` | Threads that own book state. 0 = half the CPUs, at most 8. |
 | `--core-queue` | `65536` | Decoded frames queued per core before socket readers wait. |
+| `--io-threads` | `0` | Tokio workers for sockets, TLS and decoding. 0 = CPUs − core threads − 1, at least 1. |
+| `--writer-queue-mb` | `256` | Output queued in memory before the cores wait for the writer. Nothing is dropped; the status line logs `queue_hwm_mb` and `queue_waits`. |
+| `--pin` | off | Linux: each core thread on a CPU of its own, every other thread on the rest. |
+| `--kernel-ts` | off | Linux: `recv_ts` is the kernel receive time (`SO_TIMESTAMPNS`); logs `host delay` (app − kernel) every 30 s. |
 | `--recycle-mins` | `60` | Make-before-break reconnect of every socket older than this (0 = never). |
 | `--split-ratio` | `0` | Split a shard once its rate passes this multiple of the median (0 = never; see DECISIONS). |
 | `--rediscover-mins` | `10` | Re-run full discovery this often. |

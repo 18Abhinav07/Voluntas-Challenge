@@ -456,6 +456,10 @@ async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metr
                 },
                 _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
                 _ = report.tick() => {
+                    let sample = core.unsourced_sample(5);
+                    if !sample.is_empty() {
+                        tracing::info!(core = idx, ?sample, "unsourced tokens");
+                    }
                     for (shard, unsourced, size, conns) in core.unsourced_shards(3) {
                         tracing::info!(core = idx, shard, unsourced, size, ?conns, "unsourced shard (conn, up, valid, book due)");
                     }

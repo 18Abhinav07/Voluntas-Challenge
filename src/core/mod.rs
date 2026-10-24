@@ -359,6 +359,11 @@ impl<M> Core<M> {
             .collect()
     }
 
+    /// Up to `n` tokens with no source, for the unsourced-shard log.
+    pub fn unsourced_sample(&self, n: usize) -> Vec<Sym> {
+        self.tokens.values().filter(|t| t.source.is_none()).take(n).map(|t| t.token.clone()).collect()
+    }
+
     pub fn conn_count(&self) -> usize {
         self.conns.len()
     }
