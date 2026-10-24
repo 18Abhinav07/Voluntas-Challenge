@@ -1302,6 +1302,27 @@ this network (a curl to it timed out too). The live gate runs on a Codespace ins
   core threads share **one physical core**. In run 1 the single core thread had that physical
   core to itself. A slower core thread fills its queue, the readers wait on it, and that wait
   is inside `app − kernel`. This fits the worse host delay and the extra lag switches.
-- Likely fix: pin core threads to distinct physical cores (one sibling each, from the
-  `thread_siblings` topology). The next runs compare `--pin --io-threads 2` against no
-  pinning.
+- That was the first guess. The comparison below shows the cause was the single tokio worker,
+  not the shared physical core.
+
+**Thread layout, 5 minutes each** (same Codespace, build d2a77de, full universe, `--kernel-ts`):
+
+| Layout | Host delay p50 / p90 / p99 / p99.9 | Lag switches | Slow-consumer closes |
+|---|---|---|---|
+| `--pin`, io 1 (run 2) | ≤ 256–1,024 µs / 2–8 ms / 8–16 ms / 16–32 ms | 260 | 0 |
+| `--pin --io-threads 2` | ≤ 128 µs / 256 µs–1 ms / 4–8 ms / 8–16 ms | 138 | 0 |
+| no pin, io 1 | ≤ 256–1,024 µs / 2–4 ms / 8 ms / 16 ms | 0 | 0 |
+
+- One tokio worker cannot keep up with about 450 TLS sockets: frames wait in the kernel
+  buffer for milliseconds. Two workers bring the delay back to run 1's level, even though that
+  is 5 busy threads on 4 vCPUs. The default is now at least 2 (`CPUs − cores − 1`, minimum 2).
+
+**The unsourced tokens are not a bug.** Every 2-core run ends a few thousand tokens short of
+`sourced = tokens` (2.2k–7k here; 0.6k–10k in the earlier soaks). A debug log (behind
+`RUST_LOG=debug`) lists the shards that hold them:
+- about 50 in *every* shard, not one shard gone dark. Both sockets are up and hold valid books
+  for the other ~2,450 tokens, and the missing tokens' book requests stay outstanding.
+- The CLOB REST endpoint answers `{"error":"No orderbook exists for the requested token id"}`
+  for each sampled one. Gamma lists them, but the venue has no book to send.
+- So coverage is complete for every token that has a book. Run 1 showing all sourced is not
+  explained yet; it was one core thread on a slightly earlier universe.

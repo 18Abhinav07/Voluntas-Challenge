@@ -49,7 +49,7 @@ faults injected (see below).
 | Claim | Shown by | How to rerun |
 |---|---|---|
 | Output replays exactly | `verify` on every file of every run: 0 mismatches | `./target/release/verify <file>` |
-| Every live market is covered | `status`: `tokens` ≈ `sourced`, `unplaced: 0` | full-universe run, or `bench/gate.sh` |
+| Every live market is covered | `status`: `tokens` ≈ `sourced`, `unplaced: 0`. The gap (about 1%) is tokens Gamma lists but the CLOB has no book for (`/book` answers "No orderbook exists"); `RUST_LOG=debug` lists them | full-universe run, or `bench/gate.sh` |
 | New listings join, resolved markets leave | `markets_added` / `markets_removed` in `done`; e2e `resolved_close_drops_tokens_without_reconnecting` | `cargo test --release --test e2e resolved_close` |
 | A dropped socket fails over to its replica | e2e `dropped_socket_fails_over_and_reconnects` | `cargo test --release --test e2e dropped_socket` |
 | A silent socket is detected and replaced | e2e `silent_socket_is_switched_off_then_reconnected` | `cargo test --release --test e2e silent_socket` |

@@ -84,7 +84,7 @@ struct Args {
     #[arg(long, default_value_t = 0)]
     core_threads: usize,
     /// Tokio workers for sockets, TLS and decoding (0 = the CPUs left after the core threads
-    /// and the writer, at least 1).
+    /// and the writer, at least 2).
     #[arg(long, default_value_t = 0)]
     io_threads: usize,
     /// Linux: pin each core thread to a CPU of its own and keep every other thread off those
@@ -456,12 +456,15 @@ async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metr
                 },
                 _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
                 _ = report.tick() => {
-                    let sample = core.unsourced_sample(5);
-                    if !sample.is_empty() {
-                        tracing::info!(core = idx, ?sample, "unsourced tokens");
-                    }
-                    for (shard, unsourced, size, conns) in core.unsourced_shards(3) {
-                        tracing::info!(core = idx, shard, unsourced, size, ?conns, "unsourced shard (conn, up, valid, book due)");
+                    // Tokens the venue has no book for stay unsourced (CLOB: "No orderbook exists").
+                    if tracing::enabled!(tracing::Level::DEBUG) {
+                        let sample = core.unsourced_sample(5);
+                        if !sample.is_empty() {
+                            tracing::debug!(core = idx, ?sample, "unsourced tokens");
+                        }
+                        for (shard, unsourced, size, conns) in core.unsourced_shards(3) {
+                            tracing::debug!(core = idx, shard, unsourced, size, ?conns, "unsourced shard (conn, up, valid, book due)");
+                        }
                     }
                     let _ = status.send(Status {
                         core: idx,
@@ -563,9 +566,11 @@ fn main() -> anyhow::Result<()> {
     raise_nofile();
     let cpus = std::thread::available_parallelism().map_or(2, |n| n.get());
     let cores = n_cores(&args);
-    // The writer counts as one; the finisher is idle between rotations.
+    // The writer counts as one; the finisher is idle between rotations. One worker for ~450
+    // TLS sockets queued frames for milliseconds on 4 vCPUs (p99 app − kernel 8–16 ms against
+    // 2–4 ms with two), so at least two even if that oversubscribes slightly.
     let io = match args.io_threads {
-        0 => cpus.saturating_sub(cores + 1).max(1),
+        0 => cpus.saturating_sub(cores + 1).max(2),
         n => n,
     };
     if args.kernel_ts && !cfg!(target_os = "linux") {

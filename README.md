@@ -86,7 +86,7 @@ A small run for trying it out:
 | `--max-conns` | `600` | Cap on steady-state sockets (shards × replicas). |
 | `--core-threads` | `0` | Threads that own book state. 0 = half the CPUs, at most 8. |
 | `--core-queue` | `65536` | Decoded frames queued per core before socket readers wait. |
-| `--io-threads` | `0` | Tokio workers for sockets, TLS and decoding. 0 = CPUs − core threads − 1, at least 1. |
+| `--io-threads` | `0` | Tokio workers for sockets, TLS and decoding. 0 = CPUs − core threads − 1, at least 2. |
 | `--writer-queue-mb` | `256` | Output queued in memory before the cores wait for the writer. Nothing is dropped; the status line logs `queue_hwm_mb` and `queue_waits`. |
 | `--pin` | off | Linux: each core thread on a CPU of its own, every other thread on the rest. |
 | `--kernel-ts` | off | Linux: `recv_ts` is the kernel receive time (`SO_TIMESTAMPNS`); logs `host delay` (app − kernel) every 30 s. |
