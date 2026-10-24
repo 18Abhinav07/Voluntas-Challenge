@@ -1,7 +1,8 @@
 //! Polymarket CLOB market channel + Gamma discovery + `hash` verification.
 
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -22,7 +23,7 @@ pub const WS_URL: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
 pub const GAMMA: &str = "https://gamma-api.polymarket.com";
 
 /// Per-market metadata the `hash` covers and the stream does not always repeat.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Meta {
     pub neg_risk: bool,
     pub tick: String,
@@ -336,15 +337,25 @@ impl ExchangeAdapter for Polymarket {
 ///    deferred until the market's next trade (or a timeout).
 #[derive(Default)]
 pub struct HashCheck {
-    meta: HashMap<Sym, (Sym, Meta)>, // token -> (market, meta)
+    meta: HashMap<Sym, (Sym, Arc<Meta>)>, // token -> (market, meta)
+    /// The few distinct `Meta` values, shared by every token that has them.
+    metas: HashSet<Arc<Meta>>,
+    /// Tick sizes the stream changed away from the token's `Meta`.
     tick: HashMap<Sym, String>,
     mkts: HashMap<(ConnId, Sym), MarketState>,
     batch: HashMap<ConnId, Batch>,
 }
 
+/// Per socket and market. Most markets never trade, so all but the last trade price is
+/// allocated on first use.
 #[derive(Default)]
 struct MarketState {
     ltp: String,
+    more: Option<Box<MoreState>>,
+}
+
+#[derive(Default)]
+struct MoreState {
     cand: BTreeSet<String>,
     /// Prices touched lately (and their complements), formatted only when a sweep needs them.
     recent: VecDeque<Fx>,
@@ -368,7 +379,21 @@ struct Deferred {
 const DEFER: Duration = Duration::from_secs(5);
 const RECENT: usize = 40;
 
+impl MarketState {
+    fn more(&mut self) -> &mut MoreState {
+        self.more.get_or_insert_with(Default::default)
+    }
+}
+
 impl HashCheck {
+    fn set_tick(&mut self, token: &Sym, tick: &str) {
+        if self.meta.get(token).is_some_and(|(_, m)| m.tick == tick) {
+            self.tick.remove(token);
+        } else {
+            self.tick.insert(token.clone(), tick.to_string());
+        }
+    }
+
     /// SHA1 state after everything but `last_trade_price`, which is the final field. Candidate
     /// prices differ only there, so each costs a state clone and a few bytes, not a re-hash.
     fn prefix(&self, token: &str, market: &str, ts_us: i64, book: &Book) -> Option<Sha1> {
@@ -427,23 +452,32 @@ impl HashCheck {
             return false;
         };
         let st = self.mkts.entry((conn, market.clone())).or_default();
-        let mut hit = std::iter::once(&st.ltp).chain(&st.cand).find(|o| Self::finish(pre.clone(), o) == want).cloned();
+        let more = st.more.as_deref();
+        let mut hit = std::iter::once(&st.ltp)
+            .chain(more.into_iter().flat_map(|m| &m.cand))
+            .find(|o| Self::finish(pre.clone(), o) == want)
+            .cloned();
         if hit.is_none() && sweep {
-            hit = st.recent.iter().map(|&p| q3(p)).find(|o| Self::finish(pre.clone(), o) == want);
+            hit = more.into_iter().flat_map(|m| &m.recent).map(|&p| q3(p)).find(|o| Self::finish(pre.clone(), o) == want);
         }
         let Some(o) = hit else { return false };
         if o != st.ltp {
             st.ltp = o;
-            st.cand.clear();
+            if let Some(m) = &mut st.more {
+                m.cand.clear();
+            }
         }
         true
     }
 
     /// Retries deferred checks of `market` (only `token`'s, if given); whatever still fails is a miss.
     fn settle(&mut self, conn: ConnId, market: &Sym, token: Option<&Sym>, out: &mut Vec<Verdict>) {
-        let Some(st) = self.mkts.get_mut(&(conn, market.clone())) else {
+        let Some(st) = self.mkts.get_mut(&(conn, market.clone())).and_then(|s| s.more.as_deref_mut()) else {
             return;
         };
+        if st.deferred.is_empty() {
+            return;
+        }
         let (due, keep) = std::mem::take(&mut st.deferred)
             .into_iter()
             .partition(|d| token.is_none_or(|t| d.token == *t));
@@ -491,6 +525,7 @@ impl HashCheck {
                 self.mkts
                     .entry((conn, b.market.clone()))
                     .or_default()
+                    .more()
                     .deferred
                     .push(Deferred {
                         token,
@@ -516,9 +551,16 @@ fn q3(p: Fx) -> String {
 
 impl Integrity<Meta> for HashCheck {
     fn register(&mut self, inst: &Instrument<Meta>) {
+        let meta = match self.metas.get(&inst.meta) {
+            Some(m) => m.clone(),
+            None => {
+                let m = Arc::new(inst.meta.clone());
+                self.metas.insert(m.clone());
+                m
+            }
+        };
         for t in &inst.tokens {
-            self.meta
-                .insert(t.clone(), (inst.market.clone(), inst.meta.clone()));
+            self.meta.insert(t.clone(), (inst.market.clone(), meta.clone()));
         }
     }
 
@@ -565,16 +607,21 @@ impl Integrity<Meta> for HashCheck {
                 ..
             } => {
                 if let Some(t) = tick {
-                    self.tick.insert(token.clone(), t.to_string());
+                    self.set_tick(token, t);
                 }
                 // The snapshot's last_trade_price may be the trade a deferred check waits for.
                 let st = self.mkts.entry((conn, market.clone())).or_default();
-                if let Some(l) = last_trade {
-                    st.cand.insert(l.to_string());
+                if let Some(l) = last_trade
+                    && let Some(m) = &mut st.more
+                    && !m.deferred.is_empty()
+                {
+                    m.cand.insert(l.to_string());
                 }
                 self.settle(conn, market, Some(token), out);
                 let st = self.mkts.entry((conn, market.clone())).or_default();
-                if let Some(l) = last_trade {
+                if let Some(l) = last_trade
+                    && st.ltp != **l
+                {
                     st.ltp = l.to_string();
                 }
                 let (Some(h), Some(book)) = (check, books.book(token)) else {
@@ -600,7 +647,7 @@ impl Integrity<Meta> for HashCheck {
                 exch_ts,
                 changes,
             } => {
-                let st = self.mkts.entry((conn, market.clone())).or_default();
+                let st = self.mkts.entry((conn, market.clone())).or_default().more();
                 for c in changes {
                     st.recent.push_back(c.px);
                     st.recent.push_back(SCALE - c.px);
@@ -629,20 +676,19 @@ impl Integrity<Meta> for HashCheck {
                 }
             }
             NormEvent::Trade { market, px, .. } => {
-                let st = self.mkts.entry((conn, market.clone())).or_default();
+                let st = self.mkts.entry((conn, market.clone())).or_default().more();
                 st.cand.insert(q3(*px));
                 st.cand.insert(q3(SCALE - *px));
                 self.settle(conn, market, None, out);
             }
-            NormEvent::TickSize { token, tick } => {
-                self.tick.insert(token.clone(), tick.to_string());
-            }
+            NormEvent::TickSize { token, tick } => self.set_tick(token, tick),
             NormEvent::Listed { .. } | NormEvent::Resolved { .. } => {}
         }
     }
 
     fn on_tick(&mut self, now: Instant, out: &mut Vec<Verdict>) {
         for ((conn, _), st) in self.mkts.iter_mut() {
+            let Some(st) = st.more.as_deref_mut() else { continue };
             st.deferred.retain(|d| {
                 let expired = now.duration_since(d.since) >= DEFER;
                 if expired {
