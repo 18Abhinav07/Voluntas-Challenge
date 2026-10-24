@@ -73,6 +73,8 @@ pub struct Config {
 #[derive(Clone, Debug)]
 pub struct Fast {
     pub margin_ms: f64,
+    /// Weight of the newest 30 s window in a socket's score; 0.25 remembers about 4 windows.
+    pub weight: f64,
     pub slow_ms: f64,
     pub slow_windows: u32,
     /// A window with fewer timed events than this leaves a socket's score as it was.
@@ -81,7 +83,7 @@ pub struct Fast {
 
 impl Default for Fast {
     fn default() -> Self {
-        Self { margin_ms: 1.0, slow_ms: 4.0, slow_windows: 10, min_samples: 50 }
+        Self { margin_ms: 3.0, weight: 0.25, slow_ms: 4.0, slow_windows: 10, min_samples: 50 }
     }
 }
 
@@ -1338,7 +1340,7 @@ impl<M> Core<M> {
         for cs in self.conns.values_mut() {
             if cs.beh_n >= f.min_samples {
                 let m = cs.beh_sum as f64 / cs.beh_n as f64 / 1000.0;
-                cs.speed = Some(cs.speed.map_or(m, |s| 0.5 * s + 0.5 * m));
+                cs.speed = Some(cs.speed.map_or(m, |s| (1.0 - f.weight) * s + f.weight * m));
             }
             (cs.beh_sum, cs.beh_n) = (0, 0);
         }
@@ -2218,7 +2220,7 @@ mod tests {
 
     #[test]
     fn sources_follow_the_fastest_socket_past_a_margin() {
-        let (mut core, mut fx, now) = fast_pair(Fast::default());
+        let (mut core, mut fx, now) = fast_pair(Fast { margin_ms: 1.0, weight: 0.5, ..Fast::default() });
         assert_eq!(core.tokens["a"].source, Some(0));
         race(&mut core, &mut fx, now, 1, 5_000, 1);
         assert_eq!((core.metrics.src_behind.n, core.metrics.src_behind.mean_ms()), (60, 5.0), "written events came 5 ms late");
@@ -2260,7 +2262,7 @@ mod tests {
 
     #[test]
     fn socket_that_stays_slowest_is_recycled() {
-        let (mut core, mut fx, now) = fast_pair(Fast { slow_windows: 2, ..Fast::default() });
+        let (mut core, mut fx, now) = fast_pair(Fast { slow_windows: 2, weight: 0.5, ..Fast::default() });
         race(&mut core, &mut fx, now, 1, 10_000, 1);
         core.check_speed(now, 2, &mut fx);
         assert_eq!(core.metrics.slow_recycles, 0, "one slow window is not enough");

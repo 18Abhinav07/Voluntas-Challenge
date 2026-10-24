@@ -11,10 +11,10 @@ git fetch -q origin && git checkout -q "$REV" || { echo CHECKOUT_FAILED; exit 1;
 echo "== host $(nproc) cpus, region $(curl -s ipinfo.io/region 2>/dev/null)"; git log --oneline -1
 cargo build --release --bins || { echo BUILD_FAILED; exit 1; }
 rm -rf outA outB; mkdir -p outA outB
-echo "== start $(date -u +%H:%M:%S) dur=$DUR reps=$REPS markets=$MARKETS"
+echo "== start $(date -u +%H:%M:%S) dur=$DUR reps=$REPS markets=$MARKETS fast_args=${FAST_ARGS:-}"
 run() { NO_COLOR=1 ./target/release/collector --out out$1/ob.sbe --duration-secs $DUR --universe-cache u$1.json \
   --max-markets $MARKETS --replicas $REPS --tokens-per-conn 2000 --core-threads 1 $2 > collect$1.log 2>&1; }
-run A --lat-detail & run B --fast-source & wait
+run A --lat-detail & run B "--fast-source ${FAST_ARGS:-}" & wait
 echo "== exit at $(date -u +%H:%M:%S)"
 for x in A B; do echo "== verify $x"; ./target/release/verify out$x/ob.sbe | tail -8; done
 echo DONE

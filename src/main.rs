@@ -86,6 +86,13 @@ struct Args {
     /// Keeps the same per-market windows as --lat-detail, and logs its latency lines too.
     #[arg(long)]
     fast_source: bool,
+    /// With --fast-source: move off the preferred socket only when it is this much slower
+    /// than the best.
+    #[arg(long, default_value_t = Fast::default().margin_ms)]
+    fast_margin_ms: f64,
+    /// With --fast-source: weight of the newest 30 s window in a socket's score (1 = no memory).
+    #[arg(long, default_value_t = Fast::default().weight)]
+    fast_weight: f64,
 }
 
 /// Carries out the side effects one core asks for.
@@ -493,7 +500,7 @@ async fn main() -> anyhow::Result<()> {
             rotate_every: rotate,
             split_ratio: (args.split_ratio > 0.0).then_some(args.split_ratio),
             lat_detail: args.lat_detail,
-            fast: args.fast_source.then(Fast::default),
+            fast: args.fast_source.then(|| Fast { margin_ms: args.fast_margin_ms, weight: args.fast_weight, ..Fast::default() }),
             ..Config::default()
         };
         let rt = Runtime {
