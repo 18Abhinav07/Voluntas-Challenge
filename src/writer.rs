@@ -83,6 +83,17 @@ fn period_path(base: &std::path::Path, start_us: Ts) -> anyhow::Result<PathBuf> 
     Ok(base.with_file_name(format!("{stem}.{}.{ext}", ts(start_us)?.format("%Y%m%dT%H%MZ"))))
 }
 
+/// `fin`, or `<stem>.rN.sbe` if `fin` or its `.part` is already there: a restarted collector
+/// (D20) opens the period it died in again, and must not overwrite what the last one wrote.
+fn free_name(fin: PathBuf) -> PathBuf {
+    let taken = |p: &std::path::Path| p.exists() || p.with_extension("sbe.part").exists();
+    if !taken(&fin) {
+        return fin;
+    }
+    let stem = fin.file_stem().and_then(|s| s.to_str()).unwrap_or("orderbook").to_owned();
+    (1..).map(|n| fin.with_file_name(format!("{stem}.r{n}.sbe"))).find(|p| !taken(p)).expect("some free name")
+}
+
 /// Starts the writer thread for `sources` producers. It exits after the last sender is dropped
 /// and the channel is drained, flushing and syncing every open file.
 pub fn spawn(
@@ -99,7 +110,7 @@ pub fn spawn(
     );
     let open = move |epoch: i64| -> anyhow::Result<Part> {
         let fin = match period {
-            Some(p) => period_path(&target, epoch * p)?,
+            Some(p) => free_name(period_path(&target, epoch * p)?),
             None => target.clone(),
         };
         let tmp = if period.is_some() { fin.with_extension("sbe.part") } else { fin.clone() };
@@ -240,6 +251,18 @@ mod tests {
     fn count(path: &std::path::Path) -> usize {
         let mut r = AlignedSbeReader::<OrderbookSchema>::open(path).unwrap();
         std::iter::from_fn(|| r.read_msg().unwrap().map(|_| ())).count()
+    }
+
+    #[test]
+    fn a_taken_period_name_gets_a_restart_suffix() {
+        let dir = tempfile::tempdir().unwrap();
+        let fin = dir.path().join("ob.20261024T0000Z.sbe");
+        assert_eq!(free_name(fin.clone()), fin);
+        std::fs::write(&fin, b"").unwrap();
+        let r1 = dir.path().join("ob.20261024T0000Z.r1.sbe");
+        assert_eq!(free_name(fin.clone()), r1);
+        std::fs::write(r1.with_extension("sbe.part"), b"").unwrap();
+        assert_eq!(free_name(fin), dir.path().join("ob.20261024T0000Z.r2.sbe"));
     }
 
     #[test]

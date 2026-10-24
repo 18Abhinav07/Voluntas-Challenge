@@ -5,9 +5,12 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use engineering_challenge::util::{
-    AlignedSbeReader, OrderbookSchema,
-    dtos::challenge_orderbook::{AnyMessage, PriceLevelUpdateDomain, SnapshotDomain},
+use engineering_challenge::{
+    supervise::RESET_SYMBOL,
+    util::{
+        AlignedSbeReader, OrderbookSchema,
+        dtos::challenge_orderbook::{AnyMessage, PriceLevelUpdateDomain, SnapshotDomain},
+    },
 };
 
 const ONE: i64 = 1_000_000;
@@ -25,6 +28,8 @@ struct Report {
     two_sided_snapshot: u64,
     bad_symbol: u64,
     crossed: u64,
+    /// Supervisor restart markers: every book before one is void.
+    resets: u64,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -41,9 +46,14 @@ fn main() -> anyhow::Result<()> {
         match msg {
             AnyMessage::Snapshot(s) => {
                 let s = SnapshotDomain::try_from_decoder(s)?;
-                rep.snapshots += 1;
                 let t = s.received_at.timestamp_micros();
                 (first, last) = (first.min(t), last.max(t));
+                if s.symbol == RESET_SYMBOL && s.bids.is_empty() && s.asks.is_empty() {
+                    rep.resets += 1;
+                    books.clear();
+                    continue;
+                }
+                rep.snapshots += 1;
                 let is_bid = s.symbol.ends_with(":bid");
                 if !is_bid && !s.symbol.ends_with(":ask") {
                     rep.bad_symbol += 1;
@@ -120,6 +130,9 @@ fn main() -> anyhow::Result<()> {
         rep.updates as f64 / secs.max(1e-9)
     );
     println!("replay:    {} snapshots matched the rebuilt book, {} did not", rep.replay_ok, rep.replay_bad);
+    if rep.resets > 0 {
+        println!("resets:    {} collector restarts (books start again after each)", rep.resets);
+    }
     println!("crossed:   {} updates left a crossed book (informational)", rep.crossed);
     if !lat.is_empty() {
         lat.sort_unstable();

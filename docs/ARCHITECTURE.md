@@ -70,12 +70,13 @@ Only the source's events become `PriceLevelUpdate` records. The emitted book is 
 are written.
 
 **Switching source** writes the diff between the emitted book and the new source's book, as
-ordinary updates, then copies the new book into the emitted one. A reader never sees a jump. Its
-last snapshot plus every update since still equals the next snapshot, exactly, and `verify`
-checks this on every file. Why a diff and not a fresh snapshot is in DECISIONS.
+ordinary updates, copies the new book into the emitted one, and then writes a snapshot of both
+sides, as the challenge asks. A reader never sees a jump: its last snapshot plus every update
+since still equals the next snapshot, exactly, and `verify` checks this on every file. Why the
+diff comes first is in DECISIONS (D8).
 
 **No valid replica:** the token goes dark. Nothing is written for it until a fresh book arrives,
-and then the diff from the emitted book is written. Deltas are never written against a book we
+and then the diff from the emitted book and a snapshot are written. Deltas are never written against a book we
 do not trust.
 
 **Snapshots** of both sides of every published book are written once a minute. The tokens are
@@ -93,7 +94,8 @@ A snapshot is also written the first time a book appears.
 | **Rate limiting** | handshake timeouts and 429s | open limiter, circuit breaker, lookup batching (50 per call) |
 | **Buffering / slow consumer** | the core queue is full | the reader waits (backpressure) instead of dropping. Per-socket blocked time is logged every 30 s. |
 | **Venue closes a socket as "all assets resolved"** | the adapter matches the close reason | the reader drops those tokens without reconnecting. The core ends those markets with zero-size updates. |
-| **Process crash** | — | not handled in-process. Rotated files are complete, and a restart re-subscribes from the universe cache. See README, "Known limits". |
+| **Panic in any thread or task** | panic hook | the whole process shuts down in order (sockets closed, last chunk written) and exits non-zero, rather than run on with a dead core's markets silent (D20) |
+| **Process crash or kill** | `--supervise`: the parent sees the child exit | restart with backoff (1 s doubling to 30 s). A torn chunk is dropped, a reset marker separates the runs, crashed `.part` files are cut to whole chunks (D20) |
 
 **Integrity ladder.** Polymarket's hash check passes 98.9–100% of the time on correct books (the
 trade-heavy golden capture is 98.9%), so one miss alone is weak evidence. A miss on the source:

@@ -29,10 +29,11 @@ Each entry gives the choice, what was rejected, and the evidence. The numbers co
 - **Rejected:** `slug:outcome`. Slugs are not guaranteed stable or unique, and the token id is
   what the venue's book is keyed by.
 
-## D4. `--out` takes a path; `-` is stdout
+## D4. stdout by default; `--out` takes a path
 
 - **Problem:** the challenge says "write to stdout" and also "close the file you are writing to".
-- **Choice:** a path by default, `-` for stdout. Logs always go to stderr.
+- **Choice:** stdout by default (`--out -`), a path with `--out <file>`. Logs always go to stderr.
+  It refuses to write to a terminal.
 - Rotation (`--rotate-mins`) is file-only.
 
 ## D5. A snapshot's `exchange_timestamp` is the last applied event's
@@ -58,13 +59,14 @@ Each entry gives the choice, what was rejected, and the evidence. The numbers co
 - **Why it works:** a failover target already has a live, checked book. Switching costs no
   round-trip to the venue.
 
-## D8. A source switch writes a diff, not a fresh snapshot
+## D8. A source switch writes a diff, then a snapshot
 
-The challenge asks for a snapshot on a source switch. This is a deliberate deviation.
+The challenge asks for a snapshot on a source switch. One is written, after a diff.
 
 - **What happens:** the core keeps the book readers hold (the emitted book). On a switch it writes
-  the level changes from that book to the new source's book as ordinary updates.
-- **Why:**
+  the level changes from that book to the new source's book as ordinary updates, then a snapshot
+  of both sides of the new book.
+- **Why the diff first:**
   - **The output stays checkable.** A mid-minute snapshot that replaces the book hides whatever
     was lost before it. A reader cannot tell "the source switched" from "data went missing". With
     the diff, each snapshot must equal the previous one plus every update since, and `verify`
@@ -72,10 +74,11 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
   - **Evidence:** the first build did write a snapshot on each switch. That produced 15.5k replay
     mismatches, every one an unexplained jump in the stream. With the diff: 0 mismatches in every
     file since, over tens of millions of replayed snapshots.
-  - The reader ends up in the same state either way. The diff is usually a handful of levels; a
-    snapshot is the whole book.
-- **To switch back:** a one-line change in `Core::adopt` (`core.rs`): call `snapshot` instead of
-  `emit_diff`.
+  - With the diff first, the switch snapshot equals the replayed book like any other, so a
+    switch shows up in the output without hiding a loss.
+- **Cost:** a snapshot of both sides per switch. Measured in the gate run (ENGINEERING-LOG).
+- **Until this change** the switch wrote only the diff. That met the spirit (the reader ends in
+  the right state) but not the letter of the challenge.
 
 ## D9. The venue hash never switches the source on its own
 
@@ -191,8 +194,8 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
     best (`--fast-margin-ms`), on a score smoothed over 30 s windows with at least 50 timed events
     each, the newest window weighing 0.25 (`--fast-weight`). With 1 ms and 0.5 it flapped 7 times
     in 20 minutes; with 3 ms and 0.25, twice.
-  - **A move writes nothing.** Tokens move onto the preferred socket only when its book equals
-    the source's. A standby is not hashed (D9), so a faster socket that disagrees is not trusted.
+  - **A move writes only a snapshot.** Tokens move onto the preferred socket only when its book
+    equals the source's, so the diff is empty. A standby is not hashed (D9), so a faster socket that disagrees is not trusted.
   - **Failover is unchanged** except for ties: among replicas that have seen as much, the
     preferred one wins.
   - **The recycle is make-before-break** (D15), and respects the same limits: two shards at a
@@ -204,3 +207,31 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
   26 ms). It also costs the per-market windows of D18.
 - **Rejected:** first-arrival merge across sockets (D7), which would remove the choice entirely
   but needs a dedup key the venue does not give.
+
+## D20. Fail fast on a panic; restart from outside (`--supervise`)
+
+- **Problem:** cores were joined only at shutdown, and a panicking core did not cancel the
+  process. Its markets went silent until Ctrl-C, with nothing in the output to say so.
+- **Choice, in the process:** a panic hook cancels the main loop. The process shuts down in order
+  (sockets closed, last chunk written, files closed) and exits non-zero. A core that returns an
+  error already did this.
+- **Choice, outside it:** `--supervise` runs the collector as a child and restarts it when it
+  dies, waiting 1 s, doubling to 30 s, and back to 1 s after a child that ran 60 s.
+  - **One output (stdout or a file):** the parent owns it, and the child writes to a pipe. The
+    parent passes on whole 64 MiB chunks only, so a chunk torn by `kill -9` is dropped. Between
+    two children it writes a reset marker: a snapshot of the symbol `*` with no levels. Every
+    book before it is void; each book starts again with a snapshot. `verify` resets there.
+  - **Rotated files:** the child writes them. After a crash the parent cuts each `.part` file
+    back to whole chunks and renames it, or removes it if none. The next child takes a new name
+    for a period that already has a file (`<stem>.<period>.rN.sbe`), so nothing is overwritten.
+  - SIGINT and SIGTERM go to the child as SIGINT. The child runs in its own process group, so a
+    terminal Ctrl-C reaches it once.
+- **Rejected:** restarting a dead core inside the process. Its sockets, books and writer source
+  would all need rebuilding, and a fresh process does that already, from the universe cache, in
+  seconds.
+- **Rejected:** leaving it to systemd. Systemd would restart the process, but it cannot repair a
+  torn chunk or mark the gap in the output.
+- **Cost:** a `kill -9` still loses the chunk in memory (D11). A panic does not.
+- **Evidence:** 50 markets, live. Three injected panics: 3 restarts, `verify` OK with 3 resets and
+  0 mismatches. `kill -9` of the child, single file: 1 restart, OK. Rotated: the empty `.part`
+  was removed, the period reopened, both files OK.

@@ -11,7 +11,10 @@ use std::{
     hash::{Hash, Hasher},
     net::SocketAddr,
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -23,6 +26,7 @@ use engineering_challenge::{
     },
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
     core::{Config, Core, Effects, Fast, Metrics, SockLat},
+    supervise::{self, Supervisor},
     writer::{self, Tagged},
 };
 use tokio::{
@@ -33,10 +37,11 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
-#[command(about = "Collects Polymarket L2 orderbooks into an aligned SBE file")]
+#[command(about = "Collects Polymarket L2 orderbooks into an aligned SBE file", args_override_self = true)]
 struct Args {
-    /// Output file (`-` for stdout). Truncated on start.
-    #[arg(long, default_value = "orderbook.sbe")]
+    /// Output: `-` (the default) is stdout, anything else a file path, truncated on start.
+    /// Logs always go to stderr.
+    #[arg(long, default_value = "-")]
     out: PathBuf,
     /// Tokens subscribed per websocket.
     #[arg(long, default_value_t = 2500)]
@@ -93,6 +98,40 @@ struct Args {
     /// With --fast-source: weight of the newest 30 s window in a socket's score (1 = no memory).
     #[arg(long, default_value_t = Fast::default().weight)]
     fast_weight: f64,
+    /// Run the collector as a child process and restart it whenever it dies (D20). Output
+    /// stays readable: a torn chunk is dropped, and a reset marker separates two runs.
+    #[arg(long)]
+    supervise: bool,
+    /// Test only: panic after this many seconds, to exercise fail-fast and --supervise.
+    #[arg(long, hide = true)]
+    fault_panic_after_secs: Option<u64>,
+}
+
+/// Cancelled by a panic anywhere, so a dead thread or task stops the whole process (D20).
+static FATAL: OnceLock<CancellationToken> = OnceLock::new();
+static PANICKED: AtomicBool = AtomicBool::new(false);
+
+/// Runs this binary again as a supervised child, with the same arguments minus `--supervise`.
+fn supervise(args: &Args) -> anyhow::Result<()> {
+    let mut child: Vec<_> = std::env::args_os().skip(1).filter(|a| a != "--supervise").collect();
+    let output = if args.rotate_mins > 0 {
+        anyhow::ensure!(args.out.as_os_str() != "-", "rotation needs a file path, not stdout");
+        supervise::Output::Rotated(args.out.clone())
+    } else {
+        // The parent owns the one output; the child writes to its pipe.
+        child.extend(["--out".into(), "-".into()]);
+        if args.out.as_os_str() == "-" { supervise::Output::Stdout } else { supervise::Output::File(args.out.clone()) }
+    };
+    let restarts = Supervisor {
+        program: std::env::current_exe()?,
+        args: child,
+        output,
+        chunk: writer::CHUNK,
+        max_restarts: None,
+    }
+    .run()?;
+    tracing::info!(restarts, "supervisor: done");
+    Ok(())
 }
 
 /// Carries out the side effects one core asks for.
@@ -445,10 +484,33 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
+    #[cfg(unix)]
+    if args.out.as_os_str() == "-" && unsafe { libc::isatty(libc::STDOUT_FILENO) } == 1 {
+        anyhow::bail!("refusing to write binary SBE to a terminal: redirect stdout or pass --out <file>");
+    }
+    if args.supervise {
+        return supervise(&args);
+    }
     raise_nofile();
     let adapter = Arc::new(Polymarket::new()?);
 
     let cancel = CancellationToken::new();
+    FATAL.set(cancel.clone()).expect("main runs once");
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_hook(info);
+        PANICKED.store(true, Ordering::SeqCst);
+        tracing::error!("panic: shutting down");
+        if let Some(c) = FATAL.get() {
+            c.cancel();
+        }
+    }));
+    if let Some(secs) = args.fault_panic_after_secs {
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(secs)).await;
+            panic!("injected fault (--fault-panic-after-secs)");
+        });
+    }
     {
         let cancel = cancel.clone();
         tokio::spawn(async move {
@@ -644,5 +706,8 @@ async fn main() -> anyhow::Result<()> {
         .await?
         .map_err(|_| anyhow::anyhow!("writer thread panicked"))??;
     tracing::info!(updates = stats.updates, snapshots = stats.snapshots, m = ?metrics, "done");
+    if PANICKED.load(Ordering::SeqCst) && failed.is_none() {
+        failed = Some(anyhow::anyhow!("a thread or task panicked"));
+    }
     failed.map_or(Ok(()), Err)
 }

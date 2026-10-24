@@ -880,3 +880,33 @@ Codespace, running 2.5 h). Codespace `voluntas-fast2` deleted.
 - Fast-source under the full universe.
 - A shorter `--lag-ms`; a supervisor example.
 - Zip and email (ask first).
+
+## Turn — Task set 1: stdout default, switch snapshot, fail-fast, `--supervise`
+
+**Asked:** make all the fixes from task sets 1–3 (Kalshi aside), then soak for 2–3 hours once
+everything is right.
+
+**Changed:**
+- **stdout is the default output** (D4). `--out <file>` still works. It refuses a terminal.
+- **A source switch writes the diff, then a snapshot** (D8). All source changes go through
+  `Core::adopt`. New metric `switch_snaps`. Fast-source moves (equal books) now write only the
+  snapshot (D19).
+- **Fail fast on a panic** (D20). A panic hook cancels the main loop. Shutdown runs in order and
+  the exit is non-zero. Hidden `--fault-panic-after-secs` injects one for tests.
+- **`--supervise`** (D20, `src/supervise.rs`). Restart with backoff, whole-chunk relay, reset
+  marker `*`, `.part` recovery, `rN` names for reopened periods. `verify` counts resets.
+- Tests: 60 unit (1 ignored) + 3 golden pass. New: relay, restart loop, reset marker read back
+  through the template reader, `.part` recovery, free name.
+
+**Runs** (local Mac, live Polymarket, 50 markets):
+
+| Fault | Restarts | verify |
+|---|---|---|
+| Panic injected every 25 s, 2 min | 3 | OK, 0 mismatches, 3 resets |
+| `kill -9` child, single file | 1 | OK, 0 mismatches, 1 reset |
+| `kill -9` child, `--rotate-mins 1` | 1 | both files OK; empty `.part` removed |
+
+- `kill -9` lost the first child's data in the single-file run: at 50 markets it never filled a
+  64 MiB chunk. That is the D11 cost, now written in README "Known limits".
+
+**Open:** mock venue and end-to-end fault tests, CI, clock offset, p99 profiling, gate run, soak.

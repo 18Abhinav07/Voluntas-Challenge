@@ -248,6 +248,8 @@ pub struct Metrics {
     pub slow_recycles: u64,
     /// Tokens left on their source because the fast socket's book differed from it.
     pub fast_disagree: u64,
+    /// Source changes of a published book, each written as a diff then a snapshot (D8).
+    pub switch_snaps: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
     pub wire: Hist,
     /// Socket read to core apply: time spent queued inside this process.
@@ -264,7 +266,7 @@ impl Metrics {
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
             quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens,
-            fast_picks, fast_switches, slow_recycles, fast_disagree);
+            fast_picks, fast_switches, slow_recycles, fast_disagree, switch_snaps);
         self.src_behind.merge(&o.src_behind);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
@@ -1001,11 +1003,15 @@ impl<M> Core<M> {
     }
 
     /// Makes `conn` the token's source: the first time with a snapshot, afterwards with the
-    /// diff from what readers already hold, so the output stream never jumps.
+    /// diff from what readers already hold and then a snapshot of the new book (D8). The diff
+    /// keeps the stream checkable (snapshot = previous + updates); the snapshot is what the
+    /// challenge asks for on a switch.
     fn adopt(tok: &mut Tok, conn: ConnId, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
         tok.source = Some(conn);
         if tok.announced {
             Self::emit_diff(tok, conn, epoch, recv, out, m);
+            Self::snapshot(tok, epoch, recv, out, m);
+            m.switch_snaps += 1;
         } else {
             let rep = &tok.replicas[&conn];
             tok.emitted.clone_from(&rep.book);
@@ -1582,6 +1588,13 @@ mod tests {
         }
     }
 
+    /// The updates in `out`, and how many snapshots follow them. A source switch writes its diff
+    /// and then a snapshot of both sides (D8).
+    fn diff_then_snap(out: &[Rec]) -> (Vec<Rec>, usize) {
+        let n = out.iter().rev().take_while(|r| matches!(r, Rec::Snapshot { .. })).count();
+        (out[..out.len() - n].to_vec(), n)
+    }
+
     fn setup() -> (Core<()>, Fx, Instant) {
         let mut core = Core::new(Config { tokens_per_conn: 10, ..Config::default() }, Box::new(NoCheck));
         let mut fx = Fx::default();
@@ -1657,8 +1670,13 @@ mod tests {
         core.on_events(1, 3, &[lvl("a", 7, Side::Ask, 600, 9)], now, &mut fx);
         core.out.clear();
         core.on_down(0, 4);
-        assert_eq!(core.out, vec![Rec::Update { sym: "a:ask".into(), recv: 4, exch: 7, px: 600, qty: 9 }], "peer's extra level, as a diff");
-        assert_eq!(core.metrics.switches, 1);
+        assert_eq!(
+            diff_then_snap(&core.out),
+            (vec![Rec::Update { sym: "a:ask".into(), recv: 4, exch: 7, px: 600, qty: 9 }], 2),
+            "peer's extra level as a diff, then a snapshot"
+        );
+        assert!(matches!(&core.out[2], Rec::Snapshot { levels, .. } if levels == &[(600, 9)]));
+        assert_eq!((core.metrics.switches, core.metrics.switch_snaps), (1, 1));
     }
 
     #[test]
@@ -1670,7 +1688,7 @@ mod tests {
         core.on_events(0, 3, &[lvl("a", 6, Side::Bid, 400, 0)], now, &mut fx);
         assert!(core.out.is_empty(), "no deltas against an untrusted book");
         core.on_events(1, 4, &[book("a", 6, &[], &[])], now, &mut fx);
-        assert_eq!(core.out, vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 0 }]);
+        assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 0 }], 2));
     }
 
     #[test]
@@ -1703,7 +1721,7 @@ mod tests {
         core.on_tick(now + Duration::from_secs(4), 4, &mut fx);
         assert_eq!(core.metrics.lag_switches, 1);
         assert!(fx.sent.iter().any(|(c, s)| *c == 0 && s.starts_with("Resnapshot")));
-        assert_eq!(core.out, vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 2 }]);
+        assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 2 }], 2));
     }
 
     /// Both replicas hold the same book at ts 5; the source (conn 0) then sees one more delta.
@@ -1914,7 +1932,7 @@ mod tests {
         core.on_events(2, 3, &[book("a", 6, &[(400, 1)], &[])], now, &mut fx);
         assert!(fx.sent.iter().any(|(c, s)| *c == 0 && s == "Close"));
         assert_eq!(core.metrics.recycles, 1);
-        assert!(core.out.is_empty(), "identical books: handover is invisible in the output");
+        assert_eq!(diff_then_snap(&core.out), (vec![], 2), "identical books: the handover writes only a snapshot");
     }
 
     fn set_rate(core: &mut Core<()>, t: &str, rate: f32) {
@@ -2107,7 +2125,7 @@ mod tests {
         assert!(core.tokens["a"].source.is_some_and(|s| s >= 6), "source handed to the new socket");
         assert_eq!(core.tokens["a"].replicas.len(), 2);
         assert_eq!(core.shards[0].tokens.len(), 4);
-        assert!(core.out.is_empty(), "identical books: the split is invisible in the output");
+        assert_eq!(diff_then_snap(&core.out), (vec![], 4), "identical books: the split writes only snapshots");
         // The old socket dropping no longer touches the moved tokens.
         core.on_down(0, 3);
         assert!(core.tokens["a"].source.is_some_and(|s| s >= 6));
@@ -2228,7 +2246,7 @@ mod tests {
         core.check_speed(now, 2, &mut fx);
         assert_eq!((core.tokens["a"].source, core.tokens["b"].source), (Some(1), Some(1)));
         assert_eq!((core.metrics.fast_picks, core.metrics.fast_switches), (1, 2));
-        assert!(core.out.is_empty(), "equal books: the move writes nothing");
+        assert_eq!(diff_then_snap(&core.out), (vec![], 4), "equal books: the move writes only snapshots");
 
         // A fast socket whose book differs from the source's is not trusted for speed.
         core.on_events(0, 5, &[book("b", 2, &[(300, 9)], &[])], now, &mut fx);

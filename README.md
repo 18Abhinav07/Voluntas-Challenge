@@ -24,17 +24,25 @@ Needs a stable Rust toolchain (edition 2024).
 cargo build --release --bins
 ```
 
+The SBE stream goes to stdout and logs go to stderr:
+
+```bash
+./target/release/collector > orderbook.sbe
+```
+
+Or to a file:
+
 ```bash
 ./target/release/collector --out orderbook.sbe
 ```
 
-Stop with Ctrl-C. The first SIGINT closes every websocket, writes the last chunk and closes the
-file. A second SIGINT forces an exit.
+It refuses to write binary to a terminal. Stop with Ctrl-C: the first SIGINT closes every
+websocket, writes the last chunk and closes the output. A second SIGINT forces an exit.
 
-Logs go to stderr, so `--out -` writes the SBE stream to stdout:
+To restart it automatically if it dies:
 
 ```bash
-./target/release/collector --out - > orderbook.sbe
+./target/release/collector --supervise > orderbook.sbe
 ```
 
 A small run for trying it out:
@@ -47,7 +55,8 @@ A small run for trying it out:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--out` | `orderbook.sbe` | Output file, or `-` for stdout. Truncated on start. |
+| `--out` | `-` | `-` is stdout, anything else a file path. Truncated on start. |
+| `--supervise` | off | Run as a child process and restart it when it dies (D20). |
 | `--rotate-mins` | `0` | Cut output into files of this many minutes, named by period start. Each file replays on its own. |
 | `--tokens-per-conn` | `2500` | Tokens per websocket (one shard). |
 | `--replicas` | `2` | Independent sockets per shard, pinned to different edge IPs when DNS returns more than one. |
@@ -131,11 +140,10 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
 
 ## Known limits
 
-- **No crash restart.** A crash is not restarted from inside the process.
-  - With `--rotate-mins`, every finished file is complete. A restart re-subscribes from the
-    universe cache within seconds.
-  - Without rotation, a restart truncates the file.
-  - Running it under a supervisor (systemd, a shell loop) is left to deployment.
+- **A crash loses the unwritten chunk.** Output is written in whole 64 MiB chunks (D11), so a
+  `kill -9` loses what was still in memory, up to one chunk per open file. A panic does not: it
+  shuts down in order and writes the last chunk. Under `--supervise` the collector is back
+  within seconds of a crash, from the universe cache; the gap is marked in the output (D20).
 - **Failover is not instant.** A silent subscription is detected when a peer replica has seen
   an event the source has not for 3 s. Until then the source's stale book is what readers have.
 - **Latency is measured but not tuned.** One experiment has run: 8 sockets on the same 400
