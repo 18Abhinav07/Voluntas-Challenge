@@ -1131,3 +1131,43 @@ restart, because it lives in the child.
   reflects the adapter.
 
 **Open:** the zip and the email to jobs@voluntas.io, both waiting on Abhinav's go-ahead.
+
+## Turn — Ext 4, Experiment 3: the TCP source port
+
+**Why:** the challenge names changing the source port as a latency lever. It was the last named
+idea not tested on purpose; Experiment 1 only saw ports differ by accident.
+
+**Built:**
+- `--edge-ip` pins every socket to one edge.
+- `--src-ports` binds replica r to a given local port: `TcpSocket` with `SO_REUSEADDR`, bind,
+  then connect.
+- Each fixed-port connect is logged with its port.
+- A unit test checks two things against a local websocket:
+  - the port is bound, and can be reused toward another peer while the first connection is in
+    TIME_WAIT;
+  - the default path stays ephemeral.
+- `bench/port.sh` runs the rounds; `bench/port_an.py` scores them.
+
+**Run:** WestEurope Codespace, 14:13–14:44 UTC, commit 9cc68f0. Setup:
+- 12 sockets on one Cloudflare edge: 6 on fixed ports, 6 ephemeral;
+- 6 fresh 4-minute rounds, 75 s apart;
+- 400 markets.
+
+All rounds verified OK, with 0 connections lost.
+
+**Result:**
+- Sockets on one edge spread 10–15 ms apart in mean `behind`, every round.
+- A fixed port kept its rank only weakly:
+  - rank correlation +0.27, ICC +0.12, permutation p ≈ 0.1;
+  - ephemeral ports: −0.22, p 0.87.
+- Not significant. The best fixed port did no better than the best ephemeral socket.
+- **Verdict:** the port is not a useful lever on Polymarket; choosing among live connections is
+  (Experiment 2).
+
+**First launch failed:** the script ran from `bench/` and could not find the binary (exit 127 in
+three rounds). Fixed to run from the repo root and relaunched; those rounds were discarded.
+
+**Docs:** LATENCY Experiment 3, and the source-port row removed from "Not done"; a GRADING row and
+flag list; README flag rows.
+
+**Tests:** 90 passed (one new), clippy clean.

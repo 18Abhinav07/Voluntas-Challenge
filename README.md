@@ -36,7 +36,7 @@ counter means.
 | Ext 1: redundancy | 2 replicas per shard on different edges, source arbitration, lag check, `--supervise` | e2e drop / silent / stall / delay / supervise; 224-socket edge kill live |
 | Ext 2: silent failures and exchange-side decay | venue hash ladder, quiet resubscribe, per-socket quiet reconnect, make-before-break recycling | e2e corrupt / stall; hourly recycle of 448 sockets with no gaps |
 | Ext 3: a second exchange | `ExchangeAdapter` trait; Polymarket and Kalshi adapters (`src/adapter/`), `--venue` | Kalshi e2e: seq gap → failover, listing → subscribe; never run live ([docs/KALSHI.md](docs/KALSHI.md)) |
-| Ext 4: latency | per-socket latency (`--lat-detail`), `--fast-source`, clock offset (D21) | [docs/LATENCY.md](docs/LATENCY.md) |
+| Ext 4: latency | per-socket latency (`--lat-detail`), `--fast-source`, a TCP source-port experiment (`--src-ports`), clock offset (D21) | [docs/LATENCY.md](docs/LATENCY.md) |
 
 ## Build and run
 
@@ -97,6 +97,7 @@ A small run for trying it out:
 | `--fast-source` | off | Prefer each shard's fastest socket as source and recycle one that stays slowest (see LATENCY, Experiment 2). |
 | `--fast-margin-ms` | `3` | With `--fast-source`: how much slower the preferred socket must be before it changes. |
 | `--fast-weight` | `0.25` | With `--fast-source`: weight of the newest 30 s window in a socket's score. |
+| `--edge-ip`, `--src-ports` | off | Experiment 3: pin every socket to one edge IP; bind replica r to the r-th local port (0 = ephemeral). |
 | `--ntp-server` | `time.google.com:123` | Measure and log the host clock offset at start and every 10 min (D21). Empty = off. |
 
 ## Output

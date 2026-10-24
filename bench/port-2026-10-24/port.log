@@ -1,0 +1,84 @@
+info: downloading installer
+warn: it looks like you have an existing rustup settings file at:
+warn: /home/codespace/.rustup/settings.toml
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+warn: Updating existing toolchain, profile choice will be ignored
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: default toolchain set to stable-x86_64-unknown-linux-gnu
+
+  stable-x86_64-unknown-linux-gnu unchanged - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env"           # For sh/ash/dash/pdksh/bash/zsh
+source "$HOME/.cargo/env.fish" # For fish
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+== host 4 cpus, region North Holland
+9cc68f0 bench/port.sh: run from the repo root
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.17s
+== edge 104.18.34.205 fixed_ports 41001,41002,41003,41004,41005,41006 ephemeral 6 rounds 6 x 240s gap 75s markets 400
+== round 1 start 14:13:55
+== round 1 exit 0 at 14:17:56
+crossed:   2 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -12 p50 -6 p90 11 p99 46 p99.9 149 max 5663
+OK
+lost 0
+== round 2 start 14:19:11
+== round 2 exit 0 at 14:23:13
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -16 p50 -11 p90 3 p99 48 p99.9 120 max 5428
+OK
+lost 0
+== round 3 start 14:24:28
+== round 3 exit 0 at 14:28:29
+crossed:   2 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -18 p50 -12 p90 3 p99 81 p99.9 562 max 2094
+OK
+lost 0
+== round 4 start 14:29:44
+== round 4 exit 0 at 14:33:45
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -20 p50 -12 p90 6 p99 163 p99.9 348 max 4747
+OK
+lost 0
+== round 5 start 14:35:01
+== round 5 exit 0 at 14:39:02
+crossed:   2 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -24 p50 -18 p90 -2 p99 75 p99.9 242 max 5704
+OK
+lost 0
+== round 6 start 14:40:17
+== round 6 exit 0 at 14:44:18
+crossed:   2 updates left a crossed book (informational)
+latency:   recv-exch ms p1 -27 p50 -20 p90 -5 p99 32 p99.9 247 max 427
+OK
+lost 0
+DONE

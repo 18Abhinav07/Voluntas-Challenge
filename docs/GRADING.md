@@ -65,6 +65,7 @@ faults injected (see below).
 | Freeze and kill -9 recover live | 25-min gate: SIGSTOP 15 s, kill -9, 0 mismatches in 7 files | `REV=<commit> DUR=1500 STOP_AT=500 KILL_AT=900 bash bench/gate.sh` |
 | Losing an edge moves its tokens | Soak 1: all 224 sockets to one edge killed, 0 replay errors (ENGINEERING-LOG) | done by hand during that soak; no script |
 | Which socket is fastest, and whether picking it helps | Experiment 1 and 2 in LATENCY | `bench/lat.sh`, `bench/fast.sh` |
+| Whether the TCP source port picks a faster path | Experiment 3 in LATENCY: weak, not significant (p ≈ 0.1) | `REV=<commit> bash bench/port.sh` |
 
 `bench/gate.sh` runs on any Linux host with Rust and a few hundred GB of disk. It:
 - checks out `REV` and builds it;
@@ -83,7 +84,7 @@ A grader never needs any flag. Every default is the production setting.
 | **Output** | `--out`, `--rotate-mins`, `--supervise`, `--duration-secs`, `--max-markets` (for small runs) |
 | **Venue** | `--venue` (`polymarket` by default; `kalshi` needs a key, see KALSHI.md) |
 | **Tuning, safe to leave** | `--tokens-per-conn`, `--replicas`, `--max-conns`, `--core-threads`, `--core-queue`, `--recycle-mins`, `--rediscover-mins`, `--opens-per-sec`, `--universe-cache`, `--ntp-server` |
-| **Experiments, off by default** | `--lat-detail` (per-socket latency log), `--fast-source` with `--fast-margin-ms` / `--fast-weight` (no consistent gain in two A/B runs), `--split-ratio` (hot-shard splits) |
+| **Experiments, off by default** | `--lat-detail` (per-socket latency log), `--fast-source` with `--fast-margin-ms` / `--fast-weight` (no consistent gain in two A/B runs), `--split-ratio` (hot-shard splits), `--edge-ip` / `--src-ports` (Experiment 3) |
 | **Test only, hidden** | `--ws-url`, `--rest-url` (point the collector at a mock venue) |
 
 ## Reading the counters

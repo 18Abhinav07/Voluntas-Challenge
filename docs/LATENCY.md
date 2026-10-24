@@ -240,19 +240,105 @@ but there is no consistent latency gain. Run 1 helped the body and hurt p99; run
 stays opt-in. What could still change this: ignoring windows where every socket is behind (a
 common stall), and a run under the full universe, where the spread between sockets is larger.
 
+## Experiment 3: does the TCP source port pick the path?
+
+The challenge names changing the TCP source port as a way to find a faster connection. The idea:
+a load balancer hashes the connection's 4-tuple (source IP and port, destination IP and port)
+to choose a path or a server. Changing the source port changes the hash. If a port reliably
+lands on a fast path, a collector could find good ports and keep them.
+
+**How it was isolated** (`bench/port.sh`, `bench/port_an.py`, `bench/port-2026-10-24/`):
+- **One edge.** `--edge-ip` pins all 12 sockets to one Cloudflare edge (104.18.34.205), so
+  only the source port differs between them.
+- **Two groups:**
+  - replicas 0–5 bind the same local ports in every round (41001–41006, `--src-ports`);
+  - replicas 6–11 get a new ephemeral port each round.
+- **Six rounds:**
+  - each round is a fresh 4-minute run on the same 400 markets;
+  - rounds are 75 s apart, longer than Linux's 60 s TIME_WAIT, so a fixed port can connect to
+    the same edge again.
+- **What is measured:** `behind`, how far each socket's copy of an event trails the first copy
+  on any socket (Experiment 1). It uses one clock, so the Codespace clock drift does not affect
+  it.
+- **The test:**
+  - if the port decides the path, a fixed-port socket stays fast or slow from round to round, and
+    an ephemeral one does not;
+  - this is scored by the rank correlation of the sockets between consecutive rounds, and by the
+    share of variance that belongs to the slot (ICC);
+  - each is checked against a permutation test, which shuffles the slots within each round
+    20,000 times.
+
+**Run:** WestEurope Codespace, 4 CPUs, 14:13–14:44 UTC, commit 9cc68f0. Every round:
+- verified OK;
+- 0 connections lost;
+- all six fixed ports bound as asked.
+
+Mean `behind` (ms) per socket and round:
+
+| Slot | Port | r1 | r2 | r3 | r4 | r5 | r6 | mean | sd |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | fixed 41001 | 4.6 | 2.1 | 2.0 | 6.5 | 12.8 | 3.6 | 5.3 | 3.7 |
+| 1 | fixed 41002 | 4.0 | 1.7 | 2.0 | 7.2 | 2.1 | 1.9 | 3.2 | 2.0 |
+| 2 | fixed 41003 | 10.1 | 4.4 | 13.2 | 3.7 | 14.5 | 4.8 | 8.5 | 4.4 |
+| 3 | fixed 41004 | 1.9 | 3.3 | 8.8 | 10.6 | 3.7 | 2.7 | 5.2 | 3.3 |
+| 4 | fixed 41005 | 16.7 | 4.4 | 3.7 | 10.7 | 10.5 | 2.1 | 8.0 | 5.1 |
+| 5 | fixed 41006 | 3.5 | 3.8 | 3.1 | 5.9 | 4.7 | 4.2 | 4.2 | 0.9 |
+| 6 | ephemeral | 11.6 | 7.8 | 6.3 | 9.2 | 4.4 | 3.3 | 7.1 | 2.8 |
+| 7 | ephemeral | 3.4 | 10.1 | 4.7 | 13.7 | 14.0 | 7.1 | 8.8 | 4.1 |
+| 8 | ephemeral | 3.8 | 4.1 | 3.5 | 7.3 | 3.7 | 2.9 | 4.2 | 1.4 |
+| 9 | ephemeral | 4.1 | 13.2 | 2.8 | 6.5 | 2.8 | 13.9 | 7.2 | 4.7 |
+| 10 | ephemeral | 4.9 | 12.6 | 6.3 | 4.7 | 5.8 | 4.0 | 6.4 | 2.9 |
+| 11 | ephemeral | 11.1 | 1.8 | 9.7 | 4.8 | 2.6 | 12.9 | 7.2 | 4.3 |
+
+| Group | Rank correlation, round to round | Mean | p | ICC | p |
+|---|---|---|---|---|---|
+| Fixed port | +0.54 +0.66 −0.09 −0.49 +0.71 | +0.27 | 0.10 | +0.12 | 0.09 |
+| Ephemeral | −0.26 −0.49 −0.43 +0.43 −0.37 | −0.22 | 0.87 | −0.02 | 0.54 |
+
+**Findings:**
+- **Sockets on one edge differ a lot.** Within each round, the slowest socket's mean was 10–15 ms
+  behind the fastest one's. So the spread Experiment 1 saw within one edge is real and repeats.
+- **A fixed port keeps its speed only weakly.** Fixed-port sockets kept their order a little
+  (ICC 0.12: about an eighth of their variance belongs to the port). Ephemeral sockets, as
+  expected, kept none.
+  - The difference is not significant (p ≈ 0.1).
+  - Even taken at face value, the port explains about an eighth of the spread. The rest changes
+    from connection to connection.
+- **Picking a port does not beat picking a connection.**
+  - The steadiest fixed port (41006: 4.2 ms, sd 0.9) did no better than the best ephemeral slot
+    (4.2 ms, sd 1.4).
+  - The fastest fixed port in round 1 (41004, 1.9 ms) averaged 5.8 ms over the next five rounds,
+    worse than the group.
+  - The fixed group's mean (5.7 ms against 6.8 ms) was lower in only 4 of 6 rounds, and mostly
+    because of rounds 2 and 6, so it is not a stable gain.
+- **What this suggests about the path:**
+  - Cloudflare's load balancer does hash the 4-tuple, which would explain the weak persistence.
+  - But most of a socket's speed is set after that: which websocket backend behind Cloudflare
+    serves the connection, and how loaded it is at the time. Neither is tied to the port.
+
+**Verdict:** on Polymarket, choosing the source port is not a useful lever. At best it shows a
+weak effect that does not reach significance. The lever that matters is measuring each live
+connection and choosing among connections. That is Experiment 2's approach, plus recycling the
+slow ones, since a new connection draws again from the spread.
+
+**Limits:**
+- 6 rounds of 12 sockets, one edge, one region, one half-hour on a Saturday afternoon UTC.
+- 400 markets; the `behind` floor is our own read order (Experiment 1).
+- Ports 41001–41006 only. Another range could hash differently, but nothing here suggests a
+  range effect.
+- Kalshi has not been tried. Its edge layout differs, and the experiment needs a key.
+
 ## Not done yet
 
-Done: many sockets on the same tokens, and per-edge comparison (Experiment 1). A speed-aware
-source and recycling the slowest socket (Experiment 2). Four sockets on
-the same edge already differ by local port, so Experiment 1 partly covers the source-port idea:
-connections to one edge with different ports did differ, by up to 9 ms at the mean. Port was not
-varied on purpose, though, so it is still listed below.
+Done:
+- many sockets on the same tokens, and a per-edge comparison (Experiment 1);
+- a speed-aware source, and recycling the slowest socket (Experiment 2);
+- the TCP source port (Experiment 3).
 
 | Experiment | How it would run here | What it needs |
 |---|---|---|
 | **Tune the speed-aware source** | Experiment 2 again, skipping windows where every socket is behind, and under the full universe | a common-stall filter in `check_speed`; `--fast-source` and `bench/fast.sh` otherwise |
 | **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
-| **Change the TCP source port** | Reconnect the same edge with different local ports, which may land on different load-balancer paths. Compare per connection. | bind the local port before `connect` |
 | **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |
 | **Host region** | Repeat a run from a second region (e.g. us-east-1) at the same time and compare `wire` medians. | a second host; the user has no AWS account |
 | **Clock offset** | Sync the host with chrony or a PTP source before the run, so `wire` can be read as an absolute number. | root on the host |
