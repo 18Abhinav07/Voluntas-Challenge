@@ -1,5 +1,8 @@
 use super::*;
-use crate::adapter::LevelChange;
+use crate::{
+    adapter::{Instrument, LevelChange},
+    book::Side,
+};
 
 #[derive(Default)]
 struct Fx {
