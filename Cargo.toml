@@ -31,6 +31,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 rand = "0.8"
 libc = "0.2"
+# Kalshi handshake signing (src/adapter/kalshi.rs): RSA-PSS or Ed25519, base64 signature.
+rsa = "0.9"
+sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["pkcs8", "pem"] }
+base64 = "0.22"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
@@ -42,6 +47,10 @@ ergo-sbe = "=0.1.16"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml_ng = "0.9"
+
+# RSA key generation in the Kalshi signing tests is slow unoptimised.
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
 
 [profile.release]
 debug = 1

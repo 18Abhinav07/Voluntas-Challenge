@@ -1,88 +1,122 @@
 # Kalshi adapter (Ext 3)
 
-There is no Kalshi adapter. Kalshi could not be reached from where this was built. This note
-maps Kalshi's websocket feed onto `ExchangeAdapter` and lists what the trait would have to change.
-The goal of Ext 3 is that only encode/decode changes per venue. This note checks that claim.
+`--venue kalshi` runs the same engine (core, socket actor, writer, `verify`) on a Kalshi adapter,
+[`src/adapter/kalshi.rs`](../src/adapter/kalshi.rs). **It has never run against Kalshi.** It was
+written from Kalshi's public API docs (docs.kalshi.com, read 2026-10-24) and is tested only:
 
-Sources: Kalshi's public API docs (docs.kalshi.com), read 2026-10-24. Items marked **(to
-confirm)** were not stated on the pages read, or come from memory, and must be checked against
-the live API before relying on them. Nothing here was run against Kalshi.
+- on Kalshi's example frames, in the adapter's unit tests;
+- end to end, against a mock of the documented API ([`tests/kalshi_e2e.rs`](../tests/kalshi_e2e.rs)):
+  the collector binary, two replicas, and `verify` on the output.
 
-## The feed
+Items marked **(to confirm)** are not stated in the docs. Check them against the live API before
+relying on them.
 
-- **Endpoint:** `wss://external-api-ws.kalshi.com/`.
-- **Auth:** required, even for public market data. The handshake carries three headers:
-  - `KALSHI-ACCESS-KEY`: the API key id.
-  - `KALSHI-ACCESS-TIMESTAMP`: the time in ms.
-  - `KALSHI-ACCESS-SIGNATURE`: a signature over timestamp + method + path, without the query
-    string.
-  - The signature is Ed25519, or RSA-PSS with SHA-256 (MGF1, salt length equal to the digest
-    length).
-  - Which path the websocket handshake signs **(to confirm)**.
+## Running it
+
+Kalshi needs an API key even for public market data. Create one in your Kalshi account, then put
+it in a gitignored `.env` (`.env` and `*.pem` are both in `.gitignore`):
+
+```bash
+KALSHI_API_KEY_ID=...
+KALSHI_PRIVATE_KEY_PATH=/path/to/kalshi-key.pem
+```
+
+```bash
+set -a; . ./.env; set +a; cargo run --release --bin collector -- --venue kalshi --out kalshi.sbe
+```
+
+Without a key it stops at once with `--venue kalshi needs an API key`. The universe cache defaults
+to `universe-kalshi.json`, so it never reads Polymarket's.
+
+## The feed, as implemented
+
+- **Endpoint:** `wss://external-api-ws.kalshi.com/trade-api/ws/v2`. REST:
+  `https://external-api.kalshi.com/trade-api/v2`.
+- **Auth:** `ws_request()` adds three headers to each handshake, made fresh for each connect:
+  - `KALSHI-ACCESS-KEY`;
+  - `KALSHI-ACCESS-TIMESTAMP` (ms);
+  - `KALSHI-ACCESS-SIGNATURE`: base64 of a signature over `timestamp + "GET" + "/trade-api/ws/v2"`.
+- **Keys:**
+  - RSA, which Kalshi issues as PKCS#1 PEM, is signed with RSA-PSS (SHA-256, MGF1, salt = digest
+    length). Ed25519 keys (PKCS#8) are accepted too.
+  - Tests sign with both key types and verify the signature over the exact string above.
+  - Advisory RUSTSEC-2023-0071 (Marvin) in the `rsa` crate is a timing attack on *decryption*, and
+    this client only signs.
 - **Subscribe:**
-  ```json
-  {"id":1,"cmd":"subscribe","params":{"channels":["orderbook_delta"],"market_tickers":["..."]}}
-  ```
-- **Change a subscription:** `update_subscription` with `add_markets`, `delete_markets`, or
-  `get_snapshot`, which resends a snapshot and keeps the subscription.
-- **Unsubscribe:** by subscription id (`sids`).
-- **Book messages:**
-  - `orderbook_snapshot`: `yes_dollars_fp` and `no_dollars_fp`, each a list of `[price, count]`
-    strings. Both are **bids only**. A Kalshi market is one book of YES bids and NO bids.
-  - `orderbook_delta`: `price_dollars`, `delta_fp` (a **relative** change, e.g. `"-54.00"`), and
-    `side` (`yes` or `no`).
-  - Every message on a subscription carries `seq`, which increases by one. A gap means a lost
-    message.
-- **Clock:** messages carry the exchange clock. It is the same on every connection, and deltas
-  arrive in the same order everywhere. The clock can go backwards during maintenance.
-- **Errors that matter:**
-  - 25: the server's outbound buffer for us overflowed. This is Kalshi's "slow consumer".
-  - 26: too many markets on one subscription.
-  - 27: command rate limit.
-- **Lifecycle:** `market_lifecycle_v2` for opens, closes and settlements;
-  `multivariate_market_lifecycle` for MVEs.
-- **Discovery:** REST `/markets` with cursor paging. MVEs, which the challenge excludes, would be
-  filtered there; the `mve_filter=exclude` parameter is **(to confirm)**.
+  - one `subscribe` to `orderbook_delta` with the shard's tickers;
+  - one `subscribe` to `market_lifecycle_v2`.
+- **Session state:** the ack (`{"id":1,"type":"subscribed","msg":{"channel":…,"sid":…}}`) maps the
+  command id to the subscription id (`sid`). After the ack:
+  - a token added later joins that `sid` with `update_subscription add_markets`;
+  - `delete_markets` removes a token;
+  - `get_snapshot` re-snapshots a token, keeping the subscription.
+- **Books:**
+  - `orderbook_snapshot` → `NormEvent::Book`.
+  - `orderbook_delta` carries a relative `delta_fp`. The session adds it to its own copy of the
+    book and emits the absolute size as `NormEvent::Levels`.
+- **Integrity:**
+  - The socket is dropped (`Resync`), so the core fails its tokens over to the other replica and
+    reconnects, when:
+    - a `seq` gap appears on any `sid`;
+    - a delta would take a level below zero;
+    - a delta arrives before its market's snapshot;
+    - error 25 (slow consumer) arrives.
+  - Kalshi sends no book checksum, so `integrity()` is a no-op. The `seq` check is the integrity
+    check, and it is exact, where Polymarket's hash check is heuristic.
+- **Lifecycle:**
+  - `created` / `activated` → `Listed`. The core looks the market up with
+    `/markets?tickers=…` and subscribes it.
+  - `determined` / `settled` → `Resolved`.
+  - Every socket gets the whole lifecycle channel. The core already dedups listings seen on
+    several sockets.
+- **Discovery:** `/markets?status=open&limit=1000&mve_filter=exclude`, paged by `cursor`. Markets
+  that are closed or settled are dropped.
+- **Keepalive:** websocket Ping frames every 10 s (no text `PING`).
 
-## Mapping onto the output
+## Output mapping
 
 - One Kalshi market becomes two symbols, as on Polymarket:
   - `<ticker>:bid` = the YES bids;
   - `<ticker>:ask` = the NO bids at price `1 − p`.
 - **Why this is exact:** a NO bid at `p` is, by Kalshi's own definition, an offer to sell YES at
   `1 − p`.
-- Prices are dollars as strings and parse into the same `i64` fixed point. Counts are contracts.
+- Prices are dollar strings parsed into the same `i64` fixed point. Counts are contracts.
 
-Compare Polymarket: it lists each outcome as its own token with bids and asks, so the mirroring
-is implicit there. Kalshi makes it the definition.
+## What the trait had to change
 
-## Where the trait does not fit
+The earlier version of this note found four places where the trait did not fit. Each was resolved
+as below. The core, the writer and `verify` did not change.
 
-| # | Gap | Today | What Kalshi needs | Change |
-|---|---|---|---|---|
-| 1 | **Auth on connect** | `ws_url()` returns a URL, and `conn.rs` opens it as-is | signed headers on the handshake, made fresh for each connect | Add `fn ws_request(&self) -> Request` (default: plain GET of `ws_url`). Kalshi signs inside it. The key stays in a gitignored `.env`. |
-| 2 | **Relative deltas** | `LevelChange.qty` is the absolute size at a price | `delta_fp` is a change | Either the adapter keeps a per-socket book to turn deltas into absolute sizes, or `LevelChange` gets a `Rel` variant and `Book` applies it. The second is cleaner, because the core already holds a book per replica. |
-| 3 | **Sequence integrity** | `Integrity` checks a venue hash | `seq` per subscription | A `SeqCheck: Integrity` that reports a `Miss` on any gap. `NormEvent` needs to carry `(sid, seq)`. A gap is exact evidence, so it should refresh at once, without the strike ladder used for Polymarket's ~1% false misses. |
-| 4 | **Per-socket subscription state** | `subscribe` and `unsubscribe` take tokens and return a frame | `unsubscribe` takes the `sid` from the subscribe ack, which is only known on that socket | A per-connection adapter session (`type Session`), created on connect and fed every decoded ack, that `subscribe` and `unsubscribe` can read. |
-| 5 | **Discovery** | `discover` streams pages of instruments | REST cursor paging plus `market_lifecycle_v2` | Fits as-is. Lifecycle events decode to `Listed` and `Resolved`. |
-| 6 | **Slow consumer** | Polymarket closes the socket | error code 25 | Map it in `decode` to the same reconnect path. It fits the existing `Exit` handling. |
+| # | Gap | Change made |
+|---|---|---|
+| 1 | Signed handshake | `fn ws_request(&self) -> Result<Request>`. The default is a plain GET of `ws_url()`, and Kalshi signs inside it. `conn.rs` connects with the request rather than a URL. |
+| 2 | Relative deltas | A per-socket `type Session`, owned by the socket actor and passed to `subscribe`, `unsubscribe`, `resnapshot` and `decode`. Kalshi keeps its books there, so `LevelChange` still carries absolute sizes and the core is unchanged. Polymarket's session is `()`. |
+| 3 | Sequence integrity | The same session holds the last `seq` per `sid`. `decode` returns a typed `Resync` error, which `conn.rs` turns into a reconnect, the same path as a lost socket. No change to `NormEvent` or `Integrity`. |
+| 4 | `sid`-scoped commands | The same session maps tickers to `sid`. |
+| 5 | Keepalive | `fn ping_frame() -> Option<&str>`: Polymarket's text `PING`, or `None` for a websocket Ping. |
+| 6 | Re-snapshot | `fn resnapshot()`. The default is unsubscribe then subscribe; Kalshi sends one `get_snapshot`. |
 
-Gaps 1–4 are real trait changes. With them, the core, the socket actor, the writer and `verify`
-stay unchanged. Without them, a Kalshi adapter cannot be written against today's trait. The
-claim that "only encode/decode changes" holds for the core, but not yet for the trait.
+The REST retry loop (backoff on 429, 5xx and transport errors, honouring `Retry-After`) moved from
+the Polymarket adapter to `adapter::get_json`, so both venues share it.
 
-## What Kalshi would make better
+So the Ext 3 claim now holds for the trait as well as the core: a venue is one file implementing
+`ExchangeAdapter`, and `main.rs` picks it with `--venue`.
 
-- **Exact cross-replica checking.** Two sockets see the same exchange clock and the same order, so
-  replicas can be compared message by message. Polymarket only allows comparing books.
-- **Exact gap detection.** `seq` replaces the hash heuristic. The integrity ladder becomes "gap →
-  switch source, resnapshot via `get_snapshot`".
-- **Resnapshot without resubscribing.** `get_snapshot` keeps the subscription, so a refresh is one
-  command instead of an unsubscribe and a resubscribe.
+## Not done, and what to watch
 
-## What to watch
-
-- **Maintenance:** the clock can go backwards. The lag check compares event times across
-  replicas, so it must reset on a clock step instead of reading it as a peer being ahead.
-- **Limits:** error 26 caps markets per subscription, and error 27 caps commands. The shard size
-  and the open limiter would need Kalshi's values.
+- **Live run:** none. The first live run should check:
+  - that the signed path is accepted;
+  - that `seq` is per `sid` **(to confirm)**: the docs give a minimum of 1 and no scope;
+  - the real lifecycle `event_type` values.
+- **Market limit per subscription (error 26):** the number is not documented. `--tokens-per-conn`
+  defaults to 2500, which is Polymarket's value. If Kalshi rejects that, lower it; a shard is one
+  subscription.
+- **Command rate limit (error 27):** surfaces as a decode error (logged, socket kept). The open
+  limiter (`--opens-per-sec`) is Polymarket's value.
+- **Clock steps:** Kalshi's clock can go backwards during maintenance. The lag check compares
+  event times across replicas, so it would read a step as one peer being ahead. It is not handled.
+- **Cross-replica message comparison:** both sockets see the same exchange clock and order, so
+  replicas could be compared message by message. This was not built; failover uses the same
+  health signals as Polymarket.
+- **Pending unsubscribe:** a ticker unsubscribed before its `subscribe` is acknowledged stays
+  subscribed on the venue until the socket closes. The core ignores its books.

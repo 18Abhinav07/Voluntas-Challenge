@@ -72,7 +72,7 @@ fn replay(frames: &str, markets: &str) -> Rates {
         evs.clear();
         // Event time stands still within the capture; deferrals resolve on the next trade.
         let now = t0 + Duration::from_millis(n as u64);
-        if let Err(e) = pm.decode(line["raw"].as_str().unwrap(), &mut evs) {
+        if let Err(e) = pm.decode(&mut (), line["raw"].as_str().unwrap(), &mut evs) {
             panic!("decode failed on line {n}: {e:#}");
         }
         for ev in &evs {

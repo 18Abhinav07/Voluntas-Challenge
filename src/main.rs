@@ -1,5 +1,7 @@
-//! Polymarket orderbook collector: discovers every live market, keeps redundant websocket
-//! replicas of each book and writes level updates plus periodic snapshots as aligned SBE.
+//! Prediction-market orderbook collector: discovers every live market, keeps redundant
+//! websocket replicas of each book and writes level updates plus periodic snapshots as aligned
+//! SBE. Polymarket is the venue it is built and measured on; `--venue kalshi` runs the same
+//! engine on the Kalshi adapter, which has only been tested against Kalshi's documented frames.
 //!
 //! Threads: the main runtime runs discovery, lookups and every socket (decoding included).
 //! Book state is split across `--core-threads` core threads, each owning whole markets, their
@@ -18,11 +20,12 @@ use std::{
     time::Duration,
 };
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use engineering_challenge::{
     adapter::{
         ConnId, ExchangeAdapter, Instrument, Sym,
-        polymarket::{self, Meta, Polymarket},
+        kalshi::{self, Kalshi},
+        polymarket::{self, Polymarket},
     },
     clock,
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
@@ -35,11 +38,16 @@ use tokio::{
     sync::mpsc,
     time::{Instant, MissedTickBehavior, interval, timeout},
 };
+use serde::{Serialize, de::DeserializeOwned};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
-#[command(about = "Collects Polymarket L2 orderbooks into an aligned SBE file", args_override_self = true)]
+#[command(about = "Collects prediction-market L2 orderbooks into an aligned SBE file", args_override_self = true)]
 struct Args {
+    /// The exchange. Kalshi reads its API key from `KALSHI_API_KEY_ID` and
+    /// `KALSHI_PRIVATE_KEY_PATH` (docs/KALSHI.md); it has not been run against the live venue.
+    #[arg(long, value_enum, default_value_t = Venue::Polymarket)]
+    venue: Venue,
     /// Output: `-` (the default) is stdout, anything else a file path, truncated on start.
     /// Logs always go to stderr.
     #[arg(long, default_value = "-")]
@@ -53,9 +61,10 @@ struct Args {
     /// Independent websocket replicas per shard (pinned to different edges when possible).
     #[arg(long, default_value_t = 2)]
     replicas: usize,
-    /// Instrument list from the last run, used to subscribe before Gamma discovery finishes.
-    #[arg(long, default_value = "universe.json")]
-    universe_cache: PathBuf,
+    /// Instrument list from the last run, used to subscribe before discovery finishes
+    /// [default: universe.json, or universe-kalshi.json with --venue kalshi].
+    #[arg(long)]
+    universe_cache: Option<PathBuf>,
     /// Make-before-break recycle connections older than this many minutes (0 = never).
     #[arg(long, default_value_t = 60)]
     recycle_mins: u64,
@@ -113,9 +122,15 @@ struct Args {
     /// Test only: the market websocket (the mock venue in tests/e2e.rs).
     #[arg(long, hide = true)]
     ws_url: Option<String>,
-    /// Test only: the Gamma API base URL.
-    #[arg(long, hide = true)]
-    gamma_url: Option<String>,
+    /// Test only: the REST base URL (Gamma, or Kalshi's trade API).
+    #[arg(long, hide = true, alias = "gamma-url")]
+    rest_url: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Venue {
+    Polymarket,
+    Kalshi,
 }
 
 /// Cancelled by a panic anywhere, so a dead thread or task stops the whole process (D20).
@@ -146,10 +161,10 @@ fn supervise(args: &Args) -> anyhow::Result<()> {
 }
 
 /// Carries out the side effects one core asks for.
-struct Runtime {
+struct Runtime<A> {
     /// The main runtime: sockets run (and decode) there, not on the core's thread.
     main: Handle,
-    adapter: Arc<Polymarket>,
+    adapter: Arc<A>,
     conns: HashMap<ConnId, ConnHandle>,
     edges: Vec<SocketAddr>,
     limiter: Arc<OpenLimiter>,
@@ -158,7 +173,7 @@ struct Runtime {
     cancel: CancellationToken,
 }
 
-impl Effects for Runtime {
+impl<A: ExchangeAdapter> Effects for Runtime<A> {
     fn spawn_conn(&mut self, id: ConnId, replica: usize, tokens: Vec<Sym>) {
         let edge = (!self.edges.is_empty()).then(|| self.edges[replica % self.edges.len()]);
         tracing::info!(conn = id, replica, ?edge, tokens = tokens.len(), "opening connection");
@@ -192,9 +207,9 @@ const LOOKUP_BATCH: usize = 50;
 
 /// One worker serves every lookup: a burst of listings becomes a few batched requests in
 /// sequence rather than one concurrent request each, which is what tripped Gamma's rate limit.
-fn spawn_lookups(
-    adapter: Arc<Polymarket>,
-    found: mpsc::UnboundedSender<Vec<Instrument<Meta>>>,
+fn spawn_lookups<A: ExchangeAdapter>(
+    adapter: Arc<A>,
+    found: mpsc::UnboundedSender<Vec<Instrument<A::Meta>>>,
 ) -> mpsc::UnboundedSender<Sym> {
     let (tx, mut rx) = mpsc::unbounded_channel::<Sym>();
     tokio::spawn(async move {
@@ -218,7 +233,7 @@ fn spawn_lookups(
     tx
 }
 
-fn load_cache(path: &PathBuf) -> Vec<Instrument<Meta>> {
+fn load_cache<M: DeserializeOwned>(path: &PathBuf) -> Vec<Instrument<M>> {
     match std::fs::read(path) {
         Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|e| {
             tracing::warn!(error = %e, "ignoring unreadable universe cache");
@@ -228,7 +243,7 @@ fn load_cache(path: &PathBuf) -> Vec<Instrument<Meta>> {
     }
 }
 
-fn save_cache(path: &PathBuf, insts: &[Instrument<Meta>]) -> anyhow::Result<()> {
+fn save_cache<M: Serialize>(path: &PathBuf, insts: &[Instrument<M>]) -> anyhow::Result<()> {
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, serde_json::to_vec(insts)?)?;
     std::fs::rename(tmp, path)?;
@@ -236,7 +251,7 @@ fn save_cache(path: &PathBuf, insts: &[Instrument<Meta>]) -> anyhow::Result<()> 
 }
 
 /// Runs one discovery pass, forwarding each page and then `None` when the pass is over.
-fn discover(adapter: Arc<Polymarket>, tx: mpsc::UnboundedSender<Option<Vec<Instrument<Meta>>>>) {
+fn discover<A: ExchangeAdapter>(adapter: Arc<A>, tx: mpsc::UnboundedSender<Option<Vec<Instrument<A::Meta>>>>) {
     tokio::spawn(async move {
         let (ptx, mut prx) = mpsc::channel(4);
         let fwd = {
@@ -260,7 +275,7 @@ const INBOUND_BATCH: usize = 256;
 /// Connection ids of core `i` start at `i << CONN_ID_BITS`.
 const CONN_ID_BITS: u32 = 24;
 
-fn apply(core: &mut Core<Meta>, rt: &mut Runtime, msg: Inbound) {
+fn apply<A: ExchangeAdapter>(core: &mut Core<A::Meta>, rt: &mut Runtime<A>, msg: Inbound) {
     let now = std::time::Instant::now();
     match msg {
         Inbound::Events { conn, recv_ts, events } => {
@@ -277,7 +292,7 @@ fn apply(core: &mut Core<Meta>, rt: &mut Runtime, msg: Inbound) {
     }
 }
 
-async fn emit(tx: &mpsc::Sender<Tagged>, src: usize, core: &mut Core<Meta>) -> anyhow::Result<()> {
+async fn emit<M>(tx: &mpsc::Sender<Tagged>, src: usize, core: &mut Core<M>) -> anyhow::Result<()> {
     if core.out.is_empty() {
         return Ok(());
     }
@@ -297,8 +312,8 @@ async fn emit(tx: &mpsc::Sender<Tagged>, src: usize, core: &mut Core<Meta>) -> a
 }
 
 /// What the main thread tells a core.
-enum Ctl {
-    Add(Vec<Instrument<Meta>>),
+enum Ctl<M> {
+    Add(Vec<Instrument<M>>),
     /// Open shards for whatever is pending (discovery paused or ended).
     Flush,
     Shutdown,
@@ -345,8 +360,8 @@ fn core_of(market: &str, n: usize) -> usize {
     (h.finish() % n as u64) as usize
 }
 
-fn route(ctls: &[mpsc::UnboundedSender<Ctl>], v: Vec<Instrument<Meta>>) {
-    let mut parts: Vec<Vec<Instrument<Meta>>> = (0..ctls.len()).map(|_| Vec::new()).collect();
+fn route<M>(ctls: &[mpsc::UnboundedSender<Ctl<M>>], v: Vec<Instrument<M>>) {
+    let mut parts: Vec<Vec<Instrument<M>>> = (0..ctls.len()).map(|_| Vec::new()).collect();
     for i in v {
         parts[core_of(&i.market, ctls.len())].push(i);
     }
@@ -357,17 +372,17 @@ fn route(ctls: &[mpsc::UnboundedSender<Ctl>], v: Vec<Instrument<Meta>>) {
     }
 }
 
-fn flush_all(ctls: &[mpsc::UnboundedSender<Ctl>]) {
+fn flush_all<M>(ctls: &[mpsc::UnboundedSender<Ctl<M>>]) {
     for c in ctls {
         let _ = c.send(Ctl::Flush);
     }
 }
 
-struct CoreSpec {
+struct CoreSpec<A: ExchangeAdapter> {
     idx: usize,
     cfg: Config,
-    rt: Runtime,
-    ctl: mpsc::UnboundedReceiver<Ctl>,
+    rt: Runtime<A>,
+    ctl: mpsc::UnboundedReceiver<Ctl<A::Meta>>,
     inbound: mpsc::Receiver<Inbound>,
     writer: mpsc::Sender<Tagged>,
     status: mpsc::UnboundedSender<Status>,
@@ -376,7 +391,7 @@ struct CoreSpec {
 }
 
 /// Runs one core on its own OS thread with a current-thread runtime for its timers and channels.
-fn spawn_core(spec: CoreSpec) -> std::io::Result<std::thread::JoinHandle<anyhow::Result<Metrics>>> {
+fn spawn_core<A: ExchangeAdapter>(spec: CoreSpec<A>) -> std::io::Result<std::thread::JoinHandle<anyhow::Result<Metrics>>> {
     std::thread::Builder::new().name(format!("core-{}", spec.idx)).spawn(move || {
         let fatal = spec.fatal.clone();
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
@@ -389,7 +404,7 @@ fn spawn_core(spec: CoreSpec) -> std::io::Result<std::thread::JoinHandle<anyhow:
     })
 }
 
-async fn core_loop(spec: CoreSpec) -> anyhow::Result<Metrics> {
+async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metrics> {
     let CoreSpec { idx, cfg, mut rt, mut ctl, inbound: mut irx, writer: wtx, status, .. } = spec;
     let mut core = Core::new(cfg, rt.adapter.integrity());
     let mut tick = interval(Duration::from_secs(1));
@@ -503,11 +518,37 @@ async fn main() -> anyhow::Result<()> {
         return supervise(&args);
     }
     raise_nofile();
-    let adapter = Arc::new(Polymarket::with_endpoints(
-        args.ws_url.as_deref().unwrap_or(polymarket::WS_URL),
-        args.gamma_url.as_deref().unwrap_or(polymarket::GAMMA),
-    )?);
+    match args.venue {
+        Venue::Polymarket => {
+            let pm = Polymarket::with_endpoints(
+                args.ws_url.as_deref().unwrap_or(polymarket::WS_URL),
+                args.rest_url.as_deref().unwrap_or(polymarket::GAMMA),
+            )?;
+            run(args, Arc::new(pm)).await
+        }
+        Venue::Kalshi => {
+            // Only the mock venue in the tests (an overridden --ws-url) takes no key.
+            let auth = match kalshi::Auth::from_env() {
+                Ok(a) => Some(a),
+                Err(_) if args.ws_url.is_some() => None,
+                Err(e) => return Err(e.context("--venue kalshi needs an API key (docs/KALSHI.md)")),
+            };
+            let k = Kalshi::with_endpoints(
+                args.ws_url.as_deref().unwrap_or(kalshi::WS_URL),
+                args.rest_url.as_deref().unwrap_or(kalshi::REST),
+                auth,
+            )?;
+            run(args, Arc::new(k)).await
+        }
+    }
+}
 
+/// Everything after the venue is chosen: the engine does not know which one it runs.
+async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<()> {
+    let cache_path = args.universe_cache.clone().unwrap_or_else(|| match args.venue {
+        Venue::Polymarket => "universe.json".into(),
+        Venue::Kalshi => "universe-kalshi.json".into(),
+    });
     let cancel = CancellationToken::new();
     FATAL.set(cancel.clone()).expect("main runs once");
     let default_hook = std::panic::take_hook();
@@ -607,14 +648,14 @@ async fn main() -> anyhow::Result<()> {
     drop((stx, lookups));
     tracing::info!(cores = n_cores, "core threads started");
 
-    // Boot from the cache so books flow within seconds, then reconcile with Gamma.
-    let cap = |v: &mut Vec<Instrument<Meta>>, have: usize| {
+    // Boot from the cache so books flow within seconds, then reconcile with discovery.
+    let cap = |v: &mut Vec<Instrument<A::Meta>>, have: usize| {
         if args.max_markets > 0 {
             v.truncate(args.max_markets.saturating_sub(have));
         }
     };
-    let mut universe: HashMap<Sym, Instrument<Meta>> = HashMap::new();
-    let mut cached = load_cache(&args.universe_cache);
+    let mut universe: HashMap<Sym, Instrument<A::Meta>> = HashMap::new();
+    let mut cached = load_cache(&cache_path);
     cap(&mut cached, 0);
     if !cached.is_empty() {
         tracing::info!(markets = cached.len(), "subscribing from universe cache");
@@ -675,7 +716,7 @@ async fn main() -> anyhow::Result<()> {
                     discovering = false;
                     flush_all(&ctls);
                     let all: Vec<_> = universe.values().cloned().collect();
-                    if let Err(e) = save_cache(&args.universe_cache, &all) {
+                    if let Err(e) = save_cache(&cache_path, &all) {
                         tracing::warn!(error = %e, "could not save universe cache");
                     }
                     tracing::info!(markets = universe.len(), "discovery pass complete");
@@ -716,7 +757,7 @@ async fn main() -> anyhow::Result<()> {
     conn_cancel.cancel();
     drop(wtx);
     let all: Vec<_> = universe.values().cloned().collect();
-    if let Err(e) = save_cache(&args.universe_cache, &all) {
+    if let Err(e) = save_cache(&cache_path, &all) {
         tracing::warn!(error = %e, "could not save universe cache");
     }
     let stats = tokio::task::spawn_blocking(move || writer.join())

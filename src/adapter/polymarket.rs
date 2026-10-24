@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::Context;
-use reqwest::{StatusCode, header::RETRY_AFTER};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc;
@@ -21,10 +20,6 @@ use crate::{
 
 pub const WS_URL: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
 pub const GAMMA: &str = "https://gamma-api.polymarket.com";
-/// Gamma requests are retried this many times in all; the wait doubles from `GAMMA_BACKOFF`.
-const GAMMA_ATTEMPTS: u32 = 8;
-const GAMMA_BACKOFF: Duration = Duration::from_millis(500);
-const GAMMA_BACKOFF_MAX: Duration = Duration::from_secs(30);
 
 /// Per-market metadata the `hash` covers and the stream does not always repeat.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,34 +49,8 @@ impl Polymarket {
         Ok(Self { http, ws_url: ws_url.into(), gamma_url: gamma_url.trim_end_matches('/').into() })
     }
 
-    /// Sends a Gamma GET built by `req`, backing off on 429, 5xx and transport errors
-    /// (honouring `Retry-After`) so a rate limit slows a pass down instead of ending it.
-    async fn gamma<T: DeserializeOwned>(
-        &self,
-        req: impl Fn() -> reqwest::RequestBuilder,
-    ) -> anyhow::Result<T> {
-        let mut wait = GAMMA_BACKOFF;
-        for attempt in 1..=GAMMA_ATTEMPTS {
-            let retry_after = match req().send().await {
-                Ok(r) if r.status() == StatusCode::TOO_MANY_REQUESTS || r.status().is_server_error() => {
-                    let after = r
-                        .headers()
-                        .get(RETRY_AFTER)
-                        .and_then(|v| v.to_str().ok()?.parse().ok())
-                        .map(Duration::from_secs);
-                    if attempt == GAMMA_ATTEMPTS {
-                        r.error_for_status()?;
-                    }
-                    after
-                }
-                Ok(r) => return Ok(r.error_for_status()?.json().await?),
-                Err(e) if attempt == GAMMA_ATTEMPTS => return Err(e.into()),
-                Err(_) => None,
-            };
-            tokio::time::sleep(retry_after.unwrap_or(wait).min(GAMMA_BACKOFF_MAX)).await;
-            wait = (wait * 2).min(GAMMA_BACKOFF_MAX);
-        }
-        unreachable!("the last attempt returns")
+    async fn gamma<T: DeserializeOwned>(&self, req: impl Fn() -> reqwest::RequestBuilder) -> anyhow::Result<T> {
+        super::get_json(req).await
     }
 }
 
@@ -200,6 +169,7 @@ fn to_instrument(m: GammaMarket) -> Option<Instrument<Meta>> {
 
 impl ExchangeAdapter for Polymarket {
     type Meta = Meta;
+    type Session = ();
 
     const NAME: &'static str = "polymarket";
 
@@ -211,29 +181,33 @@ impl ExchangeAdapter for Polymarket {
         Duration::from_secs(10)
     }
 
-    fn ping_frame(&self) -> &'static str {
-        "PING"
+    fn ping_frame(&self) -> Option<&'static str> {
+        Some("PING")
     }
 
-    fn subscribe_initial(&self, tokens: &[Sym]) -> String {
-        serde_json::json!({"assets_ids": tokens, "type": "market", "initial_dump": true, "custom_feature_enabled": true})
-            .to_string()
+    fn subscribe_initial(&self, _: &mut (), tokens: &[Sym]) -> Vec<String> {
+        vec![
+            serde_json::json!({"assets_ids": tokens, "type": "market", "initial_dump": true, "custom_feature_enabled": true})
+                .to_string(),
+        ]
     }
 
-    fn subscribe(&self, tokens: &[Sym]) -> String {
-        serde_json::json!({"assets_ids": tokens, "operation": "subscribe", "initial_dump": true, "custom_feature_enabled": true})
-            .to_string()
+    fn subscribe(&self, _: &mut (), tokens: &[Sym]) -> Vec<String> {
+        vec![
+            serde_json::json!({"assets_ids": tokens, "operation": "subscribe", "initial_dump": true, "custom_feature_enabled": true})
+                .to_string(),
+        ]
     }
 
-    fn unsubscribe(&self, tokens: &[Sym]) -> String {
-        serde_json::json!({"assets_ids": tokens, "operation": "unsubscribe"}).to_string()
+    fn unsubscribe(&self, _: &mut (), tokens: &[Sym]) -> Vec<String> {
+        vec![serde_json::json!({"assets_ids": tokens, "operation": "unsubscribe"}).to_string()]
     }
 
     fn all_resolved(&self, close_reason: &str) -> bool {
         close_reason == "all subscribed assets resolved"
     }
 
-    fn decode(&self, frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()> {
+    fn decode(&self, _: &mut (), frame: &str, out: &mut Vec<NormEvent>) -> anyhow::Result<()> {
         // `PONG`, and plain-text status replies such as `NO NEW ASSETS` (re-subscribing a token
         // the socket already has).
         if !frame.starts_with(['{', '[']) {
@@ -697,7 +671,7 @@ mod tests {
     fn decodes_price_change() {
         let f = r#"{"market":"0xab","price_changes":[{"asset_id":"1","price":"0.9","size":"3123.9","side":"BUY","hash":"610c","best_bid":"0.95","best_ask":"0.96"}],"timestamp":"1792742997166","event_type":"price_change"}"#;
         let mut out = Vec::new();
-        Polymarket::new().unwrap().decode(f, &mut out).unwrap();
+        Polymarket::new().unwrap().decode(&mut (), f, &mut out).unwrap();
         let NormEvent::Levels {
             exch_ts, changes, ..
         } = &out[0]

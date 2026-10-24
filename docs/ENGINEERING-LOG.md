@@ -993,3 +993,54 @@ on every delta never switches.
 - Tests: 64 unit (1 ignored) + 3 golden + 9 end-to-end pass. Clippy clean.
 
 **Open:** 2–3 h soak, Kalshi (needs a US VPN), zip and email.
+
+## Turn — `core.rs` split into `core/` modules (no code change)
+
+**Changed:** the single `src/core.rs` became `src/core/`, with one module per job:
+- `mod.rs`: the `Core` struct, the loop, routing, and a module map in its docs;
+- `config.rs`: the configuration;
+- `plan.rs`: shard planning;
+- `conns.rs`: connection lifecycle;
+- `health.rs`: health and failover;
+- `speed.rs`: the speed-aware source;
+- `emit.rs`: output;
+- `metrics.rs`: counters;
+- `tests.rs`: the tests.
+
+Items moved verbatim with a script, one commit per module, so each diff is a pure move.
+Tests and clippy passed after every step.
+
+## Turn — Kalshi adapter (Ext 3), mock-tested only
+
+**Changed:**
+- **`src/adapter/kalshi.rs`**, a second `ExchangeAdapter`:
+  - signed handshake with RSA-PSS or Ed25519;
+  - paged discovery, plus lookup by ticker;
+  - `orderbook_delta` + `market_lifecycle_v2`;
+  - relative deltas turned into absolute sizes in a per-socket session book;
+  - a per-`sid` `seq` check, where a gap, a negative level, or error 25 drops the socket and
+    fails it over;
+  - `get_snapshot` for re-snapshot.
+- **Trait:** `ws_request()`, `type Session`, `ping_frame()`, `resnapshot()`, and a typed `Resync`
+  error. The core, the writer and `verify` are unchanged. The REST retry loop is now shared
+  (`adapter::get_json`).
+- **`main.rs`:** generic over the adapter. `--venue polymarket|kalshi` selects it, and
+  `--gamma-url` became `--rest-url` (the old name still works). Kalshi caches its universe in
+  `universe-kalshi.json`.
+- **Secrets:** the key is read only from `KALSHI_API_KEY_ID` / `KALSHI_PRIVATE_KEY_PATH`.
+  `.env` and `*.pem` are gitignored.
+- **`docs/KALSHI.md`:** rewritten from a gap analysis to the design as built, with the unknowns
+  that need a live run.
+
+**Tests:**
+- 10 Kalshi unit tests on documented frames. Both signature types are verified over the exact
+  signed string.
+- `tests/kalshi_e2e.rs`: the collector binary against a mock Kalshi, with three cases:
+  - baseline;
+  - a `seq` gap at 3 s, where the log shows `resync: sid 1: seq 265 after 263`, failover, a
+    reconnect, and `verify` 16 / 16 snapshots matched;
+  - a lifecycle listing that joins the existing `sid` through `update_subscription`.
+- All suites pass: 74 unit, 3 golden, 9 + 3 end-to-end. Clippy is clean with `-D warnings`.
+
+**Not done:** no live Kalshi run, because it needs an account and key. `KALSHI.md` "Not done"
+lists what to check first.

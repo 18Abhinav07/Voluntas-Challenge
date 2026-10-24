@@ -21,11 +21,11 @@ use tokio::{
 };
 use tokio_tungstenite::{
     client_async_tls_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
+    tungstenite::{Message, handshake::client::Request, protocol::WebSocketConfig},
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::adapter::{ConnId, ExchangeAdapter, NormEvent, Sym, Ts};
+use crate::adapter::{ConnId, ExchangeAdapter, NormEvent, Resync, Sym, Ts};
 
 /// Times a reader found its core's queue full and had to wait. While it waits it does not
 /// read its socket, and the server closes it as a slow consumer once its buffer fills.
@@ -102,7 +102,8 @@ const BACKOFF_MAX: Duration = Duration::from_secs(30);
 pub enum ConnCmd {
     Subscribe(Vec<Sym>),
     Unsubscribe(Vec<Sym>),
-    /// Asks for fresh `book`s: unsubscribe, then subscribe with the initial dump.
+    /// Asks for fresh books for these tokens, the way the adapter does it (Polymarket:
+    /// unsubscribe, then subscribe with the initial dump; Kalshi: `get_snapshot`).
     Resnapshot(Vec<Sym>),
     /// Drops the socket and reconnects (resubscribing everything), keeping the actor.
     Reconnect,
@@ -136,7 +137,7 @@ const OUTAGE_GAP_MAX: Duration = Duration::from_secs(30);
 
 /// Spaces out websocket handshakes across all connections: the venue times out handshakes
 /// that arrive in bursts (150 at once: 15 timed out, §12). It is also the circuit breaker:
-/// once opens keep failing everywhere, the gap between attempts grows to [`OUTAGE_GAP_MAX`],
+/// once opens keep failing everywhere, the gap between attempts grows to `OUTAGE_GAP_MAX`,
 /// so hundreds of sockets retrying on their own cannot turn an outage into a storm.
 pub struct OpenLimiter {
     last: Mutex<Option<Instant>>,
@@ -303,7 +304,11 @@ async fn session<A: ExchangeAdapter>(
 ) -> Exit {
     let a = &spec.adapter;
     spec.limiter.wait().await;
-    let ws = match timeout(CONNECT_TIMEOUT, connect(a.ws_url(), spec.edge)).await {
+    let req = match a.ws_request() {
+        Ok(r) => r,
+        Err(e) => return Exit::Lost(format!("handshake request: {e:#}")),
+    };
+    let ws = match timeout(CONNECT_TIMEOUT, connect(req, spec.edge)).await {
         Ok(Ok(ws)) => ws,
         Ok(Err(e)) => {
             spec.limiter.fail();
@@ -315,10 +320,13 @@ async fn session<A: ExchangeAdapter>(
         }
     };
     let (mut sink, mut stream) = ws.split();
+    let mut sess = A::Session::default();
     if !tokens.is_empty() {
         let all: Vec<Sym> = tokens.iter().cloned().collect();
-        if let Err(e) = sink.send(Message::Text(a.subscribe_initial(&all))).await {
-            return Exit::Lost(format!("subscribe: {e}"));
+        for m in a.subscribe_initial(&mut sess, &all) {
+            if let Err(e) = sink.send(Message::Text(m)).await {
+                return Exit::Lost(format!("subscribe: {e}"));
+            }
         }
     }
     if spec.out.send(Inbound::Up { conn: spec.id }).await.is_err() {
@@ -356,9 +364,12 @@ async fn session<A: ExchangeAdapter>(
                 stats.frames.fetch_add(1, Ordering::Relaxed);
                 let t = Instant::now();
                 let mut events = Vec::new();
-                let decoded = a.decode(&text, &mut events);
+                let decoded = a.decode(&mut sess, &text, &mut events);
                 stats.decode_ns.fetch_add(t.elapsed().as_nanos() as u64, Ordering::Relaxed);
                 if let Err(e) = decoded {
+                    if let Some(r) = e.downcast_ref::<Resync>() {
+                        return Exit::Lost(r.to_string());
+                    }
                     tracing::warn!(conn = spec.id, error = %e, frame = %text.chars().take(200).collect::<String>(), "undecodable frame");
                     continue;
                 }
@@ -391,15 +402,15 @@ async fn session<A: ExchangeAdapter>(
                     Some(ConnCmd::Subscribe(t) | ConnCmd::Unsubscribe(t) | ConnCmd::Resnapshot(t)) if t.is_empty() => continue,
                     Some(ConnCmd::Subscribe(t)) => {
                         tokens.extend(t.iter().cloned());
-                        vec![a.subscribe(&t)]
+                        a.subscribe(&mut sess, &t)
                     }
                     Some(ConnCmd::Unsubscribe(t)) => {
                         for x in &t {
                             tokens.remove(x);
                         }
-                        vec![a.unsubscribe(&t)]
+                        a.unsubscribe(&mut sess, &t)
                     }
-                    Some(ConnCmd::Resnapshot(t)) => vec![a.unsubscribe(&t), a.subscribe(&t)],
+                    Some(ConnCmd::Resnapshot(t)) => a.resnapshot(&mut sess, &t),
                     Some(ConnCmd::Reconnect) => {
                         let _ = sink.send(Message::Close(None)).await;
                         return Exit::Lost("reconnect requested".into());
@@ -417,7 +428,11 @@ async fn session<A: ExchangeAdapter>(
                     spec.limiter.fail();
                     return Exit::Lost(format!("no frame for {limit:?}"));
                 }
-                if let Err(e) = sink.send(Message::Text(a.ping_frame().into())).await {
+                let ping = match a.ping_frame() {
+                    Some(t) => Message::Text(t.into()),
+                    None => Message::Ping(Vec::new()),
+                };
+                if let Err(e) = sink.send(ping).await {
                     return Exit::Lost(format!("ping: {e}"));
                 }
             }
@@ -427,16 +442,16 @@ async fn session<A: ExchangeAdapter>(
 
 type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>;
 
-async fn connect(url: &str, edge: Option<SocketAddr>) -> anyhow::Result<Ws> {
-    let uri: tokio_tungstenite::tungstenite::http::Uri = url.parse()?;
-    let host = uri.host().ok_or_else(|| anyhow::anyhow!("no host in {url}"))?;
+async fn connect(req: Request, edge: Option<SocketAddr>) -> anyhow::Result<Ws> {
+    let uri = req.uri().clone();
+    let host = uri.host().ok_or_else(|| anyhow::anyhow!("no host in {uri}"))?;
     let tcp = match edge {
         Some(addr) => TcpStream::connect(addr).await?,
         None => TcpStream::connect((host, uri.port_u16().unwrap_or(443))).await?,
     };
     tcp.set_nodelay(true)?;
     let cfg = WebSocketConfig { max_message_size: Some(512 << 20), max_frame_size: Some(512 << 20), ..Default::default() };
-    let (ws, _) = client_async_tls_with_config(url, tcp, Some(cfg), None).await?;
+    let (ws, _) = client_async_tls_with_config(req, tcp, Some(cfg), None).await?;
     Ok(ws)
 }
 

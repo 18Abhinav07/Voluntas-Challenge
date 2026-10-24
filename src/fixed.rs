@@ -41,7 +41,7 @@ pub fn format(v: Fx, out: &mut String) {
     out.push_str(std::str::from_utf8(encode(v, &mut b)).expect("ascii digits"));
 }
 
-/// [`format`] into a stack buffer, returning the used tail. No `fmt` and no allocation:
+/// [`format()`] into a stack buffer, returning the used tail. No `fmt` and no allocation:
 /// the hash check runs this for every level of every book it digests.
 pub fn encode(v: Fx, buf: &mut [u8; 24]) -> &[u8] {
     debug_assert!(v >= 0, "prices and sizes are non-negative");
