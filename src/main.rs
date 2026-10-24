@@ -41,6 +41,9 @@ use tokio::{
 use serde::{Serialize, de::DeserializeOwned};
 use tokio_util::sync::CancellationToken;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[derive(Parser, Debug)]
 #[command(about = "Collects prediction-market L2 orderbooks into an aligned SBE file", args_override_self = true)]
 struct Args {

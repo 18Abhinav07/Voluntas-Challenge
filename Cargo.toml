@@ -36,6 +36,8 @@ rsa = "0.9"
 sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["pkcs8", "pem"] }
 base64 = "0.22"
+# Global allocator for the collector and verify: steadier RSS under constant small allocations.
+mimalloc = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
@@ -54,3 +56,7 @@ opt-level = 3
 
 [profile.release]
 debug = 1
+# Cross-crate inlining (serde, tungstenite, sha1). Unwinding stays: `--supervise` catches
+# core panics in process (D20).
+lto = "fat"
+codegen-units = 1

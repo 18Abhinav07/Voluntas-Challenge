@@ -13,6 +13,9 @@ use engineering_challenge::{
     },
 };
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const ONE: i64 = 1_000_000;
 
 #[derive(Default)]

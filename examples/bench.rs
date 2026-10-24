@@ -10,7 +10,7 @@
 //! replicas, and reports ns per frame and ns per event.
 
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
+    alloc::{GlobalAlloc, Layout},
     io::{BufRead, BufReader},
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering},
     time::Instant,
@@ -26,6 +26,7 @@ use engineering_challenge::{
     fixed,
 };
 
+/// Counts live heap bytes over the same allocator the collector uses.
 struct Counting;
 
 static LIVE: AtomicIsize = AtomicIsize::new(0);
@@ -35,16 +36,16 @@ unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
         LIVE.fetch_add(l.size() as isize, Ordering::Relaxed);
         ALLOCS.fetch_add(1, Ordering::Relaxed);
-        unsafe { System.alloc(l) }
+        unsafe { mimalloc::MiMalloc.alloc(l) }
     }
     unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
         LIVE.fetch_sub(l.size() as isize, Ordering::Relaxed);
-        unsafe { System.dealloc(p, l) }
+        unsafe { mimalloc::MiMalloc.dealloc(p, l) }
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
         LIVE.fetch_add(new as isize - l.size() as isize, Ordering::Relaxed);
         ALLOCS.fetch_add(1, Ordering::Relaxed);
-        unsafe { System.realloc(p, l, new) }
+        unsafe { mimalloc::MiMalloc.realloc(p, l, new) }
     }
 }
 
