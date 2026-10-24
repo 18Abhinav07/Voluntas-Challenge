@@ -128,7 +128,7 @@ fn first_book_snapshots_then_only_source_emits() {
     core.on_events(0, 12, &[lvl("a", 6, Side::Bid, 410, 3)], now, &mut fx);
     assert!(core.out.is_empty(), "non-source level is silent");
     core.on_events(1, 13, &[lvl("a", 6, Side::Bid, 410, 3)], now, &mut fx);
-    assert_eq!(core.out, vec![Rec::Update { sym: "a:bid".into(), recv: 13, exch: 6, px: 410, qty: 3 }]);
+    assert_eq!(core.out, vec![Rec::Update { sym: "a".into(), side: Side::Bid, recv: 13, exch: 6, px: 410, qty: 3 }]);
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn disconnect_fails_over_with_snapshot_from_peer() {
     core.on_down(0, 4);
     assert_eq!(
         diff_then_snap(&core.out),
-        (vec![Rec::Update { sym: "a:ask".into(), recv: 4, exch: 7, px: 600, qty: 9 }], 2),
+        (vec![Rec::Update { sym: "a".into(), side: Side::Ask, recv: 4, exch: 7, px: 600, qty: 9 }], 2),
         "peer's extra level as a diff, then a snapshot"
     );
     assert!(matches!(&core.out[2], Rec::Snapshot { levels, .. } if levels == &[(600, 9)]));
@@ -157,7 +157,7 @@ fn no_valid_replica_goes_dark_until_book() {
     core.on_events(0, 3, &[lvl("a", 6, Side::Bid, 400, 0)], now, &mut fx);
     assert!(core.out.is_empty(), "no deltas against an untrusted book");
     core.on_events(1, 4, &[book("a", 6, &[], &[])], now, &mut fx);
-    assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 0 }], 2));
+    assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a".into(), side: Side::Bid, recv: 4, exch: 6, px: 400, qty: 0 }], 2));
 }
 
 #[test]
@@ -171,8 +171,8 @@ fn mid_stream_book_on_source_emits_diff() {
     assert_eq!(
         got,
         vec![
-            Rec::Update { sym: "a:bid".into(), recv: 2, exch: 9, px: 300, qty: 0 },
-            Rec::Update { sym: "a:bid".into(), recv: 2, exch: 9, px: 400, qty: 2 },
+            Rec::Update { sym: "a".into(), side: Side::Bid, recv: 2, exch: 9, px: 300, qty: 0 },
+            Rec::Update { sym: "a".into(), side: Side::Bid, recv: 2, exch: 9, px: 400, qty: 2 },
         ]
     );
     assert_eq!(core.metrics.book_diffs, 1);
@@ -190,7 +190,7 @@ fn lagging_source_switches_and_resnapshots() {
     core.on_tick(now + Duration::from_secs(4), 4, &mut fx);
     assert_eq!(core.metrics.lag_switches, 1);
     assert!(fx.sent.iter().any(|(c, s)| *c == 0 && s.starts_with("Resnapshot")));
-    assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 2 }], 2));
+    assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a".into(), side: Side::Bid, recv: 4, exch: 6, px: 400, qty: 2 }], 2));
 }
 
 #[test]

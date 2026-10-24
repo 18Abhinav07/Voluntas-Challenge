@@ -100,11 +100,67 @@ impl Replica {
     }
 }
 
+/// A token's replicas by socket. Two or three entries, so a vector searched in place: a
+/// `HashMap` costs about 500 bytes per token for the same thing.
+#[derive(Default)]
+struct Reps(Vec<(ConnId, Replica)>);
+
+impl Reps {
+    fn get(&self, c: &ConnId) -> Option<&Replica> {
+        self.0.iter().find(|e| e.0 == *c).map(|e| &e.1)
+    }
+    fn get_mut(&mut self, c: &ConnId) -> Option<&mut Replica> {
+        self.0.iter_mut().find(|e| e.0 == *c).map(|e| &mut e.1)
+    }
+    fn insert(&mut self, c: ConnId, r: Replica) {
+        match self.get_mut(&c) {
+            Some(old) => *old = r,
+            None => {
+                self.0.reserve_exact(1);
+                self.0.push((c, r));
+            }
+        }
+    }
+    fn remove(&mut self, c: &ConnId) -> Option<Replica> {
+        let i = self.0.iter().position(|e| e.0 == *c)?;
+        let r = self.0.swap_remove(i).1;
+        self.0.shrink_to_fit();
+        Some(r)
+    }
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn iter(&self) -> impl Iterator<Item = (&ConnId, &Replica)> {
+        self.0.iter().map(|(c, r)| (c, r))
+    }
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&ConnId, &mut Replica)> {
+        self.0.iter_mut().map(|(c, r)| (&*c, r))
+    }
+    fn keys(&self) -> impl Iterator<Item = &ConnId> {
+        self.0.iter().map(|e| &e.0)
+    }
+    fn values(&self) -> impl Iterator<Item = &Replica> {
+        self.0.iter().map(|e| &e.1)
+    }
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut Replica> {
+        self.0.iter_mut().map(|e| &mut e.1)
+    }
+}
+
+impl std::ops::Index<&ConnId> for Reps {
+    type Output = Replica;
+    fn index(&self, c: &ConnId) -> &Replica {
+        self.get(c).expect("no replica on this socket")
+    }
+}
+
 struct Tok {
     shard: usize,
-    syms: [Sym; 2], // bid, ask
+    /// Records name a side as `<token>:bid` / `<token>:ask`; the writer adds the suffix.
+    token: Sym,
     source: Option<ConnId>,
-    replicas: HashMap<ConnId, Replica>,
+    replicas: Reps,
     /// The book readers of the output hold: every emitted record is applied here, so
     /// snapshots always agree with the update stream, across source switches too.
     emitted: Book,
@@ -181,7 +237,8 @@ struct ConnState {
 pub struct Core<M> {
     cfg: Config,
     integrity: Box<dyn Integrity<M>>,
-    tokens: HashMap<Sym, Tok>,
+    /// Boxed: the map keeps about twice as many slots as entries, and a slot is then 8 bytes, not 200.
+    tokens: HashMap<Sym, Box<Tok>>,
     markets: HashMap<Sym, Vec<Sym>>,
     shards: Vec<Shard>,
     /// Tokens collected for the next shard, not yet subscribed anywhere.
@@ -215,7 +272,7 @@ pub struct Core<M> {
 /// source. Standby replicas are not hashed; a peer is compared book-to-book when the source
 /// misses, and a standby is checked from the moment it becomes source.
 struct View<'a> {
-    tokens: &'a HashMap<Sym, Tok>,
+    tokens: &'a HashMap<Sym, Box<Tok>>,
     conn: ConnId,
 }
 
@@ -355,8 +412,7 @@ impl<M> Core<M> {
                     }
                     if tok.source == Some(conn) && tok.emitted.apply(c.side, c.px, c.qty) {
                         tok.emitted_exch = *exch_ts;
-                        let sym = tok.syms[c.side as usize].clone();
-                        self.out.push(Rec::Update { sym, recv, exch: *exch_ts, px: c.px, qty: c.qty });
+                        self.out.push(Rec::Update { sym: tok.token.clone(), side: c.side, recv, exch: *exch_ts, px: c.px, qty: c.qty });
                         self.metrics.updates += 1;
                     }
                 }

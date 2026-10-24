@@ -30,14 +30,22 @@ use crate::{
 /// The reader is fixed at 64 MiB chunks.
 pub const CHUNK: usize = 64 << 20;
 
-/// One output message. `sym` is already the side-symbol (`<token>:bid` / `<token>:ask`).
+/// One output message. `sym` is the token; the written symbol is `<token>:bid` / `<token>:ask`
+/// by `side`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Rec {
-    Update { sym: Sym, recv: Ts, exch: Ts, px: Fx, qty: Fx },
+    Update { sym: Sym, side: Side, recv: Ts, exch: Ts, px: Fx, qty: Fx },
     /// One side of one book, best level first.
     Snapshot { sym: Sym, recv: Ts, exch: Ts, side: Side, levels: Vec<(Fx, Fx)> },
     /// What follows from this source belongs to rotation period `epoch` (wall µs / period).
     Rotate { epoch: i64 },
+}
+
+fn suffix(side: Side) -> &'static str {
+    match side {
+        Side::Bid => ":bid",
+        Side::Ask => ":ask",
+    }
 }
 
 pub type Batch = Vec<Rec>;
@@ -165,13 +173,14 @@ pub fn spawn(
                 };
                 let w = &mut w.w;
                 match rec {
-                    Rec::Update { sym, recv, exch, px, qty } => {
+                    Rec::Update { sym, side, recv, exch, px, qty } => {
                         upd.backtest_timestamp = ts(recv)?;
                         upd.exchange_timestamp = ts(exch)?;
                         upd.price_level = px;
                         upd.quantity = qty;
                         upd.symbol.clear();
                         upd.symbol.push_str(&sym);
+                        upd.symbol.push_str(suffix(side));
                         w.write_msg(&upd)?;
                         stats.updates += 1;
                     }
@@ -197,7 +206,7 @@ pub fn spawn(
                             exchange_timestamp: ts(exch)?,
                             bids,
                             asks,
-                            symbol: sym.to_string(),
+                            symbol: format!("{sym}{}", suffix(side)),
                         };
                         w.write_msg(&snap)?;
                         stats.snapshots += 1;
@@ -227,10 +236,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("out.sbe");
         let (tx, h) = spawn(path.clone(), 4, None, 1).unwrap();
-        let sym: Sym = "123:bid".into();
+        let sym: Sym = "123".into();
         tx.blocking_send((0, vec![
             Rec::Snapshot { sym: sym.clone(), recv: 2, exch: 1, side: Side::Bid, levels: vec![(500_000, 10), (400_000, 20)] },
-            Rec::Update { sym: sym.clone(), recv: 4, exch: 3, px: 500_000, qty: 0 },
+            Rec::Update { sym: sym.clone(), side: Side::Bid, recv: 4, exch: 3, px: 500_000, qty: 0 },
         ]))
         .unwrap();
         drop(tx);
@@ -273,7 +282,7 @@ mod tests {
         let (tx, h) = spawn(base.clone(), 4, Some(period), 2).unwrap();
         let p = period.as_micros() as i64;
         let now = chrono::Utc::now().timestamp_micros() / p;
-        let upd = |recv| Rec::Update { sym: "1:bid".into(), recv, exch: recv, px: 1, qty: 1 };
+        let upd = |recv| Rec::Update { sym: "1".into(), side: Side::Bid, recv, exch: recv, px: 1, qty: 1 };
         let done = |e: i64| period_path(&base, e * p).unwrap();
         let sync = || std::thread::sleep(Duration::from_millis(100));
 

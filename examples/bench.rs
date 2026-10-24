@@ -173,6 +173,7 @@ fn mem(markets: usize) {
     let fx = &mut Spawned::default();
     let now = Instant::now();
     let mut k = 0usize;
+    let mut levels = 0usize;
     let shard_of = |i: usize| i * 2 / Config::default().tokens_per_conn;
     let mut evs = Vec::with_capacity(2);
     for (i, inst) in insts.iter().enumerate() {
@@ -180,6 +181,7 @@ fn mem(markets: usize) {
         for t in &inst.tokens {
             let (nb, na) = d[k % d.len()];
             k += 1;
+            levels += nb + na;
             let lv = |n: usize, from: i64, step: i64| (0..n as i64).map(|j| (from + step * j, 1_000_000 + j * 37_000)).collect::<Vec<_>>();
             evs.push(NormEvent::Book {
                 token: t.clone(),
@@ -215,6 +217,8 @@ fn mem(markets: usize) {
         rss_mb(),
         rss_mb() - rss0
     );
+    // Two replicas plus the emitted book hold each level once; 16 B per level.
+    println!("mem: of which levels {:.0} B/token ({} levels per token on average)", (levels * 3 * 16) as f64 / tokens as f64, levels / tokens);
     drop(insts);
     std::hint::black_box(&core);
 }

@@ -6,7 +6,7 @@ use std::{
     time::Instant,
 };
 
-use super::{ConnState, Core, Effects, Replica, Shard, Split, Tok, bucket_of};
+use super::{ConnState, Core, Effects, Replica, Reps, Shard, Split, Tok, bucket_of};
 use crate::{
     adapter::{ConnId, Instrument, Sym, Ts},
     book::{Book, Side},
@@ -33,11 +33,11 @@ impl<M> Core<M> {
             for t in &inst.tokens {
                 self.tokens.insert(
                     t.clone(),
-                    Tok {
+                    Box::new(Tok {
                         shard,
-                        syms: [format!("{t}:bid").into(), format!("{t}:ask").into()],
+                        token: t.clone(),
                         source: None,
-                        replicas: HashMap::new(),
+                        replicas: Reps::default(),
                         emitted: Book::default(),
                         emitted_exch: 0,
                         announced: false,
@@ -50,7 +50,7 @@ impl<M> Core<M> {
                         quiet_probe: false,
                         lag_cand: false,
                         snap_epoch: i64::MIN,
-                    },
+                    }),
                 );
                 let b = bucket_of(t, self.buckets.len());
                 self.buckets[b].push(t.clone());
@@ -140,9 +140,9 @@ impl<M> Core<M> {
         for t in &toks {
             let Some(mut tok) = self.tokens.remove(t) else { continue };
             Self::open_period(&mut tok, self.epoch, recv, &mut self.out, &mut self.metrics);
-            for (i, side) in [Side::Bid, Side::Ask].into_iter().enumerate() {
-                for &px in tok.emitted.side(side).keys() {
-                    self.out.push(Rec::Update { sym: tok.syms[i].clone(), recv, exch: tok.emitted_exch, px, qty: 0 });
+            for side in [Side::Bid, Side::Ask] {
+                for &(px, _) in tok.emitted.side(side) {
+                    self.out.push(Rec::Update { sym: tok.token.clone(), side, recv, exch: tok.emitted_exch, px, qty: 0 });
                     self.metrics.updates += 1;
                 }
             }

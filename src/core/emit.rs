@@ -61,18 +61,18 @@ impl<M> Core<M> {
             tok.snap_epoch = e;
         }
         out.push(Rec::Snapshot {
-            sym: tok.syms[0].clone(),
+            sym: tok.token.clone(),
             recv,
             exch: tok.emitted_exch,
             side: Side::Bid,
-            levels: tok.emitted.bids.iter().rev().map(|(&p, &q)| (p, q)).collect(),
+            levels: tok.emitted.bids().iter().rev().copied().collect(),
         });
         out.push(Rec::Snapshot {
-            sym: tok.syms[1].clone(),
+            sym: tok.token.clone(),
             recv,
             exch: tok.emitted_exch,
             side: Side::Ask,
-            levels: tok.emitted.asks.iter().map(|(&p, &q)| (p, q)).collect(),
+            levels: tok.emitted.asks().to_vec(),
         });
         m.snapshots += 2;
     }
@@ -85,7 +85,7 @@ impl<M> Core<M> {
         }
         let rep = &tok.replicas[&conn];
         for &(side, px, qty) in &diff {
-            out.push(Rec::Update { sym: tok.syms[side as usize].clone(), recv, exch: rep.last_exch, px, qty });
+            out.push(Rec::Update { sym: tok.token.clone(), side, recv, exch: rep.last_exch, px, qty });
         }
         m.updates += diff.len() as u64;
         tok.emitted.clone_from(&rep.book);

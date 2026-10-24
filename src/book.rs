@@ -1,6 +1,9 @@
-//! One L2 book: two sorted price -> absolute-quantity maps.
-
-use std::collections::BTreeMap;
+//! One L2 book: both sides in one sorted vector of `(price, absolute quantity)` levels.
+//!
+//! The collector keeps about 1.7 million books (three per token: two replicas and what readers
+//! hold), most a few dozen levels deep. A `BTreeMap` per side spends a 200-byte node on even a
+//! one-level side; one exact-size vector per book needs 16 bytes a level, and a binary search
+//! over it is as fast as a tree walk at these depths.
 
 use crate::fixed::Fx;
 
@@ -10,38 +13,93 @@ pub enum Side {
     Ask,
 }
 
+/// `lv[..nb]` are the bids and `lv[nb..]` the asks, each in ascending price order, all with
+/// non-zero quantity.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
-    pub bids: BTreeMap<Fx, Fx>,
-    pub asks: BTreeMap<Fx, Fx>,
+    lv: Vec<(Fx, Fx)>,
+    nb: usize,
 }
 
 impl Book {
+    /// Levels may come in any order; a repeated price keeps its last quantity.
     pub fn from_levels(bids: &[(Fx, Fx)], asks: &[(Fx, Fx)]) -> Self {
-        let keep = |l: &[(Fx, Fx)]| l.iter().copied().filter(|&(_, q)| q > 0).collect();
-        Self {
-            bids: keep(bids),
-            asks: keep(asks),
+        let mut lv = Vec::with_capacity(bids.len() + asks.len());
+        let side = |l: &[(Fx, Fx)], lv: &mut Vec<(Fx, Fx)>| {
+            let from = lv.len();
+            lv.extend(l.iter().copied().filter(|&(_, q)| q > 0));
+            lv[from..].sort_by_key(|&(p, _)| p);
+            let mut keep = from;
+            for i in from..lv.len() {
+                if keep > from && lv[keep - 1].0 == lv[i].0 {
+                    lv[keep - 1].1 = lv[i].1;
+                } else {
+                    lv[keep] = lv[i];
+                    keep += 1;
+                }
+            }
+            lv.truncate(keep);
+        };
+        side(bids, &mut lv);
+        let nb = lv.len();
+        side(asks, &mut lv);
+        lv.shrink_to_fit();
+        Self { lv, nb }
+    }
+
+    /// One side's levels, ascending by price.
+    pub fn side(&self, side: Side) -> &[(Fx, Fx)] {
+        match side {
+            Side::Bid => &self.lv[..self.nb],
+            Side::Ask => &self.lv[self.nb..],
         }
     }
 
-    pub fn side(&self, side: Side) -> &BTreeMap<Fx, Fx> {
-        match side {
-            Side::Bid => &self.bids,
-            Side::Ask => &self.asks,
-        }
+    pub fn bids(&self) -> &[(Fx, Fx)] {
+        self.side(Side::Bid)
+    }
+
+    pub fn asks(&self) -> &[(Fx, Fx)] {
+        self.side(Side::Ask)
+    }
+
+    /// Quantity at `px`, 0 if there is no level.
+    pub fn get(&self, side: Side, px: Fx) -> Fx {
+        let s = self.side(side);
+        s.binary_search_by_key(&px, |&(p, _)| p).map_or(0, |i| s[i].1)
     }
 
     /// Sets a level to an absolute quantity (0 removes it). Returns whether anything changed.
     pub fn apply(&mut self, side: Side, px: Fx, qty: Fx) -> bool {
-        let map = match side {
-            Side::Bid => &mut self.bids,
-            Side::Ask => &mut self.asks,
+        let (from, to) = match side {
+            Side::Bid => (0, self.nb),
+            Side::Ask => (self.nb, self.lv.len()),
         };
-        if qty == 0 {
-            map.remove(&px).is_some()
-        } else {
-            map.insert(px, qty) != Some(qty)
+        match self.lv[from..to].binary_search_by_key(&px, |&(p, _)| p) {
+            Ok(i) if qty == 0 => {
+                self.lv.remove(from + i);
+                if side == Side::Bid {
+                    self.nb -= 1;
+                }
+                // Give memory back once a book has thinned out well below its peak.
+                if self.lv.capacity() > 2 * self.lv.len() + 8 {
+                    self.lv.shrink_to(self.lv.len() + self.lv.len() / 4);
+                }
+                true
+            }
+            Ok(i) => std::mem::replace(&mut self.lv[from + i].1, qty) != qty,
+            Err(_) if qty == 0 => false,
+            Err(i) => {
+                if self.lv.len() == self.lv.capacity() {
+                    // Grow by a quarter, not double: books grow slowly and there are many.
+                    self.lv.reserve_exact((self.lv.len() / 4).max(4));
+                }
+                self.lv.insert(from + i, (px, qty));
+                if side == Side::Bid {
+                    self.nb += 1;
+                }
+                true
+            }
         }
     }
 
@@ -49,15 +107,29 @@ impl Book {
     pub fn diff(&self, next: &Book) -> Vec<(Side, Fx, Fx)> {
         let mut out = Vec::new();
         for side in [Side::Bid, Side::Ask] {
-            let (a, b) = (self.side(side), next.side(side));
-            for (&px, &q) in a {
-                if b.get(&px) != Some(&q) {
-                    out.push((side, px, b.get(&px).copied().unwrap_or(0)));
-                }
-            }
-            for (&px, &q) in b {
-                if !a.contains_key(&px) {
-                    out.push((side, px, q));
+            let (mut a, mut b) = (self.side(side).iter().peekable(), next.side(side).iter().peekable());
+            loop {
+                match (a.peek(), b.peek()) {
+                    (Some(&&(pa, qa)), Some(&&(pb, qb))) if pa == pb => {
+                        if qa != qb {
+                            out.push((side, pb, qb));
+                        }
+                        a.next();
+                        b.next();
+                    }
+                    (Some(&&(pa, _)), Some(&&(pb, _))) if pa < pb => {
+                        out.push((side, pa, 0));
+                        a.next();
+                    }
+                    (Some(&&(pa, _)), None) => {
+                        out.push((side, pa, 0));
+                        a.next();
+                    }
+                    (_, Some(&&(pb, qb))) => {
+                        out.push((side, pb, qb));
+                        b.next();
+                    }
+                    (None, None) => break,
                 }
             }
         }
@@ -65,11 +137,16 @@ impl Book {
     }
 
     pub fn best_bid(&self) -> Option<Fx> {
-        self.bids.keys().next_back().copied()
+        self.bids().last().map(|l| l.0)
     }
 
     pub fn best_ask(&self) -> Option<Fx> {
-        self.asks.keys().next().copied()
+        self.asks().first().map(|l| l.0)
+    }
+
+    /// Heap bytes held, for the memory report.
+    pub fn heap_bytes(&self) -> usize {
+        self.lv.capacity() * std::mem::size_of::<(Fx, Fx)>()
     }
 }
 
@@ -84,7 +161,7 @@ mod tests {
     }
 
     proptest! {
-        // The BTreeMap book behaves like a naive hash map of levels.
+        // The book behaves like a naive hash map of levels.
         #[test]
         fn matches_naive_model(ops in proptest::collection::vec(op(), 0..200)) {
             let mut book = Book::default();
@@ -97,8 +174,10 @@ mod tests {
             }
             let mut flat: Vec<_> = naive.into_iter().collect();
             flat.sort();
-            let mut got: Vec<_> = book.bids.iter().map(|(&p, &q)| ((true, p), q))
-                .chain(book.asks.iter().map(|(&p, &q)| ((false, p), q))).collect();
+            prop_assert!(book.bids().windows(2).all(|w| w[0].0 < w[1].0));
+            prop_assert!(book.asks().windows(2).all(|w| w[0].0 < w[1].0));
+            let mut got: Vec<_> = book.bids().iter().map(|&(p, q)| ((true, p), q))
+                .chain(book.asks().iter().map(|&(p, q)| ((false, p), q))).collect();
             got.sort();
             prop_assert_eq!(got, flat);
         }
@@ -115,6 +194,23 @@ mod tests {
             let mut x = a.clone();
             for (side, px, q) in a.diff(&b) { x.apply(side, px, q); }
             prop_assert_eq!(x, b);
+        }
+
+        // Building from unsorted levels keeps the last quantity per price and drops zeros.
+        #[test]
+        fn from_levels_sorts_and_dedups(ops in proptest::collection::vec(op(), 0..80)) {
+            let (mut bids, mut asks) = (Vec::new(), Vec::new());
+            for (bid, px, q) in ops {
+                if bid { bids.push((px, q)) } else { asks.push((px, q)) }
+            }
+            let got = Book::from_levels(&bids, &asks);
+            let last = |l: &[(Fx, Fx)]| {
+                let mut m = std::collections::BTreeMap::new();
+                for &(p, q) in l.iter().filter(|l| l.1 > 0) { m.insert(p, q); }
+                m.into_iter().collect::<Vec<_>>()
+            };
+            prop_assert_eq!(got.bids(), &last(&bids)[..]);
+            prop_assert_eq!(got.asks(), &last(&asks)[..]);
         }
     }
 }

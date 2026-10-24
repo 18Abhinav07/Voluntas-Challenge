@@ -384,7 +384,7 @@ impl HashCheck {
         let n = fixed::encode_int((ts_us / 1000) as u64, &mut b);
         h.update(&b[b.len() - n..]);
         h.update(b"\",\"hash\":\"\",\"bids\":[");
-        let mut lv = |h: &mut Sha1, it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+        let mut lv = |h: &mut Sha1, it: &mut dyn Iterator<Item = &(Fx, Fx)>| {
             for (i, (p, q)) in it.enumerate() {
                 h.update(if i > 0 { &b",{\"price\":\""[..] } else { &b"{\"price\":\""[..] });
                 h.update(fixed::encode(*p, &mut b));
@@ -393,9 +393,9 @@ impl HashCheck {
                 h.update(b"\"}");
             }
         };
-        lv(&mut h, &mut book.bids.iter());
+        lv(&mut h, &mut book.bids().iter());
         h.update(b"],\"asks\":[");
-        lv(&mut h, &mut book.asks.iter().rev());
+        lv(&mut h, &mut book.asks().iter().rev());
         h.update(b"],\"min_order_size\":\"");
         h.update(&meta.min_size);
         h.update(b"\",\"tick_size\":\"");
@@ -687,15 +687,15 @@ mod tests {
 
     /// The bytes `prefix` + `finish` digest, for timing SHA1 on its own.
     fn digest_input(book: &Book) -> Vec<u8> {
-        let lv = |it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+        let lv = |it: &mut dyn Iterator<Item = &(Fx, Fx)>| {
             it.map(|(p, q)| format!("{{\"price\":\"{}\",\"size\":\"{}\"}}", fixed::to_string(*p), fixed::to_string(*q)))
                 .collect::<Vec<_>>()
                 .join(",")
         };
         format!(
             "{{\"market\":\"0xm\",\"asset_id\":\"7\",\"timestamp\":\"1792742997166\",\"hash\":\"\",\"bids\":[{}],\"asks\":[{}],\"min_order_size\":\"5\",\"tick_size\":\"0.01\",\"neg_risk\":false,\"last_trade_price\":\"0.5\"}}",
-            lv(&mut book.bids.iter()),
-            lv(&mut book.asks.iter().rev())
+            lv(&mut book.bids().iter()),
+            lv(&mut book.asks().iter().rev())
         )
         .into_bytes()
     }
@@ -708,8 +708,8 @@ mod tests {
         let meta = Meta { neg_risk: false, tick: "0.01".into(), min_size: "5".into() };
         hc.register(&Instrument { market: "0xm".into(), tokens: vec!["7".into()], meta });
         for depth in [5i64, 20, 60] {
-            let side = |base: i64| (0..depth).map(|i| (base + i * 10_000, 1_234_560_000 + i * 7)).collect();
-            let book = Book { bids: side(10_000), asks: side(400_000) };
+            let side = |base: i64| (0..depth).map(|i| (base + i * 10_000, 1_234_560_000 + i * 7)).collect::<Vec<_>>();
+            let book = Book::from_levels(&side(10_000), &side(400_000));
             let n = 200_000;
             let t = Instant::now();
             for i in 0..n {
@@ -730,14 +730,15 @@ mod tests {
     #[test]
     fn streamed_digest_matches_plain_json() {
         use proptest::prelude::*;
-        let levels = || proptest::collection::btree_map(1i64..1_000_000, 0i64..i64::MAX / 4, 0..30);
+        let levels = || proptest::collection::btree_map(1i64..1_000_000, 1i64..i64::MAX / 4, 0..30);
         proptest!(|(bids in levels(), asks in levels(), ts in 0i64..i64::MAX / 2, ltp in 0i64..1_000_000, neg in any::<bool>())| {
             let mut hc = HashCheck::default();
             let meta = Meta { neg_risk: neg, tick: "0.01".into(), min_size: "5".into() };
             hc.register(&Instrument { market: "0xm".into(), tokens: vec!["7".into()], meta });
-            let book = Book { bids: bids.clone(), asks: asks.clone() };
+            let (bids, asks): (Vec<_>, Vec<_>) = (bids.into_iter().collect(), asks.into_iter().collect());
+            let book = Book::from_levels(&bids, &asks);
             let ltp = q3(ltp);
-            let lv = |it: &mut dyn Iterator<Item = (&Fx, &Fx)>| {
+            let lv = |it: &mut dyn Iterator<Item = &(Fx, Fx)>| {
                 it.map(|(p, q)| format!("{{\"price\":\"{}\",\"size\":\"{}\"}}", fixed::to_string(*p), fixed::to_string(*q)))
                     .collect::<Vec<_>>()
                     .join(",")

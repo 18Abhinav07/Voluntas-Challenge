@@ -382,7 +382,7 @@ impl ExchangeAdapter for Kalshi {
                 let Some(book) = s.books.get_mut(&t) else {
                     return Err(Resync(format!("{t}: delta before its snapshot")).into());
                 };
-                let qty = book.side(side).get(&p).copied().unwrap_or(0) + d;
+                let qty = book.get(side, p) + d;
                 if qty < 0 {
                     return Err(Resync(format!("{t}: delta takes {p} below zero")).into());
                 }
