@@ -1,0 +1,510 @@
+info: downloading installer
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+info: downloading 3 components
+info: default toolchain set to stable-x86_64-unknown-linux-gnu
+
+  stable-x86_64-unknown-linux-gnu installed - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env"           # For sh/ash/dash/pdksh/bash/zsh
+source "$HOME/.cargo/env.fish" # For fish
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+== host 4 cpus, 15993 MB, 17G free
+12cc8fe Stop resubscribing resolved assets; default splitting off
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded anstyle-query v1.1.5
+  Downloaded adler2 v2.0.1
+  Downloaded anyhow v1.0.104
+  Downloaded backtrace-ext v0.2.1
+  Downloaded colorchoice v1.0.5
+  Downloaded anstream v1.0.0
+  Downloaded anstyle v1.0.14
+  Downloaded atomic-waker v1.1.2
+  Downloaded cfg-if v1.0.5
+  Downloaded cfg_aliases v0.2.2
+  Downloaded clap_lex v1.1.1
+  Downloaded compression-core v0.4.34
+  Downloaded cpufeatures v0.2.17
+  Downloaded zerofrom-derive v0.1.8
+  Downloaded addr2line v0.25.1
+  Downloaded anstyle-parse v1.0.0
+  Downloaded autocfg v1.5.1
+  Downloaded bitflags v2.13.2
+  Downloaded block-buffer v0.10.4
+  Downloaded block-buffer v0.12.1
+  Downloaded byteorder v1.5.0
+  Downloaded chacha20 v0.10.2
+  Downloaded clap v4.6.7
+  Downloaded clap_derive v4.6.7
+  Downloaded const-oid v0.10.2
+  Downloaded form_urlencoded v1.2.2
+  Downloaded hex v0.4.3
+  Downloaded icu_locale_fallback v2.3.0
+  Downloaded ipnet v2.12.2
+  Downloaded litemap v0.8.3
+  Downloaded matchers v0.2.0
+  Downloaded zerofrom v0.1.8
+  Downloaded aho-corasick v1.1.5
+  Downloaded async-compression v0.4.51
+  Downloaded backtrace v0.3.76
+  Downloaded base64 v0.22.1
+  Downloaded base64 v0.23.1
+  Downloaded bytes v1.12.1
+  Downloaded cc v1.9.0
+  Downloaded chrono v0.4.45
+  Downloaded clap_builder v4.6.7
+  Downloaded compression-codecs v0.4.46
+  Downloaded crossbeam v0.8.5
+  Downloaded crossbeam-channel v0.5.17
+  Downloaded crossbeam-deque v0.8.8
+  Downloaded crypto-common v0.1.7
+  Downloaded crypto-common v0.2.2
+  Downloaded data-encoding v2.11.1
+  Downloaded digest v0.10.7
+  Downloaded digest v0.11.3
+  Downloaded displaydoc v0.2.7
+  Downloaded flate2 v1.1.10
+  Downloaded futures-core v0.3.34
+  Downloaded futures-sink v0.3.34
+  Downloaded futures-task v0.3.34
+  Downloaded generic-array v0.14.7
+  Downloaded getrandom v0.4.3
+  Downloaded http v1.5.0
+  Downloaded http-body-util v0.1.5
+  Downloaded hyper-rustls v0.27.10
+  Downloaded hyper-util v0.1.21
+  Downloaded iana-time-zone v0.1.65
+  Downloaded icu_normalizer_data v2.3.0
+  Downloaded icu_properties_data v2.3.0
+  Downloaded idna v1.1.0
+  Downloaded is_ci v1.2.0
+  Downloaded lazy_static v1.5.1
+  Downloaded lru-slab v0.1.3
+  Downloaded potential_utf v0.1.6
+  Downloaded sha1 v0.10.7
+  Downloaded shlex v2.0.1
+  Downloaded stable_deref_trait v1.2.1
+  Downloaded subtle v2.6.1
+  Downloaded supports-unicode v3.0.0
+  Downloaded thiserror-impl v1.0.69
+  Downloaded yoke-derive v0.8.4
+  Downloaded zeroize v1.9.1
+  Downloaded zerovec-derive v0.11.6
+  Downloaded zmij v1.0.23
+  Downloaded cpufeatures v0.3.1
+  Downloaded crossbeam-epoch v0.9.21
+  Downloaded crossbeam-queue v0.3.14
+  Downloaded crossbeam-utils v0.8.23
+  Downloaded equivalent v1.0.3
+  Downloaded errno v0.3.14
+  Downloaded fastrand v2.5.0
+  Downloaded find-msvc-tools v0.1.15
+  Downloaded getrandom v0.2.17
+  Downloaded heck v0.5.0
+  Downloaded http-body v1.1.0
+  Downloaded hybrid-array v0.4.15
+  Downloaded icu_locale_fallback_data v2.3.0
+  Downloaded idna_adapter v1.2.2
+  Downloaded nu-ansi-term v0.50.3
+  Downloaded owo-colors v4.4.0
+  Downloaded pin-project-lite v0.2.17
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded quinn-udp v0.5.16
+  Downloaded quote v1.0.47
+  Downloaded rand_pcg v0.10.2
+  Downloaded sha2 v0.11.1
+  Downloaded signal-hook-registry v1.4.8
+  Downloaded simd-adler32 v0.3.10
+  Downloaded strsim v0.11.1
+  Downloaded supports-color v3.0.2
+  Downloaded supports-hyperlinks v3.2.0
+  Downloaded sync_wrapper v1.0.2
+  Downloaded thread_local v1.1.10
+  Downloaded tower-layer v0.3.3
+  Downloaded tower-service v0.3.3
+  Downloaded try-lock v0.2.5
+  Downloaded utf8_iter v1.0.4
+  Downloaded webpki-roots v0.26.11
+  Downloaded crc32fast v1.5.3
+  Downloaded futures-channel v0.3.34
+  Downloaded httparse v1.10.1
+  Downloaded icu_properties v2.3.0
+  Downloaded icu_provider v2.3.1
+  Downloaded is_terminal_polyfill v1.70.2
+  Downloaded itoa v1.0.18
+  Downloaded miette-derive v7.6.0
+  Downloaded once_cell v1.21.4
+  Downloaded percent-encoding v2.3.2
+  Downloaded proc-macro2 v1.0.107
+  Downloaded rand_chacha v0.3.1
+  Downloaded rustc-hash v2.1.3
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded sharded-slab v0.1.7
+  Downloaded slab v0.4.12
+  Downloaded smallvec v1.16.3
+  Downloaded synstructure v0.14.0
+  Downloaded terminal_size v0.4.4
+  Downloaded thiserror v2.0.21
+  Downloaded thiserror-impl v2.0.21
+  Downloaded tinystr v0.8.4
+  Downloaded tokio-macros v2.7.2
+  Downloaded tokio-rustls v0.26.6
+  Downloaded tokio-tungstenite v0.24.0
+  Downloaded tracing-log v0.2.0
+  Downloaded untrusted v0.9.0
+  Downloaded utf-8 v0.7.6
+  Downloaded utf8parse v0.2.2
+  Downloaded version_check v0.9.5
+  Downloaded zerotrie v0.2.5
+  Downloaded hyper v1.12.0
+  Downloaded log v0.4.34
+  Downloaded miniz_oxide v0.9.1
+  Downloaded num-traits v0.2.19
+  Downloaded prettyplease v0.3.0
+  Downloaded quinn v0.11.12
+  Downloaded rand v0.8.8
+  Downloaded rand_core v0.6.4
+  Downloaded rand_core v0.10.1
+  Downloaded rustc-demangle v0.1.28
+  Downloaded rustls-pki-types v1.15.1
+  Downloaded thiserror v1.0.69
+  Downloaded tracing-attributes v0.1.31
+  Downloaded tracing-core v0.1.36
+  Downloaded unicode-ident v1.0.27
+  Downloaded futures-util v0.3.34
+  Downloaded icu_collections v2.3.0
+  Downloaded icu_locale_core v2.3.0
+  Downloaded miniz_oxide v0.8.9
+  Downloaded roxmltree v0.21.1
+  Downloaded serde_core v1.0.229
+  Downloaded serde_derive v1.0.229
+  Downloaded socket2 v0.6.5
+  Downloaded tempfile v3.27.0
+  Downloaded textwrap v0.16.4
+  Downloaded tungstenite v0.24.0
+  Downloaded unsafe-libyaml v0.2.11
+  Downloaded zerovec v0.11.8
+  Downloaded indexmap v2.14.2
+  Downloaded memchr v2.8.3
+  Downloaded rand v0.10.3
+  Downloaded rustls-webpki v0.103.16
+  Downloaded ryu v1.0.23
+  Downloaded serde v1.0.229
+  Downloaded serde_yaml_ng v0.9.36
+  Downloaded tinyvec v1.13.3
+  Downloaded url v2.5.8
+  Downloaded want v0.3.2
+  Downloaded miette v7.6.0
+  Downloaded mio v1.2.4
+  Downloaded typenum v1.20.1
+  Downloaded writeable v0.6.4
+  Downloaded yoke v0.8.3
+  Downloaded tower v0.5.3
+  Downloaded hashbrown v0.17.1
+  Downloaded reqwest v0.12.28
+  Downloaded tokio-util v0.7.20
+  Downloaded tower-http v0.6.11
+  Downloaded serde_json v1.0.154
+  Downloaded zlib-rs v0.6.8
+  Downloaded tracing-subscriber v0.3.23
+  Downloaded ergo-sbe v0.1.16
+  Downloaded zerocopy v0.8.63
+  Downloaded quinn-proto v0.11.19
+  Downloaded unicode-width v0.1.14
+  Downloaded gimli v0.32.3
+  Downloaded syn v3.0.9
+  Downloaded webpki-roots v1.0.11
+  Downloaded syn v2.0.119
+  Downloaded unicode-width v0.2.2
+  Downloaded object v0.37.3
+  Downloaded regex-syntax v0.8.11
+  Downloaded rustix v1.1.5
+  Downloaded rustls v0.23.46
+  Downloaded tracing v0.1.44
+  Downloaded icu_normalizer v2.3.0
+  Downloaded regex-automata v0.4.18
+  Downloaded libc v0.2.191
+  Downloaded tokio v1.54.1
+  Downloaded ring v0.17.14
+  Downloaded linux-raw-sys v0.12.1
+  Downloaded icu_segmenter_data v2.3.0
+  Downloaded icu_segmenter v2.3.0
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling libc v0.2.191
+   Compiling cfg-if v1.0.5
+   Compiling stable_deref_trait v1.2.1
+   Compiling pin-project-lite v0.2.17
+   Compiling bytes v1.12.1
+   Compiling itoa v1.0.18
+   Compiling once_cell v1.21.4
+   Compiling find-msvc-tools v0.1.15
+   Compiling futures-core v0.3.34
+   Compiling shlex v2.0.1
+   Compiling writeable v0.6.4
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling cc v1.9.0
+   Compiling errno v0.3.14
+   Compiling signal-hook-registry v1.4.8
+   Compiling getrandom v0.2.17
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.4
+   Compiling ring v0.17.14
+   Compiling smallvec v1.16.3
+   Compiling zeroize v1.9.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling synstructure v0.14.0
+   Compiling http v1.5.0
+   Compiling icu_locale_fallback_data v2.3.0
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling zerofrom v0.1.8
+   Compiling yoke v0.8.3
+   Compiling tokio-macros v2.7.2
+   Compiling litemap v0.8.3
+   Compiling zerovec v0.11.8
+   Compiling tokio v1.54.1
+   Compiling tinystr v0.8.4
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling icu_locale_core v2.3.0
+   Compiling potential_utf v0.1.6
+   Compiling zerotrie v0.2.5
+   Compiling httparse v1.10.1
+   Compiling icu_normalizer_data v2.3.0
+   Compiling object v0.37.3
+   Compiling typenum v1.20.1
+   Compiling untrusted v0.9.0
+   Compiling memchr v2.8.3
+   Compiling utf8_iter v1.0.4
+   Compiling icu_segmenter_data v2.3.0
+   Compiling futures-sink v0.3.34
+   Compiling icu_properties_data v2.3.0
+   Compiling icu_collections v2.3.0
+   Compiling hybrid-array v0.4.15
+   Compiling icu_provider v2.3.1
+   Compiling serde_derive v1.0.229
+   Compiling adler2 v2.0.1
+   Compiling futures-task v0.3.34
+   Compiling gimli v0.32.3
+   Compiling rustix v1.1.5
+   Compiling slab v0.4.12
+   Compiling zerocopy v0.8.63
+   Compiling percent-encoding v2.3.2
+   Compiling crossbeam-utils v0.8.23
+   Compiling crc32fast v1.5.3
+   Compiling rustls v0.23.46
+   Compiling serde_core v1.0.229
+   Compiling futures-util v0.3.34
+   Compiling addr2line v0.25.1
+   Compiling miniz_oxide v0.8.9
+   Compiling icu_locale_fallback v2.3.0
+   Compiling http-body v1.1.0
+   Compiling tracing-core v0.1.36
+   Compiling rustc-demangle v0.1.28
+   Compiling linux-raw-sys v0.12.1
+   Compiling simd-adler32 v0.3.10
+   Compiling subtle v2.6.1
+   Compiling bitflags v2.13.2
+   Compiling backtrace v0.3.76
+   Compiling miniz_oxide v0.9.1
+   Compiling icu_segmenter v2.3.0
+   Compiling icu_properties v2.3.0
+   Compiling icu_normalizer v2.3.0
+   Compiling crypto-common v0.2.2
+   Compiling rustls-webpki v0.103.16
+   Compiling block-buffer v0.12.1
+   Compiling tracing-attributes v0.1.31
+   Compiling try-lock v0.2.5
+   Compiling unicode-width v0.2.2
+   Compiling const-oid v0.10.2
+   Compiling is_ci v1.2.0
+   Compiling tower-service v0.3.3
+   Compiling prettyplease v0.3.0
+   Compiling thiserror v2.0.21
+   Compiling log v0.4.34
+   Compiling serde v1.0.229
+   Compiling tracing v0.1.44
+   Compiling supports-color v3.0.2
+   Compiling digest v0.11.3
+   Compiling textwrap v0.16.4
+   Compiling want v0.3.2
+   Compiling ppv-lite86 v0.2.21
+   Compiling flate2 v1.1.10
+   Compiling idna_adapter v1.2.2
+   Compiling backtrace-ext v0.2.1
+   Compiling terminal_size v0.4.4
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling form_urlencoded v1.2.2
+   Compiling thiserror-impl v2.0.21
+   Compiling miette-derive v7.6.0
+   Compiling webpki-roots v1.0.11
+   Compiling rand_core v0.6.4
+   Compiling autocfg v1.5.1
+   Compiling supports-unicode v3.0.0
+   Compiling utf8parse v0.2.2
+   Compiling hashbrown v0.17.1
+   Compiling unicode-width v0.1.14
+   Compiling crossbeam-epoch v0.9.21
+   Compiling zmij v1.0.23
+   Compiling compression-core v0.4.34
+   Compiling cpufeatures v0.3.1
+   Compiling thiserror v1.0.69
+   Compiling atomic-waker v1.1.2
+   Compiling equivalent v1.0.3
+   Compiling owo-colors v4.4.0
+   Compiling supports-hyperlinks v3.2.0
+   Compiling indexmap v2.14.2
+   Compiling hyper v1.12.0
+   Compiling miette v7.6.0
+   Compiling compression-codecs v0.4.46
+   Compiling sha2 v0.11.1
+   Compiling anstyle-parse v1.0.0
+   Compiling num-traits v0.2.19
+   Compiling rand_chacha v0.3.1
+   Compiling digest v0.10.7
+   Compiling idna v1.1.0
+   Compiling tokio-rustls v0.26.6
+   Compiling roxmltree v0.21.1
+   Compiling thiserror-impl v1.0.69
+   Compiling futures-channel v0.3.34
+   Compiling sync_wrapper v1.0.2
+   Compiling getrandom v0.4.3
+   Compiling serde_json v1.0.154
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling tower-layer v0.3.3
+   Compiling cpufeatures v0.2.17
+   Compiling base64 v0.23.1
+   Compiling anstyle v1.0.14
+   Compiling crossbeam-deque v0.8.8
+   Compiling unsafe-libyaml v0.2.11
+   Compiling anstyle-query v1.1.5
+   Compiling ryu v1.0.23
+   Compiling regex-syntax v0.8.11
+   Compiling ipnet v2.12.2
+   Compiling serde_yaml_ng v0.9.36
+   Compiling regex-automata v0.4.18
+   Compiling hyper-util v0.1.21
+   Compiling anstream v1.0.0
+   Compiling tower v0.5.3
+   Compiling sha1 v0.10.7
+   Compiling ergo-sbe v0.1.16
+   Compiling url v2.5.8
+   Compiling rand v0.8.8
+   Compiling async-compression v0.4.51
+   Compiling http-body-util v0.1.5
+   Compiling tokio-util v0.7.20
+   Compiling heck v0.5.0
+   Compiling lazy_static v1.5.1
+   Compiling anyhow v1.0.104
+   Compiling utf-8 v0.7.6
+   Compiling strsim v0.11.1
+   Compiling data-encoding v2.11.1
+   Compiling clap_lex v1.1.1
+   Compiling byteorder v1.5.0
+   Compiling tungstenite v0.24.0
+   Compiling clap_builder v4.6.7
+   Compiling engineering-challenge v0.1.0 (/workspaces/Voluntas-Challenge)
+   Compiling serde_urlencoded v0.7.1
+   Compiling sharded-slab v0.1.7
+   Compiling clap_derive v4.6.7
+   Compiling tower-http v0.6.11
+   Compiling matchers v0.2.0
+   Compiling hyper-rustls v0.27.10
+   Compiling webpki-roots v0.26.11
+   Compiling tracing-log v0.2.0
+   Compiling crossbeam-queue v0.3.14
+   Compiling crossbeam-channel v0.5.17
+   Compiling thread_local v1.1.10
+   Compiling base64 v0.22.1
+   Compiling nu-ansi-term v0.50.3
+   Compiling iana-time-zone v0.1.65
+   Compiling fastrand v2.5.0
+   Compiling tempfile v3.27.0
+   Compiling chrono v0.4.45
+   Compiling tracing-subscriber v0.3.23
+   Compiling reqwest v0.12.28
+   Compiling crossbeam v0.8.5
+   Compiling tokio-tungstenite v0.24.0
+   Compiling clap v4.6.7
+   Compiling hex v0.4.3
+    Finished `release` profile [optimized + debuginfo] target(s) in 1m 47s
+late by 0 s
+== split-rot5 start 05:10:27 dur=900 rot=5 stop=600 args=--split-ratio 3
+SIGSTOP 15 s at t=634
+exit 0
+-- cpu (mean % of one core, steady = after t=120)
+main=0 tokio=130 finisher=0 writer=12 core=80 
+-- cpu peak
+main=7 tokio=610 finisher=1 writer=51 core=381 
+-- verify
+verify ob.20261024T0510Z.sbe 2.2G messages:  5534574 snapshots, 8439565 updates (30995/s) replay:    4435924 snapshots matched the rebuilt book, 0 did not OK 
+verify ob.20261024T0515Z.sbe 2.7G messages:  6509398 snapshots, 11035827 updates (36786/s) replay:    5410830 snapshots matched the rebuilt book, 0 did not OK 
+verify ob.20261024T0520Z.sbe 2.6G messages:  6253230 snapshots, 10664247 updates (35547/s) replay:    5154722 snapshots matched the rebuilt book, 0 did not OK 
+verify ob.20261024T0525Z.sbe 448M messages:  1511782 snapshots, 925738 updates (34160/s) replay:    413550 snapshots matched the rebuilt book, 0 did not OK 
+-- stalls per status line
+stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=0 stalls=127560 stalls=127560 stalls=127560 stalls=127560 stalls=127560 stalls=127560 stalls=127560 stalls=127560 
+-- blocked ms per 30 s window (all sockets)
+stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall0 stall437075 stall0 stall0 stall0 stall0 stall0 stall0 stall0 
+-- hottest socket per window
+57:16MB/25790f/dec184ms/stall0ms 57:29MB/53853f/dec330ms/stall0ms 57:26MB/47833f/dec302ms/stall0ms 57:26MB/48016f/dec298ms/stall0ms 57:25MB/46213f/dec288ms/stall0ms 57:26MB/48493f/dec301ms/stall0ms 16777418:22MB/35388f/dec289ms/stall0ms 57:15MB/29163f/dec182ms/stall0ms 221:11MB/20920f/dec149ms/stall0ms 202:30MB/54995f/dec392ms/stall0ms 202:33MB/59514f/dec425ms/stall0ms 202:37MB/63295f/dec444ms/stall0ms 228:27MB/45403f/dec330ms/stall0ms 228:23MB/38490f/dec292ms/stall0ms 16777418:15MB/29464f/dec178ms/stall0ms 16777418:14MB/28570f/dec167ms/stall0ms 230:15MB/23949f/dec202ms/stall0ms 203:14MB/29527f/dec167ms/stall0ms 203:14MB/30926f/dec177ms/stall0ms 16777419:25MB/45390f/dec371ms/stall0ms 16777418:27MB/44518f/dec414ms/stall0ms 16777419:26MB/47330f/dec341ms/stall3007ms 16777419:12MB/23251f/dec162ms/stall0ms 16777451:11MB/18755f/dec159ms/stall0ms 79:7MB/14261f/dec97ms/stall0ms 79:10MB/18559f/dec133ms/stall0ms 79:6MB/12112f/dec79ms/stall0ms 16777419:6MB/11648f/dec77ms/stall0ms 16777418:7MB/14051f/dec103ms/stall0ms 
+-- warn/error
+      8  WARN engineering_challenge::core: socket quiet while its peer is not; reconnecting 
+      8  WARN engineering_challenge::conn: connection lost  reason=reconnect requested
+      5  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: A
+      1  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Away, r
+      1  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Away, 
+invalid subscription payload: 0
+all-resolved closes: 4
+disconnects (Down): 45
+slow consumer closes: 4
+writer backpressure: 0
+splits: 23
+ INFO engineering_challenge::core: splitting hot shard shard=28 rate=25881.716796875 median=752.4385375976563 moved=28 moved_rate=13358.107421875
+ INFO engineering_challenge::core: splitting hot shard shard=28 rate=39583.43359375 median=998.7601928710938 moved=32 moved_rate=20052.681640625
+ INFO engineering_challenge::core: splitting hot shard shard=28 rate=25847.28515625 median=1243.88330078125 moved=44 moved_rate=13086.9091796875
+ INFO engineering_challenge::core: splitting hot shard shard=110 rate=29870.232421875 median=1515.6956787109375 moved=14 moved_rate=16191.404296875
+ INFO engineering_challenge::core: splitting hot shard shard=101 rate=20283.60546875 median=1206.646240234375 moved=8 moved_rate=10898.0576171875
+ INFO engineering_challenge::core: splitting hot shard shard=101 rate=38438.4375 median=1779.5478515625 moved=10 moved_rate=20071.244140625
+-- done
+ INFO collector: done updates=31065377 snapshots=19808984 m=Metrics { updates: 31065377, snapshots: 19808984, switches: 44515, lag_switches: 38, hash_ok: 31376177, hash_miss: 157994, hash_healed: 130258, divergent: 2651, hash_agreed: 152087, resnapshots: 38988, book_miss: 122, book_diffs: 334, disconnects: 19, recycles: 0, markets_added: 274966, markets_removed: 406, quiet_resubs: 4306, quiet_caught: 243, quiet_reconnects: 8, unplaced: 0, rot_early: 62260, resolved_closes: 4, splits: 23, split_tokens: 792, wire: n=31091486 p50<=0.0ms p99<=8388.6ms max=15861.5ms, queue: n=31551554 p50<=0.1ms p99<=1048.6ms max=15030.0ms }
+== split-rot5 end
+RUN_DONE

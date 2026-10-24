@@ -685,3 +685,34 @@ something else dropped the markets. Two more gaps made it worse:
 35-minute run with splitting on: "invalid subscription payload" should not appear,
 `resolved_closes` should count roughly once per emptied socket, and the disconnect count should be
 close to arm A's.
+
+### Live check on `12cc8fe`: splitting forced on (2026-10-24)
+
+The setup matched the A/B's `full-rot5` arm: the full universe, 900 s, 5-minute files, a 15 s
+SIGSTOP at about t=600 s, and `--split-ratio 3` to force splitting back on. The script is
+`bench/check.sh` (`bench/ab.sh` cut to one config). The log is
+`bench/check-2026-10-24/check.log`.
+
+| full-rot5                      | A (fixes 1+4) | B (+2+3, old) | this build, split on |
+|--------------------------------|---------------|---------------|----------------------|
+| disconnects (metric)           | 15            | 163           | **19**               |
+| "invalid subscription payload" | 0             | 149           | **0**                |
+| splits                         | 0             | 19            | 23                   |
+| slow-consumer closes           | 11            | 3             | 4                    |
+| lag switches                   | 114           | 1496          | 38                   |
+
+- **The loop is gone.** At 05:22:26 the venue closed four sockets, both replicas of two split-off
+  shards, with "all subscribed assets resolved". Each reader logged "dropping them" and went idle,
+  with no reconnect and no payload error. `resolved_closes` = 4.
+- **The core had already ended those markets** (`markets=0` in `on_resolved`): `market_resolved`
+  arrived first this time. One replica of each pair still held 2 tokens, because the core's
+  `Unsubscribe` was still in flight. The other held 0. With 0 tokens, the old reader would have
+  reconnected and sent an empty subscribe. The idle path covers both cases.
+- **Disconnects are back to arm A's level** (19 against 15), even with 23 splits. The remaining
+  closes were 8 quiet-socket reconnects, 4 slow-consumer closes and 3 "server shutting down".
+- **The rest is healthy.** All 4 files verified, with 0 snapshot mismatches. Stalls were 0 except
+  the SIGSTOP window. Writer backpressure was 0.
+- **Caveat:** this run was at 05:10 UTC, and the A/B was at about 17:00 UTC, so the market mix
+  differs. These numbers show the loop is fixed. They are not a new A/B.
+- Splits still chase the short-lived hot markets: `shard=28` was split 3 times in a row. So
+  `--split-ratio 0` stays the default.
