@@ -6,7 +6,7 @@
 # If the port decides the path, fixed slots keep their speed from round to round and
 # ephemeral slots do not (bench/port_an.py).
 set -u
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 REV=${REV:?}; ROUNDS=${ROUNDS:-6}; RD=${RD:-240}; GAP=${GAP:-75}; FIXED=${FIXED:-6}; EPH=${EPH:-6}
 MARKETS=${MARKETS:-400}; BASE=${BASE:-41001}
 exec > port.log 2>&1
@@ -28,5 +28,5 @@ for k in $(seq 1 $ROUNDS); do
   grep -c "connection lost" collect-$k.log | sed 's/^/lost /'
   [ $k -lt $ROUNDS ] && sleep $GAP
 done
-python3 port_an.py $FIXED collect-*.log > summary.txt
+python3 bench/port_an.py $FIXED collect-*.log > summary.txt
 echo DONE
