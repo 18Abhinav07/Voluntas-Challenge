@@ -26,6 +26,38 @@ Hardware notes:
 | Profile 2 | Codespace, 10 min | 561k tokens, 452 sockets | 18.6M | 247 ms–13.5 s per file | p99 4.2 s | 0 / 10.3M, all 3 files | Core CPU −38%; rotation fsync stalls everything |
 | A/B, A | Codespace, 15 + 35 min | 566k tokens | 29.9M + 78.7M | 8.4 s / 262 ms (p99) | 1.05 s | 0 / 55.1M, all files | Fix 1 alone removes rotation stalls |
 | A/B, B | Codespace, 15 + 35 min | 566k tokens | 29.9M + 78.7M | 8.4 s / 524 ms (p99) | 1.0 s / 0.52 s | 0 / 54.7M, all files | Fix 2 small gain; fix 3 causes resolve-loop disconnects |
+| Soak 3 | Codespace, 2.5 h, `--supervise` | 551k tokens, 452 sockets | 320M | wire ≤ 16.4 ms | ≤ 65.5 ms | 0, all 16 files | Stable 2.5 h; RSS 2.8–3.3 GB; disk waits on rotation |
+| Final gate | Codespace, 25 min, kill -9 + SIGSTOP | 559k tokens | 23.5M | — | — | 0, all 7 files | Every recovery path works on the submission build |
+| Perf gate 1 | Codespace, 10 min, `--pin --kernel-ts` | 562.7k tokens | — | recv−exch p99 57–321 ms; host p99 ≤ 2–4 ms | — | 0 / 9.67M | **RSS 1.73 GB (−43%)**; found `--pin` 1-core bug |
+| Perf gate 2 | Codespace, 10 min, 2 cores, io 1 | 561k tokens | — | host p99 ≤ 8–16 ms | — | 0 / 10.77M | One io worker too few → default ≥ 2 |
+
+## Bottlenecks: how each was found, fixed and measured
+
+One line per limit we hit, in order. The turn entries below hold the detail and the logs.
+
+| # | Bottleneck | How we found it | Fix | Before → after |
+|---|---|---|---|---|
+| 1 | Laptop link behind a VPN (3.3 Mbit/s) | Run 4 collapsed into a reconnect storm; Run 7 had wire p50 130 s with 27 s of CPU in 300 s | Move to a cloud host near London (Codespace WestEurope); global outage backoff, socket cap | wire p99 minutes → 173 ms |
+| 2 | Coverage stuck at 47.5k of 131k tokens | Coverage grew one shard per 30 s, then stopped; probes ruled out the venue | Open limiter reads the current gap; book deadline and re-ask; 90 s first-frame grace | 47.5k → 96k (all the link could carry), later 100% placed |
+| 3 | Socket cap and Gamma 429s | Cloud 1: 196k tokens unplaced, 102 lookups rate-limited | Cap sized to the universe; batched lookups with 429 backoff | 250k → 459k tokens placed, 0 429s |
+| 4 | Timers starved by inbound messages | Cloud 2: one status line in 5 min, p99 71 s | Timers first, inbound in batches of 256 | p99 71 s → 524 ms |
+| 5 | Hash check: 45% of the core | `perf` profile: number formatting allocated per level, whole book rehashed per candidate price | Hash once per check, copy the partial hash per candidate, format without allocating | 18.9k → 32.3k updates/s |
+| 6 | One core thread at 99.9% | Per-thread CPU from `/proc` | K core threads, each owning whole markets | 99.9% → 50–90% per core |
+| 7 | Ext 2 over-tuned | Soak 1: 400k resubscribes in 90 min, always at the cap | Rate-aware quiet detection, strikes double the wait | Resubscribes cut to the truly quiet tokens |
+| 8 | Hashing standbys, full-universe lag walk | Whole-process profile | Hash only the source; incremental lag-candidate list | Core 50–60% → 31–38% |
+| 9 | Rotation fsync stalled every reader | Profile 2: 330 s and 1,153 s blocked in rotation windows | Finisher thread fsyncs and renames off the writer; rotation snapshots spread over 10 ticks | Blocked time in rotation → 0 in 11 rotations |
+| 10 | Hot-shard split caused a reconnect loop | A/B: disconnects ×11–19; venue closes "all subscribed assets resolved" | `all_resolved` exit in the adapter; drop resolved tokens; splitting off by default | Loop gone; split stays opt-in |
+| 11 | Memory 2.8–3.3 GB (BTreeMap books, HashMap replicas, SipHash, 3 symbols per token) | Offline `bench mem`: 7.6 KB/token heap | mimalloc, flat sorted books, inline replicas, boxed cold fields, one symbol, lazy hash state, FxHash | RSS 3.0 GB → **1.73 GB** live; overhead 1,528 → 652 B/token |
+| 12 | Disk stalls could reach the books | 2.5 h soak: 8 waits of 1–1.5 s at rotation | Byte-bounded 256 MiB writer queue with hwm/waits counters | Gate: hwm 21 MB, 0 waits |
+| 13 | `recv_ts` included TLS, parse and scheduling time | Design review of LATENCY | `--kernel-ts`: SO_TIMESTAMPNS kernel arrival time, `host delay` histogram | Host adds p50 ≤ 128 µs, p99 ≤ 4–8 ms |
+| 14 | `--pin` started 1 core thread instead of 2 | Gate 1 log: `cores=2` budget, `cores=1` started | Count CPUs once in `main`, before pinning | 2 core threads, 281k/280k tokens each |
+| 15 | One tokio worker for ~450 TLS sockets | Gate 2 host delay 4× worse; 5-minute A/B of three layouts | io workers default to at least 2 | host p99 8–16 ms → 4–8 ms |
+
+**Not bottlenecks, ruled out by measurement:** the TCP source port (Ext 4 Exp. 3, weak, p ≈ 0.1);
+hyperthread siblings for the core threads (A/B); the ~1% unsourced tokens (the venue has no book).
+
+**Still open:** levels are held 3× at 16 B each (about 1 GB of the 1.7 GB); a `u16` tick plus a
+quantity array would save about 500 MB. Absolute latency needs a host with chrony (the AWS run).
 
 ---
 
