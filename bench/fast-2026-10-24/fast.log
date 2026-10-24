@@ -1,0 +1,65 @@
+info: downloading installer
+warn: it looks like you have an existing rustup settings file at:
+warn: /home/codespace/.rustup/settings.toml
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+warn: Updating existing toolchain, profile choice will be ignored
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: default toolchain set to stable-x86_64-unknown-linux-gnu
+
+  stable-x86_64-unknown-linux-gnu unchanged - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env"           # For sh/ash/dash/pdksh/bash/zsh
+source "$HOME/.cargo/env.fish" # For fish
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+== host 4 cpus, region North Holland
+103ac51 fast.sh: run from the repo root
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.14s
+== start 06:52:00 dur=1200 reps=4 markets=400
+== exit at 07:12:02
+== verify A
+file:      outA/ob.sbe
+span:      1193.6s, 1600 symbols
+messages:  33394 snapshots, 345215 updates (289/s)
+replay:    31794 snapshots matched the rebuilt book, 0 did not
+crossed:   12 updates left a crossed book (informational)
+latency:   recv-exch ms p1 7 p50 9 p90 13 p99 221 p99.9 942 max 3905
+OK
+== verify B
+file:      outB/ob.sbe
+span:      1193.6s, 1600 symbols
+messages:  33394 snapshots, 345351 updates (289/s)
+replay:    31794 snapshots matched the rebuilt book, 0 did not
+crossed:   12 updates left a crossed book (informational)
+latency:   recv-exch ms p1 7 p50 9 p90 12 p99 241 p99.9 596 max 240576
+OK
+DONE

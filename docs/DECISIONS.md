@@ -181,3 +181,23 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
   on a busy market finds the newer event already in place, and its copy would go untimed. That
   biases the measurement towards the fast sockets. The window is 16 events, and copies that miss
   it are counted as `late` (at most 98 of 154k on the slowest socket).
+
+## D19. A speed-aware source is opt-in (`--fast-source`)
+
+- **Choice:** with the flag, each shard prefers the socket with the lowest recent `behind`, and
+  recycles a socket that stays slowest. Off by default.
+- **How it is kept safe:**
+  - **Hysteresis.** The preferred socket changes only when it is more than 1 ms worse than the
+    best, on a score smoothed over 30 s windows with at least 50 timed events each.
+  - **A move writes nothing.** Tokens move onto the preferred socket only when its book equals
+    the source's. A standby is not hashed (D9), so a faster socket that disagrees is not trusted.
+  - **Failover is unchanged** except for ties: among replicas that have seen as much, the
+    preferred one wins.
+  - **The recycle is make-before-break** (D15), and respects the same limits: two shards at a
+    time, one replica per shard. It needs 10 windows in a row (5 minutes) as slowest and at least
+    4 ms behind the best.
+- **Why opt-in:** in the one A/B run (LATENCY, Experiment 2), p50 and p90 of the written events
+  improved by 1 ms and the mean by 10%, but p99 got worse (88 → 145 ms) as the preferred socket
+  changed 7 times in 20 minutes. It also costs the per-market windows of D18.
+- **Rejected:** first-arrival merge across sockets (D7), which would remove the choice entirely
+  but needs a dedup key the venue does not give.

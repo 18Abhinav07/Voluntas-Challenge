@@ -128,6 +128,9 @@ book-to-book and starts being hashed the moment it becomes source.
   - per-socket bytes, frames, decode time and blocked time, with the five busiest sockets.
   - with `--lat-detail`, per-socket and per-edge latency: `wire`, and how far each socket is
     behind the first to deliver the same event (see LATENCY).
+- **Speed-aware source** (`--fast-source`, opt-in). Every 30 s the core scores each socket by
+  its recent `behind`, prefers the fastest per shard, moves tokens onto it when its book equals
+  the source's, and recycles a socket that stays slowest for 5 minutes (DECISIONS D19).
 
 ## Ext 3: the adapter boundary
 

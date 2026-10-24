@@ -801,3 +801,48 @@ and ARCHITECTURE mention `--lat-detail`.
 - A repeat at another hour and under the full universe.
 - A supervisor example.
 - Zip and email (ask first).
+
+## Turn — Speed-aware source and slow-socket recycle (`--fast-source`)
+
+**Asked:** prefer the socket with the lowest recent `behind`, recycle a socket that stays
+slowest, test it and log it.
+
+**Built** (`src/core.rs`, opt-in `--fast-source`):
+- Per socket, `behind` is summed per 30 s window and folded into a score (EWMA, weight 0.5). A
+  window needs 50 timed events. Only settled sockets are scored (not retiring, not a replacement).
+  A reconnect resets the score.
+- Per shard, a preferred socket (`Shard.fast`), changed only past a 1 ms margin.
+- Tokens move onto it when its book equals the source's (first version: when it had seen as
+  many events; see below). Failover breaks ties towards it.
+- A socket that is slowest and at least 4 ms behind the best for 10 windows is recycled
+  make-before-break through a new shared `recycle()` helper, with the hourly recycle's limits.
+- New metrics: `fast_picks`, `fast_switches`, `slow_recycles`, `fast_disagree`, and
+  `src_behind`, the `behind` of the events actually written.
+- 3 new unit tests: following the fastest past the margin (and not onto a disagreeing book),
+  failover among equals, and the slow recycle. 55 unit (1 ignored) + 3 golden pass, clippy clean.
+
+**Run** (`bench/fast.sh`, `bench/fast-2026-10-24/`): WestEurope Codespace, 06:52–07:12 UTC, two
+collectors at once on the same 400 markets, 4 replicas each. A: old choice (`--lat-detail`). B:
+`--fast-source`. Both verify OK, 31,794 snapshots, 0 mismatches. 0 disconnects, 0 lag switches.
+The first start failed because `fast.sh` ran from `bench/` (fixed in 103ac51).
+
+| `src_behind` | n | mean | p50 | p90 | p99 ms |
+|---|---|---|---|---|---|
+| A | 152,976 | 4.8 | 1 | 2 | 88 |
+| B | 153,050 | 4.3 | 0 | 1 | 145 |
+
+- Body better (mean −10%, p50/p90 −1 ms), p99 worse. The preferred socket changed 7 times.
+- One slow recycle (socket 3, 7.7 ms behind).
+- B's verify max receive − exchange was 240.6 s (A: 3.9 s). Likely a move onto a replica with a
+  different book, whose diff carried an old book-dump timestamp. **Fixed:** a move needs equal
+  books; disagreeing standbys are counted in `fast_disagree`. Not rerun with the fix.
+
+**Docs:** LATENCY Experiment 2 and an updated "Not done yet"; DECISIONS D19; README flag row and
+known-limits line; ARCHITECTURE metrics bullet. Codespace deleted.
+
+**Open:**
+- Rerun the A/B with the equal-book fix, a 3 ms margin and a longer score.
+- A shorter `--lag-ms`.
+- A repeat at another hour and under the full universe.
+- A supervisor example.
+- Zip and email (ask first).

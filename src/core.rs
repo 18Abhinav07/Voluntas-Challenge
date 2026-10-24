@@ -244,6 +244,8 @@ pub struct Metrics {
     pub fast_picks: u64,
     pub fast_switches: u64,
     pub slow_recycles: u64,
+    /// Tokens left on their source because the fast socket's book differed from it.
+    pub fast_disagree: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
     pub wire: Hist,
     /// Socket read to core apply: time spent queued inside this process.
@@ -260,7 +262,7 @@ impl Metrics {
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
             quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens,
-            fast_picks, fast_switches, slow_recycles);
+            fast_picks, fast_switches, slow_recycles, fast_disagree);
         self.src_behind.merge(&o.src_behind);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
@@ -1364,15 +1366,22 @@ impl<M> Core<M> {
                 self.shards[s].fast = Some(pick);
                 self.metrics.fast_picks += 1;
             }
-            // Only onto a replica at least as far along: the diff then carries nothing stale.
+            // Only onto a replica that holds the same book as the source, so the move writes
+            // nothing. A standby is not hashed (D9): one that disagrees may be the one that is
+            // wrong, and speed is no reason to trust it.
             for t in &self.shards[s].tokens {
                 let Some(tok) = self.tokens.get_mut(t) else { continue };
                 let Some(src) = tok.source.filter(|&c| c != pick) else { continue };
                 let (Some(p), Some(o)) = (tok.replicas.get(&pick), tok.replicas.get(&src)) else { continue };
-                if p.valid && p.seen() >= o.seen() {
-                    Self::adopt(tok, pick, self.epoch, recv, &mut self.out, &mut self.metrics);
-                    self.metrics.fast_switches += 1;
+                if !p.valid {
+                    continue;
                 }
+                if p.book != o.book {
+                    self.metrics.fast_disagree += 1;
+                    continue;
+                }
+                Self::adopt(tok, pick, self.epoch, recv, &mut self.out, &mut self.metrics);
+                self.metrics.fast_switches += 1;
             }
             for &(score, c) in &scored {
                 let cs = self.conns.get_mut(&c).expect("scored");
@@ -2219,6 +2228,9 @@ mod tests {
         assert_eq!((core.metrics.fast_picks, core.metrics.fast_switches), (1, 2));
         assert!(core.out.is_empty(), "equal books: the move writes nothing");
 
+        // A fast socket whose book differs from the source's is not trusted for speed.
+        core.on_events(0, 5, &[book("b", 2, &[(300, 9)], &[])], now, &mut fx);
+
         // Socket 0 now wins by 0.5 ms: within the margin, so the sources stay.
         race(&mut core, &mut fx, now, 0, 500, 100);
         core.check_speed(now, 3, &mut fx);
@@ -2227,6 +2239,7 @@ mod tests {
         race(&mut core, &mut fx, now, 0, 10_000, 200);
         core.check_speed(now, 4, &mut fx);
         assert_eq!((core.tokens["a"].source, core.metrics.fast_picks), (Some(0), 2));
+        assert_eq!((core.tokens["b"].source, core.metrics.fast_disagree), (Some(1), 1), "books differ: b stays");
     }
 
     #[test]

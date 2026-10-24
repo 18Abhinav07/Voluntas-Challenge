@@ -140,7 +140,7 @@ fastest" buy anything?
   The best single socket averages 1.4 ms. With `wire` at a median of 7 ms, keeping the fastest
   socket saves a few ms on average. In the tail it is tens of ms: p99 of 14–17 ms on the best
   sockets against 44–75 ms on the others.
-- **The output did not use any of this.** The source is the replica that has *seen the most*,
+- **The output did not use any of this** (before Experiment 2). The source is the replica that has *seen the most*,
   and it changes only on failure, not on speed. In this run it changed 469 times, each with a resnapshot
   from the hash ladder, and never on lag.
 
@@ -153,7 +153,7 @@ fastest" buy anything?
   turn looks slower by microseconds; the 1 ms buckets hide that.
 - The 3 s lag window (DECISIONS D10) is about 40 times the worst socket's p99 here (75 ms).
 
-**What would turn this into a gain** (not built):
+**What would turn this into a gain** (steps 1–3 are built as `--fast-source`, Experiment 2):
 1. Keep `behind` per socket over a rolling window, not since start.
 2. Prefer the replica with the lowest recent `behind` as source, but switch only when the
    difference is large and lasting. A switch writes a diff, so it costs records.
@@ -161,17 +161,65 @@ fastest" buy anything?
    hour by age.
 4. Run it under the full universe, where it competes with the per-socket CPU cost.
 
+## Experiment 2: a speed-aware source (`--fast-source`)
+
+Experiment 1's steps 1–3, built and run against the old choice.
+
+**What it does** (`Core::check_speed`, every 30 s window):
+- Each settled socket's mean `behind` over the window is folded into a score:
+  `0.5 × old + 0.5 × window`. A window counts only with at least 50 timed events.
+- The socket with the lowest score in a shard becomes the preferred one. It changes only when
+  the current one is more than 1 ms worse than the best (hysteresis).
+- Tokens move onto the preferred socket only when its book equals the source's book, so the move
+  writes nothing. A failover among replicas that have seen the same events also picks it.
+- A socket that is the slowest in its shard and at least 4 ms behind the best for 10 windows in a
+  row (5 minutes) is recycled, make-before-break, by the same path as the hourly recycle.
+- A new connection starts with no score.
+
+**Run** (`bench/fast.sh`, `bench/fast-2026-10-24/`): WestEurope Codespace, 4 CPUs, 06:52–07:12
+UTC. Two collectors ran at the same time on the same 400 markets: A with `--lat-detail` (old
+choice), B with `--fast-source`. 4 replicas, one shard, one core each. Both verified OK: 1,600
+symbols, 31,794 snapshots, 0 mismatches. 0 disconnects and 0 lag switches in both.
+
+`behind` of the events actually written (`src_behind`):
+
+| | n | mean | p50 | p90 | p99 ms | 5-min means ms |
+|---|---|---|---|---|---|---|
+| A, old choice | 152,976 | 4.8 | 1 | 2 | 88 | 10.5 / 5.0 / 1.7 / 1.8 |
+| B, `--fast-source` | 153,050 | 4.3 | 0 | 1 | 145 | 7.5 / 6.6 / 0.7 / 1.3 |
+
+- **B is better at the body:** mean −10%, p50 1 → 0 ms, p90 2 → 1 ms. In the last 10 minutes
+  its means were 40–60% lower.
+- **B is worse at p99** (145 against 88 ms). The first 10 minutes were noisy in both, and the
+  preferred socket changed 7 times (sockets 0, 1, 2, 4, 0, 4, 0). 1 ms of hysteresis is too
+  little at this load.
+- **The recycle fired once:** socket 3 at 07:00, 7.7 ms behind the best. Make-before-break, no
+  gap.
+- **Moves:** 5,175 token moves onto the preferred socket and 536 ordinary switches, against 567
+  switches in A.
+- **One bad record in B:** verify's max receive − exchange was 240,576 ms (A: 3,905 ms). The
+  likely cause: a move onto a replica that had seen as many events but held a different book
+  wrote a diff, stamped with that replica's last event time, which on a quiet token can be a
+  minutes-old book dump. **Fixed after the run:** a move now needs equal books, and a disagreeing
+  standby is counted (`fast_disagree`) and left alone. It is not hashed (D9), so speed is no
+  reason to trust it. The A/B was not rerun with the fix.
+
+**Verdict:** a small gain at the median and p90, a loss at p99 from flapping, in one run. It stays
+opt-in. Next: a larger margin (for example 3 ms), a longer score (3–5 windows), and a repeat with
+the fix, ideally at another hour.
+
 ## Not done yet
 
-Done: many sockets on the same tokens, and per-edge comparison (Experiment 1). Four sockets on
+Done: many sockets on the same tokens, and per-edge comparison (Experiment 1). A speed-aware
+source and recycling the slowest socket (Experiment 2). Four sockets on
 the same edge already differ by local port, so Experiment 1 partly covers the source-port idea:
 connections to one edge with different ports did differ, by up to 9 ms at the mean. Port was not
 varied on purpose, though, so it is still listed below.
 
 | Experiment | How it would run here | What it needs |
 |---|---|---|
-| **Keep the fastest, as a policy** | Experiment 1's steps 1–3 above, then the same run with and without it, comparing the output's `wire` | rolling per-socket `behind`, a speed-aware source choice |
-| **Reconnect the slow socket** | Close the slowest of N, reopen, and see whether the new connection lands somewhere faster | a rule for picking which socket to recycle |
+| **Tune the speed-aware source** | Experiment 2 again with the equal-book fix, a 3 ms margin and a longer score, at two hours of the day | nothing new: `--fast-source` and `bench/fast.sh` |
+| **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
 | **Change the TCP source port** | Reconnect the same edge with different local ports, which may land on different load-balancer paths. Compare per connection. | bind the local port before `connect` |
 | **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |
 | **Host region** | Repeat a run from a second region (e.g. us-east-1) at the same time and compare `wire` medians. | a second host; the user has no AWS account |

@@ -62,6 +62,7 @@ A small run for trying it out:
 | `--opens-per-sec` | `10` | Websocket handshakes per second across all sockets. |
 | `--duration-secs` | `0` | Stop after this long (0 = run until SIGINT). |
 | `--lat-detail` | off | Log per-socket and per-edge latency every 30 s (Ext 4, see LATENCY). |
+| `--fast-source` | off | Prefer each shard's fastest socket as source and recycle one that stays slowest (see LATENCY, Experiment 2). |
 
 ## Output
 
@@ -137,8 +138,9 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
   an event the source has not for 3 s. Until then the source's stale book is what readers have.
 - **Latency is measured but not tuned.** One experiment has run: 8 sockets on the same 400
   markets (`--lat-detail`). The fastest socket was 1.4 ms behind the first copy on average and the
-  slowest 10.3 ms, and the edge IP mattered less than the connection. The source choice does not
-  use this yet. See [docs/LATENCY.md](docs/LATENCY.md).
+  slowest 10.3 ms, and the edge IP mattered less than the connection. `--fast-source` acts on it
+  (opt-in): in one A/B it improved p50/p90 of the written events by 1 ms but worsened p99. See
+  [docs/LATENCY.md](docs/LATENCY.md).
 - **Polymarket only.** No Kalshi adapter exists.
 - **Core CPU.** Two core threads run at about 31–38% each at steady state. The integrity hash
   is the largest part of core time.
