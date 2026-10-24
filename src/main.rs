@@ -22,7 +22,7 @@ use engineering_challenge::{
         polymarket::{Meta, Polymarket},
     },
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
-    core::{Config, Core, Effects, Metrics},
+    core::{Config, Core, Effects, Metrics, SockLat},
     writer::{self, Tagged},
 };
 use tokio::{
@@ -79,6 +79,9 @@ struct Args {
     /// Stop after this many seconds (0 = run until SIGINT).
     #[arg(long, default_value_t = 0)]
     duration_secs: u64,
+    /// Log per-socket and per-edge latency every 30 s (Ext 4). Costs a window per market.
+    #[arg(long)]
+    lat_detail: bool,
 }
 
 /// Carries out the side effects one core asks for.
@@ -97,7 +100,7 @@ struct Runtime {
 impl Effects for Runtime {
     fn spawn_conn(&mut self, id: ConnId, replica: usize, tokens: Vec<Sym>) {
         let edge = (!self.edges.is_empty()).then(|| self.edges[replica % self.edges.len()]);
-        tracing::debug!(conn = id, replica, ?edge, tokens = tokens.len(), "opening connection");
+        tracing::info!(conn = id, replica, ?edge, tokens = tokens.len(), "opening connection");
         let _rt = self.main.enter();
         let h = conn::spawn(ConnSpec {
             id,
@@ -246,6 +249,32 @@ struct Status {
     sourced: usize,
     conns: usize,
     metrics: Metrics,
+    lat: HashMap<ConnId, SockLat>,
+}
+
+/// Logs each socket's latency since start, then the same summed by edge IP. A socket's edge is
+/// its replica's, as in [`Runtime::spawn_conn`].
+fn lat_report(latest: &[Option<Status>], edges: &[SocketAddr]) {
+    let mut socks: Vec<(ConnId, &SockLat)> = latest.iter().flatten().flat_map(|s| s.lat.iter().map(|(c, l)| (*c, l))).collect();
+    if socks.is_empty() {
+        return;
+    }
+    socks.sort_by_key(|(c, _)| *c);
+    let edge = |r: usize| edges.get(r % edges.len().max(1)).map_or_else(|| "-".to_string(), |e| e.ip().to_string());
+    let mut by_edge: std::collections::BTreeMap<String, (usize, SockLat)> = Default::default();
+    for (c, l) in &socks {
+        let e = edge(l.replica);
+        tracing::info!(conn = c, replica = l.replica, edge = %e, first = l.first, late = l.late, wire = ?l.wire, behind = ?l.behind, "socket latency");
+        let (n, sum) = by_edge.entry(e).or_default();
+        *n += 1;
+        sum.wire.merge(&l.wire);
+        sum.behind.merge(&l.behind);
+        sum.first += l.first;
+        sum.late += l.late;
+    }
+    for (e, (n, l)) in &by_edge {
+        tracing::info!(edge = %e, sockets = n, first = l.first, late = l.late, wire = ?l.wire, behind = ?l.behind, "edge latency");
+    }
 }
 
 /// The core that owns a market: stable for the process, so a market never moves.
@@ -328,6 +357,7 @@ async fn core_loop(spec: CoreSpec) -> anyhow::Result<Metrics> {
                         sourced: core.sourced_count(),
                         conns: core.conn_count(),
                         metrics: core.metrics.clone(),
+                        lat: core.lat.clone(),
                     });
                 }
                 n = irx.recv_many(&mut inbox, INBOUND_BATCH) => {
@@ -458,6 +488,7 @@ async fn main() -> anyhow::Result<()> {
             conn_id_base: (idx as ConnId) << CONN_ID_BITS,
             rotate_every: rotate,
             split_ratio: (args.split_ratio > 0.0).then_some(args.split_ratio),
+            lat_detail: args.lat_detail,
             ..Config::default()
         };
         let rt = Runtime {
@@ -534,6 +565,7 @@ async fn main() -> anyhow::Result<()> {
                 let stalls = conn::STALLS.load(std::sync::atomic::Ordering::Relaxed);
                 tracing::info!(tokens, sourced, conns, ?per_core, stalls, m = ?m, "status");
                 tracing::info!(window = %conn::top_conns(5), "conn stats");
+                lat_report(&latest, &edges);
             }
             _ = rediscover.tick(), if !discovering => {
                 discovering = true;
@@ -572,6 +604,8 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
+
+    lat_report(&latest, &edges);
 
     // Shutdown: each core closes its sockets and applies what they already delivered; the
     // writer finishes once every core has dropped its sender.

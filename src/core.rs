@@ -57,6 +57,8 @@ pub struct Config {
     pub split_ratio: Option<f32>,
     /// ...and at least this many new deltas a minute (smoothed), so idle universes never split.
     pub split_min_rate: f32,
+    /// Keep per-socket latency ([`SockLat`]) and the arrival windows it needs (Ext 4).
+    pub lat_detail: bool,
 }
 
 /// Ext 2 thresholds. A token is quiet when no replica has seen a delta for
@@ -115,6 +117,7 @@ impl Default for Config {
             quiet: Quiet::default(),
             split_ratio: None,
             split_min_rate: 20_000.0,
+            lat_detail: false,
         }
     }
 }
@@ -227,6 +230,89 @@ impl Metrics {
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }
+}
+
+const MS_LO: i64 = -512;
+const MS_SPAN: usize = 2048;
+
+/// 1 ms buckets over -512..1536 ms, signed so a socket's `wire` survives a negative clock
+/// offset. Values outside land in the end buckets; the mean is exact.
+#[derive(Clone)]
+pub struct MsHist {
+    buckets: Box<[u32; MS_SPAN]>,
+    pub n: u64,
+    sum_us: i64,
+}
+
+impl Default for MsHist {
+    fn default() -> Self {
+        Self { buckets: Box::new([0; MS_SPAN]), n: 0, sum_us: 0 }
+    }
+}
+
+impl MsHist {
+    pub fn record(&mut self, us: i64) {
+        let i = (us.div_euclid(1000) - MS_LO).clamp(0, MS_SPAN as i64 - 1) as usize;
+        self.buckets[i] += 1;
+        self.n += 1;
+        self.sum_us += us;
+    }
+
+    pub fn merge(&mut self, o: &MsHist) {
+        for (a, b) in self.buckets.iter_mut().zip(o.buckets.iter()) {
+            *a += b;
+        }
+        self.n += o.n;
+        self.sum_us += o.sum_us;
+    }
+
+    /// Lower edge, in ms, of the bucket holding quantile `q`.
+    pub fn quantile_ms(&self, q: f64) -> i64 {
+        let want = ((self.n as f64 * q).ceil() as u64).max(1);
+        let mut seen = 0;
+        for (i, b) in self.buckets.iter().enumerate() {
+            seen += *b as u64;
+            if seen >= want {
+                return i as i64 + MS_LO;
+            }
+        }
+        MS_LO + MS_SPAN as i64 - 1
+    }
+
+    pub fn mean_ms(&self) -> f64 {
+        if self.n == 0 { 0.0 } else { self.sum_us as f64 / self.n as f64 / 1e3 }
+    }
+}
+
+impl std::fmt::Debug for MsHist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let q = |q| self.quantile_ms(q);
+        write!(f, "n={} mean={:.1} p50={} p90={} p99={}ms", self.n, self.mean_ms(), q(0.5), q(0.9), q(0.99))
+    }
+}
+
+/// One socket's latency (`Config::lat_detail`). `behind` needs no clock sync; nor does the
+/// difference between two sockets' `wire`, since both are read on the same host clock.
+#[derive(Clone, Default, Debug)]
+pub struct SockLat {
+    pub replica: usize,
+    /// `recv - exch` per delta event on this socket.
+    pub wire: MsHist,
+    /// How long after the first socket to deliver a market event this one delivered it (0 when first).
+    pub behind: MsHist,
+    /// Events this socket delivered first.
+    pub first: u64,
+    /// Events that arrived after their first copy had left the market's window: not timed.
+    pub late: u64,
+}
+
+const ARRIVALS: usize = 16;
+
+/// A market's last few events by exchange timestamp: (exch, first recv, replicas seen as bits).
+#[derive(Default)]
+struct Arrivals {
+    ring: [(Ts, Ts, u64); ARRIVALS],
+    next: usize,
 }
 
 struct Replica {
@@ -364,6 +450,9 @@ pub struct Core<M> {
     lag_cands: Vec<Sym>,
     /// At most one shard split in flight per core.
     split: Option<Split>,
+    /// Per-socket latency and per-market arrival windows, only with `cfg.lat_detail`.
+    pub lat: HashMap<ConnId, SockLat>,
+    arrivals: HashMap<Sym, Arrivals>,
     pub out: Vec<Rec>,
     pub metrics: Metrics,
 }
@@ -414,6 +503,8 @@ impl<M> Core<M> {
             verdicts: Vec::new(),
             lag_cands: Vec::new(),
             split: None,
+            lat: HashMap::new(),
+            arrivals: HashMap::new(),
             out: Vec::new(),
             metrics: Metrics::default(),
         }
@@ -535,9 +626,38 @@ impl<M> Core<M> {
         id
     }
 
+    /// Times one delta event on `conn`: its `wire`, and how far behind the first socket to
+    /// deliver the same (market, exch_ts) it came. Events are matched by exchange timestamp,
+    /// which Polymarket stamps once and sends to every socket.
+    fn note_arrival(&mut self, conn: ConnId, market: &Sym, exch: Ts, recv: Ts) {
+        let Some(replica) = self.conns.get(&conn).map(|c| c.replica) else { return };
+        let bit = 1u64 << (replica % 64);
+        let lat = self.lat.entry(conn).or_insert_with(|| SockLat { replica, ..Default::default() });
+        lat.wire.record(recv - exch);
+        if !self.arrivals.contains_key(market) {
+            self.arrivals.insert(market.clone(), Arrivals::default());
+        }
+        let a = self.arrivals.get_mut(market).expect("just inserted");
+        if let Some(e) = a.ring.iter_mut().find(|e| e.2 != 0 && e.0 == exch) {
+            // A socket sends several events in one millisecond: only its first is timed.
+            if e.2 & bit == 0 {
+                e.2 |= bit;
+                lat.behind.record(recv - e.1);
+            }
+        } else if a.ring.iter().all(|e| e.2 == 0 || e.0 < exch) {
+            a.ring[a.next] = (exch, recv, bit);
+            a.next = (a.next + 1) % ARRIVALS;
+            lat.behind.record(0);
+            lat.first += 1;
+        } else {
+            lat.late += 1;
+        }
+    }
+
     /// Ends a market: zero every level a reader holds for it, then unsubscribe and forget it.
     pub fn remove_market(&mut self, market: &str, recv: Ts, fx: &mut dyn Effects) {
         let Some(toks) = self.markets.remove(market) else { return };
+        self.arrivals.remove(market);
         self.metrics.markets_removed += 1;
         let mut by_conn: HashMap<ConnId, Vec<Sym>> = HashMap::new();
         for t in &toks {
@@ -672,8 +792,11 @@ impl<M> Core<M> {
                 self.maybe_finish_recycle(conn, recv, fx);
                 self.maybe_finish_split(recv, fx);
             }
-            NormEvent::Levels { exch_ts, changes, .. } => {
+            NormEvent::Levels { market, exch_ts, changes } => {
                 self.metrics.wire.record(recv - exch_ts);
+                if self.cfg.lat_detail {
+                    self.note_arrival(conn, market, *exch_ts, recv);
+                }
                 for c in changes {
                     let Some(tok) = self.tokens.get_mut(&c.token) else { continue };
                     let Some(rep) = tok.replicas.get_mut(&conn) else { continue };
@@ -1868,6 +1991,43 @@ mod tests {
         core.add(vec![inst("m", &["a"])], &mut fx);
         core.flush_pending(Instant::now(), &mut fx);
         assert_eq!(fx.spawned.iter().map(|s| s.0).collect::<Vec<_>>(), vec![1 << 20, (1 << 20) + 1]);
+    }
+
+    #[test]
+    fn ms_hist_keeps_negative_wire_and_exact_mean() {
+        let mut h = MsHist::default();
+        for us in [-20_000, 3_400, 3_900, 9_000_000] {
+            h.record(us);
+        }
+        assert_eq!((h.n, h.quantile_ms(0.25), h.quantile_ms(0.5), h.quantile_ms(1.0)), (4, -20, 3, 1535), "a 9 s outlier lands in the top bucket");
+        assert!((h.mean_ms() - 2_246.825).abs() < 1e-9, "the mean is not clamped");
+    }
+
+    #[test]
+    fn behind_is_timed_against_the_first_socket_to_deliver_an_event() {
+        let mut core = Core::new(Config { tokens_per_conn: 10, lat_detail: true, ..Config::default() }, Box::new(NoCheck));
+        let mut fx = Fx::default();
+        let now = Instant::now();
+        core.add(vec![inst("m", &["a", "b"])], &mut fx);
+        core.flush_pending(now, &mut fx);
+        let ev = |ts| [lvl("a", ts, Side::Bid, 400, 1)];
+        core.on_events(1, 10_000, &ev(5_000), now, &mut fx);
+        core.on_events(1, 10_100, &ev(5_000), now, &mut fx);
+        core.on_events(0, 13_000, &ev(5_000), now, &mut fx);
+        core.on_events(0, 20_000, &ev(9_000), now, &mut fx);
+        core.on_events(1, 20_500, &ev(9_000), now, &mut fx);
+        for ts in 10..30 {
+            core.on_events(0, 30_000 + ts * 1_000, &ev(ts * 1_000), now, &mut fx);
+        }
+        core.on_events(1, 99_000, &ev(5_000), now, &mut fx);
+
+        let (r0, r1) = (&core.lat[&0], &core.lat[&1]);
+        assert_eq!((r1.first, r1.behind.n, r1.late), (1, 2, 1), "second same-ms event untimed; a copy past the window is late");
+        assert_eq!((r0.first, r0.behind.n), (21, 22));
+        assert_eq!(r0.behind.quantile_ms(0.0), 0);
+        assert!((r0.behind.mean_ms() - 3.0 / 22.0).abs() < 1e-9, "3 ms behind once, first otherwise");
+        assert!((r1.behind.mean_ms() - 0.25).abs() < 1e-9, "first once, 0.5 ms behind once");
+        assert_eq!(r1.wire.n, 4, "wire counts every event, timed or not");
     }
 
     #[test]
