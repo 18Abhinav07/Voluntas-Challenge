@@ -89,7 +89,7 @@ A snapshot is also written the first time a book appears.
 |---|---|---|
 | **Socket closes or errors** | the actor's read fails | Down: tokens on it move to the best valid peer. The actor reconnects with backoff (250 ms to 30 s) and resubscribes. |
 | **Silent disconnect** (TCP alive, no frames) | watchdog: no frame, not even a PONG, for 30 s (90 s before the first frame, since the initial dump can take 45 s) | same as a close |
-| **Stalled subscription** (socket alive, one token silent) | lag check: a peer replica has a newer delta than the source, and has had it for 3 s | the source is marked invalid, the token switches to the peer, the stale replica gets a resnapshot |
+| **Stalled subscription** (socket alive, one token silent) | lag check: a peer replica has a delta the source has not seen, and has had it for 3 s (timed from the oldest such delta) | the source is marked invalid, the token switches to the peer, the stale replica gets a resnapshot |
 | **Corrupt or missed update** | the venue's `price_change` hash (SHA1 of the book) disagrees with the source's book | strike ladder below |
 | **Rate limiting** | handshake timeouts and 429s | open limiter, circuit breaker, lookup batching (50 per call) |
 | **Buffering / slow consumer** | the core queue is full | the reader waits (backpressure) instead of dropping. Per-socket blocked time is logged every 30 s. |

@@ -24,6 +24,7 @@ use engineering_challenge::{
         ConnId, ExchangeAdapter, Instrument, Sym,
         polymarket::{self, Meta, Polymarket},
     },
+    clock,
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
     core::{Config, Core, Effects, Fast, Metrics, SockLat},
     supervise::{self, Supervisor},
@@ -102,6 +103,10 @@ struct Args {
     /// stays readable: a torn chunk is dropped, and a reset marker separates two runs.
     #[arg(long)]
     supervise: bool,
+    /// NTP server (`host:port`) to measure the host clock offset against, at start and every
+    /// 10 minutes; it is logged, not applied (D21). Empty = off.
+    #[arg(long, default_value = "time.google.com:123")]
+    ntp_server: String,
     /// Test only: panic after this many seconds, to exercise fail-fast and --supervise.
     #[arg(long, hide = true)]
     fault_panic_after_secs: Option<u64>,
@@ -529,6 +534,9 @@ async fn main() -> anyhow::Result<()> {
             let _ = tokio::signal::ctrl_c().await;
             std::process::exit(130);
         });
+    }
+    if !args.ntp_server.is_empty() {
+        tokio::spawn(clock::watch(args.ntp_server.clone(), Duration::from_secs(600)));
     }
     if args.duration_secs > 0 {
         let (cancel, d) = (cancel.clone(), Duration::from_secs(args.duration_secs));

@@ -74,6 +74,7 @@ A small run for trying it out:
 | `--fast-source` | off | Prefer each shard's fastest socket as source and recycle one that stays slowest (see LATENCY, Experiment 2). |
 | `--fast-margin-ms` | `3` | With `--fast-source`: how much slower the preferred socket must be before it changes. |
 | `--fast-weight` | `0.25` | With `--fast-source`: weight of the newest 30 s window in a socket's score. |
+| `--ntp-server` | `time.google.com:123` | Measure and log the host clock offset at start and every 10 min (D21). Empty = off. |
 
 ## Output
 
@@ -121,6 +122,12 @@ cargo test --release
 - Three golden tests in `tests/golden.rs` replay captured live Polymarket frames from
   `tests/fixtures/` through decode and the hash check. They pin the verdict counts, including
   the 98.9% pass rate on the trade-heavy capture.
+- Nine end-to-end tests in `tests/e2e.rs` run the real binary against a mock venue on
+  localhost (Gamma over HTTP, the market websocket with correct hashes). Each injects one
+  fault and checks the reaction in the final metrics, then runs `verify` on the output:
+  dropped socket, silent socket, one stalled subscription, a 5 s delay, a corrupt update,
+  Gamma 429s, a resolved-assets close, and a panic under `--supervise`. About 45 s.
+- CI (`.github/workflows/ci.yml`) runs clippy with `-D warnings` and all of the above.
 
 ## Results
 

@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod book;
+pub mod clock;
 pub mod fixed;
 pub mod util;
 pub mod writer;

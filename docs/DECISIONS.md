@@ -235,3 +235,18 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
 - **Evidence:** 50 markets, live. Three injected panics: 3 restarts, `verify` OK with 3 resets and
   0 mismatches. `kill -9` of the child, single file: 1 restart, OK. Rotated: the empty `.part`
   was removed, the period reopened, both files OK.
+
+## D21. Measure the host clock offset; do not apply it (`--ntp-server`)
+
+- **Problem:** `received_at` is the host clock, and every latency figure is `received_at` minus
+  the venue's timestamp. A host clock 30 ms off moves all of them 30 ms, and the run says
+  nothing about it.
+- **Choice:** one SNTP exchange with `--ntp-server` (default `time.google.com:123`) at start and
+  every 10 minutes. Of four tries, the one with the shortest round trip is kept: its offset's
+  error bound is rtt / 2. The offset is logged, and it is a warning beyond 25 ms. An empty value
+  turns the probe off (the end-to-end tests do).
+- **Rejected:** correcting `received_at` by the offset. A step mid-run would reorder
+  timestamps, and the host's own NTP daemon (chrony) is the right place to steer the clock.
+- **Cost:** one UDP packet every 10 minutes. The venue's clock is not measured; its
+  timestamps are taken as given.
+- **Evidence:** local Mac, time.google.com: offset −0.1 ms, rtt 85 ms.

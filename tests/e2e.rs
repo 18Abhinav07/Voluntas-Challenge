@@ -384,7 +384,7 @@ fn run(fault: Fault, secs: u64, extra: &[&str], supervise: bool) -> Run {
         .arg(&out)
         .arg("--universe-cache")
         .arg(dir.path().join("universe.json"))
-        .args(["--recycle-mins", "0", "--core-threads", "1"])
+        .args(["--recycle-mins", "0", "--core-threads", "1", "--ntp-server", ""])
         .args(extra)
         .env("NO_COLOR", "1")
         .env("RUST_LOG", "info")
