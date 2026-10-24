@@ -1,7 +1,9 @@
 //! Speed-aware source choice (Ext 4): timing each socket against the first copy of every
 //! market event, preferring the fastest socket per shard and recycling one that stays slowest.
 
-use std::{collections::HashSet, time::Instant};
+use std::time::Instant;
+
+use rustc_hash::FxHashSet as HashSet;
 
 use super::{Core, Effects, SockLat};
 use crate::adapter::{ConnId, Sym, Ts};

@@ -447,7 +447,7 @@ async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metr
                         sourced: core.sourced_count(),
                         conns: core.conn_count(),
                         metrics: core.metrics.clone(),
-                        lat: core.lat.clone(),
+                        lat: core.lat.iter().map(|(&c, l)| (c, l.clone())).collect(),
                     });
                 }
                 n = irx.recv_many(&mut inbox, INBOUND_BATCH) => {

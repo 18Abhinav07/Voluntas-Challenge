@@ -16,8 +16,8 @@
 //! | `health.rs` | integrity ladder (§5.5), resnapshots, quiet and lag checks (Ext 2) |
 //! | `speed.rs` | speed-aware source choice (Ext 4) |
 
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
     time::{Duration, Instant},
 };
@@ -299,13 +299,13 @@ impl<M> Core<M> {
             next_conn: cfg.conn_id_base,
             cfg,
             integrity,
-            tokens: HashMap::new(),
-            markets: HashMap::new(),
+            tokens: HashMap::default(),
+            markets: HashMap::default(),
             shards: Vec::new(),
             pending: Vec::new(),
             pending_since: None,
-            conns: HashMap::new(),
-            looking_up: HashSet::new(),
+            conns: HashMap::default(),
+            looking_up: HashSet::default(),
             buckets: vec![Vec::new(); n],
             epoch: None,
             rot_queue: Vec::new(),
@@ -314,8 +314,8 @@ impl<M> Core<M> {
             verdicts: Vec::new(),
             lag_cands: Vec::new(),
             split: None,
-            lat: HashMap::new(),
-            arrivals: HashMap::new(),
+            lat: HashMap::default(),
+            arrivals: HashMap::default(),
             out: Vec::new(),
             metrics: Metrics::default(),
         }

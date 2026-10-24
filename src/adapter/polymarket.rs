@@ -1,12 +1,13 @@
 //! Polymarket CLOB market channel + Gamma discovery + `hash` verification.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::Context;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc;

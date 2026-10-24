@@ -1,6 +1,8 @@
 //! Connection lifecycle: up, down and gone events, and make-before-break recycling (Ext 2).
 
-use std::{collections::HashSet, time::Instant};
+use std::time::Instant;
+
+use rustc_hash::FxHashSet as HashSet;
 
 use super::{Core, Effects};
 use crate::{

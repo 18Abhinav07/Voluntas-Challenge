@@ -599,6 +599,7 @@ dependencies = [
  "rand 0.8.8",
  "reqwest",
  "rsa",
+ "rustc-hash",
  "serde",
  "serde_json",
  "serde_yaml_ng",

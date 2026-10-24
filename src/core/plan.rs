@@ -1,10 +1,9 @@
 //! Shard planning: placing discovered markets on shards and connections, ending resolved
 //! markets, and splitting hot shards.
 
-use std::{
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::time::Instant;
+
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{ConnState, Core, Effects, Replica, Reps, Shard, Split, Tok, bucket_of};
 use crate::{
@@ -108,7 +107,7 @@ impl<M> Core<M> {
             }
         }
         self.shards[shard].conns.push(id);
-        let awaiting = if replacing.is_some() { tokens.iter().cloned().collect() } else { HashSet::new() };
+        let awaiting = if replacing.is_some() { tokens.iter().cloned().collect() } else { HashSet::default() };
         self.conns.insert(
             id,
             ConnState {
@@ -136,7 +135,7 @@ impl<M> Core<M> {
         let Some(toks) = self.markets.remove(market) else { return };
         self.arrivals.remove(market);
         self.metrics.markets_removed += 1;
-        let mut by_conn: HashMap<ConnId, Vec<Sym>> = HashMap::new();
+        let mut by_conn: HashMap<ConnId, Vec<Sym>> = HashMap::default();
         for t in &toks {
             let Some(mut tok) = self.tokens.remove(t) else { continue };
             Self::open_period(&mut tok, self.epoch, recv, &mut self.out, &mut self.metrics);

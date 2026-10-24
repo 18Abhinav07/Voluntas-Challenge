@@ -13,6 +13,8 @@ name = "verify"
 path = "src/bin/verify.rs"
 
 [dependencies]
+# Fx hashing for the core's and hash checker's maps: keys are venue ids, not attacker input.
+rustc-hash = "2"
 anyhow = "1"
 chrono = "0.4"
 crossbeam = "0.8.4"
