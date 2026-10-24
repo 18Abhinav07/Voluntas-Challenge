@@ -14,7 +14,7 @@ use std::{
 use futures_util::{SinkExt, StreamExt};
 use rand::Rng;
 use tokio::{
-    net::TcpStream,
+    net::{TcpSocket, TcpStream},
     sync::{Mutex, mpsc},
     task::JoinHandle,
     time::{Instant, MissedTickBehavior, interval, sleep, sleep_until, timeout},
@@ -200,6 +200,8 @@ pub struct ConnSpec<A> {
     pub tokens: Vec<Sym>,
     /// Edge IP to pin this replica to (TLS SNI still uses the URL host); `None` = DNS.
     pub edge: Option<SocketAddr>,
+    /// Local TCP port to bind before connecting (Ext 4 source-port experiment); `None` = ephemeral.
+    pub src_port: Option<u16>,
     pub limiter: Arc<OpenLimiter>,
     pub out: mpsc::Sender<Inbound>,
     pub cancel: CancellationToken,
@@ -308,8 +310,13 @@ async fn session<A: ExchangeAdapter>(
         Ok(r) => r,
         Err(e) => return Exit::Lost(format!("handshake request: {e:#}")),
     };
-    let ws = match timeout(CONNECT_TIMEOUT, connect(req, spec.edge)).await {
-        Ok(Ok(ws)) => ws,
+    let ws = match timeout(CONNECT_TIMEOUT, connect(req, spec.edge, spec.src_port)).await {
+        Ok(Ok((ws, local))) => {
+            if spec.src_port.is_some() {
+                tracing::info!(conn = spec.id, local_port = local.port(), "connected from a fixed port");
+            }
+            ws
+        }
         Ok(Err(e)) => {
             spec.limiter.fail();
             return Exit::Lost(format!("connect: {e:#}"));
@@ -442,17 +449,35 @@ async fn session<A: ExchangeAdapter>(
 
 type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>;
 
-async fn connect(req: Request, edge: Option<SocketAddr>) -> anyhow::Result<Ws> {
+async fn connect(req: Request, edge: Option<SocketAddr>, src_port: Option<u16>) -> anyhow::Result<(Ws, SocketAddr)> {
     let uri = req.uri().clone();
     let host = uri.host().ok_or_else(|| anyhow::anyhow!("no host in {uri}"))?;
-    let tcp = match edge {
-        Some(addr) => TcpStream::connect(addr).await?,
-        None => TcpStream::connect((host, uri.port_u16().unwrap_or(443))).await?,
+    let tcp = match (edge, src_port) {
+        (Some(addr), None) => TcpStream::connect(addr).await?,
+        (None, None) => TcpStream::connect((host, uri.port_u16().unwrap_or(443))).await?,
+        (edge, Some(port)) => {
+            let addr = match edge {
+                Some(a) => a,
+                None => tokio::net::lookup_host((host, uri.port_u16().unwrap_or(443)))
+                    .await?
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("{host} did not resolve"))?,
+            };
+            let sock = if addr.is_ipv4() { TcpSocket::new_v4()? } else { TcpSocket::new_v6()? };
+            // Lets a port be bound again while its last connection to another peer is in
+            // TIME_WAIT. The same peer within TIME_WAIT still fails, and the actor retries.
+            sock.set_reuseaddr(true)?;
+            let any: std::net::IpAddr =
+                if addr.is_ipv4() { std::net::Ipv4Addr::UNSPECIFIED.into() } else { std::net::Ipv6Addr::UNSPECIFIED.into() };
+            sock.bind(SocketAddr::new(any, port))?;
+            sock.connect(addr).await?
+        }
     };
+    let local = tcp.local_addr()?;
     tcp.set_nodelay(true)?;
     let cfg = WebSocketConfig { max_message_size: Some(512 << 20), max_frame_size: Some(512 << 20), ..Default::default() };
     let (ws, _) = client_async_tls_with_config(req, tcp, Some(cfg), None).await?;
-    Ok(ws)
+    Ok((ws, local))
 }
 
 /// Resolves every edge address of the websocket host, so replicas can be pinned apart.
@@ -479,6 +504,42 @@ mod tests {
         assert_eq!(t.into_iter().collect::<Vec<_>>(), vec![Sym::from("b")]);
         assert!(!apply_offline(&mut BTreeSet::new(), Some(ConnCmd::Close)));
         assert!(!apply_offline(&mut BTreeSet::new(), None));
+    }
+
+    #[tokio::test]
+    async fn fixed_source_port_is_bound_and_reusable() {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let server = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = server.accept().await {
+                tokio::spawn(async move {
+                    if let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await {
+                        while let Some(Ok(_)) = ws.next().await {}
+                    }
+                });
+            }
+        });
+        // A free port: bind one, note it, drop it.
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let req = || format!("ws://{addr}/").into_client_request().unwrap();
+        let (ws, local) = connect(req(), Some(addr), Some(port)).await.unwrap();
+        assert_eq!(local.port(), port);
+        // The client closes, so its side of the 4-tuple is in TIME_WAIT. A second connection
+        // from the same port to another peer must still bind.
+        drop(ws);
+        let other = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let oaddr = other.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((tcp, _)) = other.accept().await {
+                let _ = tokio_tungstenite::accept_async(tcp).await;
+            }
+        });
+        let oreq = format!("ws://{oaddr}/").into_client_request().unwrap();
+        let (_ws, local) = connect(oreq, Some(oaddr), Some(port)).await.unwrap();
+        assert_eq!(local.port(), port);
+        let (_ws, local) = connect(req(), Some(addr), None).await.unwrap();
+        assert_ne!(local.port(), port);
     }
 
     #[tokio::test(start_paused = true)]

@@ -101,6 +101,14 @@ struct Args {
     /// Keeps the same per-market windows as --lat-detail, and logs its latency lines too.
     #[arg(long)]
     fast_source: bool,
+    /// Experiment: connect every replica to this edge IP instead of spreading them over the
+    /// resolved edges (Ext 4, bench/port.sh).
+    #[arg(long)]
+    edge_ip: Option<std::net::IpAddr>,
+    /// Experiment: local TCP port per replica, comma-separated, 0 = ephemeral. Replica r binds
+    /// the r-th entry; replicas past the list are ephemeral (Ext 4, bench/port.sh).
+    #[arg(long, value_delimiter = ',')]
+    src_ports: Vec<u16>,
     /// With --fast-source: move off the preferred socket only when it is this much slower
     /// than the best.
     #[arg(long, default_value_t = Fast::default().margin_ms)]
@@ -167,6 +175,7 @@ struct Runtime<A> {
     adapter: Arc<A>,
     conns: HashMap<ConnId, ConnHandle>,
     edges: Vec<SocketAddr>,
+    src_ports: Vec<u16>,
     limiter: Arc<OpenLimiter>,
     inbound: mpsc::Sender<Inbound>,
     lookups: mpsc::UnboundedSender<Sym>,
@@ -176,13 +185,15 @@ struct Runtime<A> {
 impl<A: ExchangeAdapter> Effects for Runtime<A> {
     fn spawn_conn(&mut self, id: ConnId, replica: usize, tokens: Vec<Sym>) {
         let edge = (!self.edges.is_empty()).then(|| self.edges[replica % self.edges.len()]);
-        tracing::info!(conn = id, replica, ?edge, tokens = tokens.len(), "opening connection");
+        let src_port = self.src_ports.get(replica).copied().filter(|&p| p != 0);
+        tracing::info!(conn = id, replica, ?edge, ?src_port, tokens = tokens.len(), "opening connection");
         let _rt = self.main.enter();
         let h = conn::spawn(ConnSpec {
             id,
             adapter: self.adapter.clone(),
             tokens,
             edge,
+            src_port,
             limiter: self.limiter.clone(),
             out: self.inbound.clone(),
             cancel: self.cancel.child_token(),
@@ -594,10 +605,13 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
     };
     let rotate = (args.rotate_mins > 0).then(|| Duration::from_secs(args.rotate_mins * 60));
     let (wtx, writer) = writer::spawn(args.out.clone(), 1024, rotate, n_cores)?;
-    let edges = conn::resolve_edges(adapter.ws_url()).await.unwrap_or_else(|e| {
-        tracing::warn!(error = %e, "edge resolution failed; using DNS per connection");
-        Vec::new()
-    });
+    let edges = match args.edge_ip {
+        Some(ip) => vec![SocketAddr::new(ip, 443)],
+        None => conn::resolve_edges(adapter.ws_url()).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "edge resolution failed; using DNS per connection");
+            Vec::new()
+        }),
+    };
     tracing::info!(?edges, "websocket edges");
 
     let (ftx, mut frx) = mpsc::unbounded_channel();
@@ -628,6 +642,7 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
             adapter: adapter.clone(),
             conns: HashMap::new(),
             edges: edges.clone(),
+            src_ports: args.src_ports.clone(),
             limiter: limiter.clone(),
             inbound: itx,
             lookups: lookups.clone(),
