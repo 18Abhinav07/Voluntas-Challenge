@@ -59,6 +59,30 @@ pub struct Config {
     pub split_min_rate: f32,
     /// Keep per-socket latency ([`SockLat`]) and the arrival windows it needs (Ext 4).
     pub lat_detail: bool,
+    /// Prefer each shard's fastest socket as source, and recycle one that stays slowest.
+    /// Needs the arrival windows, so it keeps them whether or not `lat_detail` is set.
+    pub fast: Option<Fast>,
+}
+
+/// Speed-aware source choice (Ext 4). Every `quiet.conn_window` each socket's mean `behind`
+/// (how long after the shard's first copy it delivers an event) is folded into a smoothed
+/// score. The best-scored socket of a shard becomes its preferred source, and keeps the role
+/// until another beats it by `margin_ms`. A socket scored worst of its shard and `slow_ms`
+/// behind the best for `slow_windows` windows in a row is recycled make-before-break: on the
+/// measured run speed stuck to the connection, not to the edge.
+#[derive(Clone, Debug)]
+pub struct Fast {
+    pub margin_ms: f64,
+    pub slow_ms: f64,
+    pub slow_windows: u32,
+    /// A window with fewer timed events than this leaves a socket's score as it was.
+    pub min_samples: u64,
+}
+
+impl Default for Fast {
+    fn default() -> Self {
+        Self { margin_ms: 1.0, slow_ms: 4.0, slow_windows: 10, min_samples: 50 }
+    }
 }
 
 /// Ext 2 thresholds. A token is quiet when no replica has seen a delta for
@@ -118,6 +142,7 @@ impl Default for Config {
             split_ratio: None,
             split_min_rate: 20_000.0,
             lat_detail: false,
+            fast: None,
         }
     }
 }
@@ -214,10 +239,18 @@ pub struct Metrics {
     /// Hot shards split, and tokens moved by those splits.
     pub splits: u64,
     pub split_tokens: u64,
+    /// Shards whose preferred (fastest) socket changed, tokens moved onto it, and sockets
+    /// recycled for staying slowest (`Config::fast`).
+    pub fast_picks: u64,
+    pub fast_switches: u64,
+    pub slow_recycles: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
     pub wire: Hist,
     /// Socket read to core apply: time spent queued inside this process.
     pub queue: Hist,
+    /// `behind` of the events the source delivered, i.e. of what is written: how much the
+    /// choice of source costs against the first copy. Kept with the arrival windows only.
+    pub src_behind: MsHist,
 }
 
 impl Metrics {
@@ -226,7 +259,9 @@ impl Metrics {
         macro_rules! sum { ($($f:ident),*) => { $(self.$f += o.$f;)* } }
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
-            quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens);
+            quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens,
+            fast_picks, fast_switches, slow_recycles);
+        self.src_behind.merge(&o.src_behind);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }
@@ -399,6 +434,8 @@ struct Shard {
     conns: Vec<ConnId>,
     /// Split off a hot shard: late arrivals go elsewhere.
     closed: bool,
+    /// The socket preferred as source, by speed (`Config::fast`).
+    fast: Option<ConnId>,
 }
 
 /// A hot shard's markets moving to a new shard. The old sockets stay replicas of the moved
@@ -422,6 +459,12 @@ struct ConnState {
     /// Delta events this quiet window, and the smoothed count per window.
     win_events: u64,
     win_rate: f64,
+    /// `behind` summed (µs) and counted this window, the smoothed score in ms, and windows
+    /// in a row scored slowest of the shard (`Config::fast`).
+    beh_sum: i64,
+    beh_n: u64,
+    speed: Option<f64>,
+    slow_windows: u32,
 }
 
 pub struct Core<M> {
@@ -601,7 +644,7 @@ impl<M> Core<M> {
         self.pending_since = None;
         let shard = self.shards.len();
         let tokens = std::mem::take(&mut self.pending);
-        self.shards.push(Shard { tokens: tokens.clone(), conns: Vec::new(), closed: false });
+        self.shards.push(Shard { tokens: tokens.clone(), conns: Vec::new(), closed: false, fast: None });
         for r in 0..self.cfg.replicas {
             self.open_conn(shard, r, now, None, fx);
         }
@@ -620,7 +663,21 @@ impl<M> Core<M> {
         let awaiting = if replacing.is_some() { tokens.iter().cloned().collect() } else { HashSet::new() };
         self.conns.insert(
             id,
-            ConnState { shard, replica, born: now, replacing, awaiting, retiring: false, up_since: None, win_events: 0, win_rate: 0.0 },
+            ConnState {
+                shard,
+                replica,
+                born: now,
+                replacing,
+                awaiting,
+                retiring: false,
+                up_since: None,
+                win_events: 0,
+                win_rate: 0.0,
+                beh_sum: 0,
+                beh_n: 0,
+                speed: None,
+                slow_windows: 0,
+            },
         );
         fx.spawn_conn(id, replica, tokens);
         id
@@ -629,8 +686,8 @@ impl<M> Core<M> {
     /// Times one delta event on `conn`: its `wire`, and how far behind the first socket to
     /// deliver the same (market, exch_ts) it came. Events are matched by exchange timestamp,
     /// which Polymarket stamps once and sends to every socket.
-    fn note_arrival(&mut self, conn: ConnId, market: &Sym, exch: Ts, recv: Ts) {
-        let Some(replica) = self.conns.get(&conn).map(|c| c.replica) else { return };
+    fn note_arrival(&mut self, conn: ConnId, market: &Sym, exch: Ts, recv: Ts) -> Option<i64> {
+        let replica = self.conns.get(&conn)?.replica;
         let bit = 1u64 << (replica % 64);
         let lat = self.lat.entry(conn).or_insert_with(|| SockLat { replica, ..Default::default() });
         lat.wire.record(recv - exch);
@@ -638,20 +695,27 @@ impl<M> Core<M> {
             self.arrivals.insert(market.clone(), Arrivals::default());
         }
         let a = self.arrivals.get_mut(market).expect("just inserted");
-        if let Some(e) = a.ring.iter_mut().find(|e| e.2 != 0 && e.0 == exch) {
+        let behind = if let Some(e) = a.ring.iter_mut().find(|e| e.2 != 0 && e.0 == exch) {
             // A socket sends several events in one millisecond: only its first is timed.
-            if e.2 & bit == 0 {
-                e.2 |= bit;
-                lat.behind.record(recv - e.1);
+            if e.2 & bit != 0 {
+                return None;
             }
+            e.2 |= bit;
+            recv - e.1
         } else if a.ring.iter().all(|e| e.2 == 0 || e.0 < exch) {
             a.ring[a.next] = (exch, recv, bit);
             a.next = (a.next + 1) % ARRIVALS;
-            lat.behind.record(0);
             lat.first += 1;
+            0
         } else {
             lat.late += 1;
-        }
+            return None;
+        };
+        lat.behind.record(behind);
+        let cs = self.conns.get_mut(&conn).expect("looked up above");
+        cs.beh_sum += behind;
+        cs.beh_n += 1;
+        Some(behind)
     }
 
     /// Ends a market: zero every level a reader holds for it, then unsubscribe and forget it.
@@ -705,6 +769,8 @@ impl<M> Core<M> {
         let Some(cs) = self.conns.get_mut(&conn) else { return };
         cs.up_since = Some(now);
         cs.win_events = 0;
+        // A new TCP connection: its old speed says nothing about this one.
+        (cs.beh_sum, cs.beh_n, cs.speed, cs.slow_windows) = (0, 0, None, 0);
         let shard = cs.shard;
         let due = now + self.cfg.book_timeout;
         for t in &self.shards[shard].tokens {
@@ -722,6 +788,9 @@ impl<M> Core<M> {
         let Some(cs) = self.conns.get_mut(&conn) else { return };
         cs.up_since = None;
         let shard = cs.shard;
+        if self.shards[shard].fast == Some(conn) {
+            self.shards[shard].fast = None;
+        }
         for t in self.shards[shard].tokens.clone() {
             let Some(tok) = self.tokens.get_mut(&t) else { continue };
             if let Some(r) = tok.replicas.get_mut(&conn) {
@@ -741,6 +810,9 @@ impl<M> Core<M> {
         self.integrity.forget_conn(conn);
         if let Some(s) = self.shards.get_mut(st.shard) {
             s.conns.retain(|&c| c != conn);
+            if s.fast == Some(conn) {
+                s.fast = None;
+            }
             for t in s.tokens.clone() {
                 let Some(tok) = self.tokens.get_mut(&t) else { continue };
                 tok.replicas.remove(&conn);
@@ -794,8 +866,11 @@ impl<M> Core<M> {
             }
             NormEvent::Levels { market, exch_ts, changes } => {
                 self.metrics.wire.record(recv - exch_ts);
-                if self.cfg.lat_detail {
-                    self.note_arrival(conn, market, *exch_ts, recv);
+                if (self.cfg.lat_detail || self.cfg.fast.is_some())
+                    && let Some(b) = self.note_arrival(conn, market, *exch_ts, recv)
+                    && changes.first().and_then(|c| self.tokens.get(&c.token)).is_some_and(|t| t.source == Some(conn))
+                {
+                    self.metrics.src_behind.record(b);
                 }
                 for c in changes {
                     let Some(tok) = self.tokens.get_mut(&c.token) else { continue };
@@ -936,16 +1011,18 @@ impl<M> Core<M> {
         }
     }
 
-    /// Moves the token's source to its most advanced valid replica. With none valid the token
-    /// goes dark until the next `book` (never emit deltas against an untrusted book).
+    /// Moves the token's source to its most advanced valid replica, the shard's preferred
+    /// socket among equals. With none valid the token goes dark until the next `book` (never
+    /// emit deltas against an untrusted book).
     fn switch(&mut self, token: &Sym, recv: Ts) {
         let Some(tok) = self.tokens.get_mut(token) else { return };
+        let fast = self.shards.get(tok.shard).and_then(|s| s.fast);
         let old = tok.source.take();
         let best = tok
             .replicas
             .iter()
             .filter(|(c, r)| r.valid && Some(**c) != old)
-            .max_by_key(|(c, r)| (r.seen(), std::cmp::Reverse(**c)))
+            .max_by_key(|(c, r)| (r.seen(), Some(**c) == fast, std::cmp::Reverse(**c)))
             .map(|(c, _)| *c);
         if let Some(c) = best {
             Self::adopt(tok, c, self.epoch, recv, &mut self.out, &mut self.metrics);
@@ -1066,6 +1143,7 @@ impl<M> Core<M> {
         let win = self.cfg.quiet.conn_window.as_secs().max(1);
         if self.tick_no > 0 && self.tick_no.is_multiple_of(win) {
             self.check_quiet_conns(now, fx);
+            self.check_speed(now, recv, fx);
         }
 
         let b = (self.tick_no % self.buckets.len() as u64) as usize;
@@ -1240,8 +1318,84 @@ impl<M> Core<M> {
                 continue;
             }
             tracing::info!(conn = old, shard, "recycling connection (make-before-break)");
-            self.conns.get_mut(&old).expect("listed").retiring = true;
-            self.open_conn(shard, replica, now, Some(old), fx);
+            self.recycle(old, shard, replica, now, fx);
+        }
+    }
+
+    fn recycle(&mut self, old: ConnId, shard: usize, replica: usize, now: Instant, fx: &mut dyn Effects) {
+        self.conns.get_mut(&old).expect("listed").retiring = true;
+        self.open_conn(shard, replica, now, Some(old), fx);
+    }
+
+    // ------------------------------------------------------------ speed-aware source (Ext 4)
+
+    /// Scores each socket by this window's mean `behind`, moves each shard's sources onto its
+    /// fastest socket, and recycles a socket that stays far behind. See [`Fast`].
+    fn check_speed(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
+        let Some(f) = self.cfg.fast.clone() else { return };
+        for cs in self.conns.values_mut() {
+            if cs.beh_n >= f.min_samples {
+                let m = cs.beh_sum as f64 / cs.beh_n as f64 / 1000.0;
+                cs.speed = Some(cs.speed.map_or(m, |s| 0.5 * s + 0.5 * m));
+            }
+            (cs.beh_sum, cs.beh_n) = (0, 0);
+        }
+        let mut slow = Vec::new();
+        for s in 0..self.shards.len() {
+            // Only settled sockets are scored: not one mid-recycle, and not one still dumping.
+            let mut scored: Vec<(f64, ConnId)> = self.shards[s]
+                .conns
+                .iter()
+                .filter_map(|c| {
+                    let cs = self.conns.get(c)?;
+                    let settled = cs.up_since.is_some() && !cs.retiring && cs.replacing.is_none();
+                    Some((cs.speed.filter(|_| settled)?, *c))
+                })
+                .collect();
+            if scored.len() < 2 {
+                continue;
+            }
+            scored.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+            let (best, worst) = (scored[0], scored[scored.len() - 1]);
+            let held = self.shards[s].fast.and_then(|c| scored.iter().find(|x| x.1 == c)).filter(|x| x.0 <= best.0 + f.margin_ms);
+            let pick = held.map_or(best.1, |x| x.1);
+            if self.shards[s].fast != Some(pick) {
+                tracing::info!(shard = s, conn = pick, behind_ms = format!("{:.1}", best.0), "preferring fastest socket");
+                self.shards[s].fast = Some(pick);
+                self.metrics.fast_picks += 1;
+            }
+            // Only onto a replica at least as far along: the diff then carries nothing stale.
+            for t in &self.shards[s].tokens {
+                let Some(tok) = self.tokens.get_mut(t) else { continue };
+                let Some(src) = tok.source.filter(|&c| c != pick) else { continue };
+                let (Some(p), Some(o)) = (tok.replicas.get(&pick), tok.replicas.get(&src)) else { continue };
+                if p.valid && p.seen() >= o.seen() {
+                    Self::adopt(tok, pick, self.epoch, recv, &mut self.out, &mut self.metrics);
+                    self.metrics.fast_switches += 1;
+                }
+            }
+            for &(score, c) in &scored {
+                let cs = self.conns.get_mut(&c).expect("scored");
+                if c == worst.1 && score - best.0 >= f.slow_ms {
+                    cs.slow_windows += 1;
+                    if cs.slow_windows >= f.slow_windows {
+                        slow.push((c, s, cs.replica, score - best.0));
+                    }
+                } else {
+                    cs.slow_windows = 0;
+                }
+            }
+        }
+        let mut busy: HashSet<usize> = self.conns.values().filter(|c| c.retiring).map(|c| c.shard).collect();
+        for (c, shard, replica, by) in slow {
+            let splitting = self.split.as_ref().is_some_and(|sp| sp.from == shard || sp.to == shard);
+            if busy.len() >= self.cfg.recycle_parallel || splitting || !busy.insert(shard) {
+                continue;
+            }
+            tracing::info!(conn = c, shard, behind_ms = format!("{by:.1}"), "socket stays slowest; recycling (make-before-break)");
+            self.conns.get_mut(&c).expect("scored").slow_windows = 0;
+            self.metrics.slow_recycles += 1;
+            self.recycle(c, shard, replica, now, fx);
         }
     }
 
@@ -1313,7 +1467,7 @@ impl<M> Core<M> {
         for t in &moved {
             self.tokens.get_mut(t).expect("listed above").shard = to;
         }
-        self.shards.push(Shard { tokens: moved.clone(), conns: Vec::new(), closed: true });
+        self.shards.push(Shard { tokens: moved.clone(), conns: Vec::new(), closed: true, fast: None });
         for r in 0..self.cfg.replicas {
             let id = self.open_conn(to, r, now, None, fx);
             self.conns.get_mut(&id).expect("opened").awaiting = moved.iter().cloned().collect();
@@ -2028,6 +2182,84 @@ mod tests {
         assert!((r0.behind.mean_ms() - 3.0 / 22.0).abs() < 1e-9, "3 ms behind once, first otherwise");
         assert!((r1.behind.mean_ms() - 0.25).abs() < 1e-9, "first once, 0.5 ms behind once");
         assert_eq!(r1.wire.n, 4, "wire counts every event, timed or not");
+    }
+
+    /// One shard [a b] on sockets 0 and 1, both up with identical books, 0 the source of both.
+    fn fast_pair(f: Fast) -> (Core<()>, Fx, Instant) {
+        let mut core = Core::new(Config { tokens_per_conn: 10, fast: Some(f), ..Config::default() }, Box::new(NoCheck));
+        let mut fx = Fx::default();
+        let now = Instant::now();
+        core.add(vec![inst("m", &["a", "b"])], &mut fx);
+        core.flush_pending(now, &mut fx);
+        for c in [0, 1] {
+            core.on_up(c, now);
+            core.on_events(c, 1, &[book("a", 1, &[(400, 1)], &[]), book("b", 1, &[(300, 1)], &[])], now, &mut fx);
+        }
+        (core, fx, now)
+    }
+
+    /// 60 events on "a", each delivered by `fast` first and by the other socket `gap_us` later.
+    fn race(core: &mut Core<()>, fx: &mut Fx, now: Instant, fast: ConnId, gap_us: i64, from: i64) {
+        for i in from..from + 60 {
+            let ev = [lvl("a", i * 10_000, Side::Bid, 400, i)];
+            core.on_events(fast, i * 10_000 + 1_000, &ev, now, fx);
+            core.on_events(1 - fast, i * 10_000 + 1_000 + gap_us, &ev, now, fx);
+        }
+    }
+
+    #[test]
+    fn sources_follow_the_fastest_socket_past_a_margin() {
+        let (mut core, mut fx, now) = fast_pair(Fast::default());
+        assert_eq!(core.tokens["a"].source, Some(0));
+        race(&mut core, &mut fx, now, 1, 5_000, 1);
+        assert_eq!((core.metrics.src_behind.n, core.metrics.src_behind.mean_ms()), (60, 5.0), "written events came 5 ms late");
+        core.out.clear();
+        core.check_speed(now, 2, &mut fx);
+        assert_eq!((core.tokens["a"].source, core.tokens["b"].source), (Some(1), Some(1)));
+        assert_eq!((core.metrics.fast_picks, core.metrics.fast_switches), (1, 2));
+        assert!(core.out.is_empty(), "equal books: the move writes nothing");
+
+        // Socket 0 now wins by 0.5 ms: within the margin, so the sources stay.
+        race(&mut core, &mut fx, now, 0, 500, 100);
+        core.check_speed(now, 3, &mut fx);
+        assert_eq!((core.tokens["a"].source, core.metrics.fast_picks), (Some(1), 1));
+        // By 10 ms: the scores cross by more than the margin, and the sources move back.
+        race(&mut core, &mut fx, now, 0, 10_000, 200);
+        core.check_speed(now, 4, &mut fx);
+        assert_eq!((core.tokens["a"].source, core.metrics.fast_picks), (Some(0), 2));
+    }
+
+    #[test]
+    fn failover_prefers_the_fast_socket_among_equals() {
+        let cfg = Config { tokens_per_conn: 10, replicas: 3, fast: Some(Fast::default()), ..Config::default() };
+        let mut core = Core::new(cfg, Box::new(NoCheck));
+        let mut fx = Fx::default();
+        let now = Instant::now();
+        core.add(vec![inst("m", &["a"])], &mut fx);
+        core.flush_pending(now, &mut fx);
+        for c in [0, 1, 2] {
+            core.on_events(c, 1, &[book("a", 1, &[(400, 1)], &[])], now, &mut fx);
+        }
+        core.shards[0].fast = Some(2);
+        core.on_down(0, 5);
+        assert_eq!(core.tokens["a"].source, Some(2), "1 and 2 are level; 2 is preferred");
+    }
+
+    #[test]
+    fn socket_that_stays_slowest_is_recycled() {
+        let (mut core, mut fx, now) = fast_pair(Fast { slow_windows: 2, ..Fast::default() });
+        race(&mut core, &mut fx, now, 1, 10_000, 1);
+        core.check_speed(now, 2, &mut fx);
+        assert_eq!(core.metrics.slow_recycles, 0, "one slow window is not enough");
+        race(&mut core, &mut fx, now, 1, 10_000, 100);
+        core.check_speed(now, 3, &mut fx);
+        assert_eq!(core.metrics.slow_recycles, 1);
+        let (id, replica, _) = fx.spawned.last().unwrap();
+        assert_eq!((*id, *replica), (2, 0), "a new socket for replica 0, opened before 0 closes");
+        assert!(core.conns[&0].retiring && !fx.sent.iter().any(|(_, s)| s == "Close"));
+        race(&mut core, &mut fx, now, 1, 10_000, 200);
+        core.check_speed(now, 4, &mut fx);
+        assert_eq!(core.metrics.slow_recycles, 1, "a retiring socket is not scored");
     }
 
     #[test]

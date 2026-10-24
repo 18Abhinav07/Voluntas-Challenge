@@ -22,7 +22,7 @@ use engineering_challenge::{
         polymarket::{Meta, Polymarket},
     },
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
-    core::{Config, Core, Effects, Metrics, SockLat},
+    core::{Config, Core, Effects, Fast, Metrics, SockLat},
     writer::{self, Tagged},
 };
 use tokio::{
@@ -82,6 +82,10 @@ struct Args {
     /// Log per-socket and per-edge latency every 30 s (Ext 4). Costs a window per market.
     #[arg(long)]
     lat_detail: bool,
+    /// Prefer each shard's fastest socket as source and recycle one that stays slowest (Ext 4).
+    /// Keeps the same per-market windows as --lat-detail, and logs its latency lines too.
+    #[arg(long)]
+    fast_source: bool,
 }
 
 /// Carries out the side effects one core asks for.
@@ -489,6 +493,7 @@ async fn main() -> anyhow::Result<()> {
             rotate_every: rotate,
             split_ratio: (args.split_ratio > 0.0).then_some(args.split_ratio),
             lat_detail: args.lat_detail,
+            fast: args.fast_source.then(Fast::default),
             ..Config::default()
         };
         let rt = Runtime {
