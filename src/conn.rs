@@ -25,7 +25,10 @@ use tokio_tungstenite::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::adapter::{ConnId, ExchangeAdapter, NormEvent, Resync, Sym, Ts};
+use crate::{
+    adapter::{ConnId, ExchangeAdapter, NormEvent, Resync, Sym, Ts},
+    kts::{self, Stamp, Stamped},
+};
 
 /// Times a reader found its core's queue full and had to wait. While it waits it does not
 /// read its socket, and the server closes it as a slow consumer once its buffer fills.
@@ -202,6 +205,8 @@ pub struct ConnSpec<A> {
     pub edge: Option<SocketAddr>,
     /// Local TCP port to bind before connecting (Ext 4 source-port experiment); `None` = ephemeral.
     pub src_port: Option<u16>,
+    /// Stamp frames with the kernel receive time (`--kernel-ts`, Linux; [`kts`]).
+    pub kernel_ts: bool,
     pub limiter: Arc<OpenLimiter>,
     pub out: mpsc::Sender<Inbound>,
     pub cancel: CancellationToken,
@@ -310,12 +315,12 @@ async fn session<A: ExchangeAdapter>(
         Ok(r) => r,
         Err(e) => return Exit::Lost(format!("handshake request: {e:#}")),
     };
-    let ws = match timeout(CONNECT_TIMEOUT, connect(req, spec.edge, spec.src_port)).await {
-        Ok(Ok((ws, local))) => {
+    let (ws, stamp) = match timeout(CONNECT_TIMEOUT, connect(req, spec.edge, spec.src_port, spec.kernel_ts)).await {
+        Ok(Ok((ws, local, stamp))) => {
             if spec.src_port.is_some() {
                 tracing::info!(conn = spec.id, local_port = local.port(), "connected from a fixed port");
             }
-            ws
+            (ws, stamp)
         }
         Ok(Err(e)) => {
             spec.limiter.fail();
@@ -348,7 +353,13 @@ async fn session<A: ExchangeAdapter>(
         tokio::select! {
             biased;
             msg = stream.next() => {
-                let recv_ts = now_us();
+                let recv_ts = match stamp.get() {
+                    Some(k) => {
+                        kts::record(now_us(), k);
+                        k
+                    }
+                    None => now_us(),
+                };
                 if first_frame {
                     first_frame = false;
                     spec.limiter.ok();
@@ -447,9 +458,14 @@ async fn session<A: ExchangeAdapter>(
     }
 }
 
-type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>;
+type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<Stamped>>;
 
-async fn connect(req: Request, edge: Option<SocketAddr>, src_port: Option<u16>) -> anyhow::Result<(Ws, SocketAddr)> {
+async fn connect(
+    req: Request,
+    edge: Option<SocketAddr>,
+    src_port: Option<u16>,
+    kernel_ts: bool,
+) -> anyhow::Result<(Ws, SocketAddr, Arc<Stamp>)> {
     let uri = req.uri().clone();
     let host = uri.host().ok_or_else(|| anyhow::anyhow!("no host in {uri}"))?;
     let tcp = match (edge, src_port) {
@@ -476,8 +492,9 @@ async fn connect(req: Request, edge: Option<SocketAddr>, src_port: Option<u16>) 
     let local = tcp.local_addr()?;
     tcp.set_nodelay(true)?;
     let cfg = WebSocketConfig { max_message_size: Some(512 << 20), max_frame_size: Some(512 << 20), ..Default::default() };
+    let (tcp, stamp) = Stamped::new(tcp, kernel_ts)?;
     let (ws, _) = client_async_tls_with_config(req, tcp, Some(cfg), None).await?;
-    Ok((ws, local))
+    Ok((ws, local, stamp))
 }
 
 /// Resolves every edge address of the websocket host, so replicas can be pinned apart.
@@ -523,7 +540,7 @@ mod tests {
         // A free port: bind one, note it, drop it.
         let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         let req = || format!("ws://{addr}/").into_client_request().unwrap();
-        let (ws, local) = connect(req(), Some(addr), Some(port)).await.unwrap();
+        let (ws, local, _) = connect(req(), Some(addr), Some(port), false).await.unwrap();
         assert_eq!(local.port(), port);
         // The client closes, so its side of the 4-tuple is in TIME_WAIT. A second connection
         // from the same port to another peer must still bind.
@@ -536,9 +553,9 @@ mod tests {
             }
         });
         let oreq = format!("ws://{oaddr}/").into_client_request().unwrap();
-        let (_ws, local) = connect(oreq, Some(oaddr), Some(port)).await.unwrap();
+        let (_ws, local, _) = connect(oreq, Some(oaddr), Some(port), false).await.unwrap();
         assert_eq!(local.port(), port);
-        let (_ws, local) = connect(req(), Some(addr), None).await.unwrap();
+        let (_ws, local, _) = connect(req(), Some(addr), None, false).await.unwrap();
         assert_ne!(local.port(), port);
     }
 

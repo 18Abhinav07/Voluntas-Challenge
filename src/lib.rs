@@ -6,5 +6,6 @@ pub mod util;
 pub mod writer;
 pub mod conn;
 pub mod core;
+pub mod kts;
 pub mod pin;
 pub mod supervise;

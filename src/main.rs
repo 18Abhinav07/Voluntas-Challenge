@@ -22,7 +22,7 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use engineering_challenge::{
-    pin,
+    kts, pin,
     adapter::{
         ConnId, ExchangeAdapter, Instrument, Sym,
         kalshi::{self, Kalshi},
@@ -91,6 +91,10 @@ struct Args {
     /// CPUs. A no-op elsewhere, or with fewer CPUs than core threads + 1.
     #[arg(long)]
     pin: bool,
+    /// Linux: stamp each frame with the kernel's receive time (SO_TIMESTAMPNS) instead of the
+    /// time the app read it, and log how far apart the two are (H1, docs/LATENCY.md).
+    #[arg(long)]
+    kernel_ts: bool,
     /// Output queued in memory, in MiB, before the cores wait for the writer (nothing is dropped).
     #[arg(long, default_value_t = 256)]
     writer_queue_mb: usize,
@@ -191,6 +195,7 @@ struct Runtime<A> {
     conns: HashMap<ConnId, ConnHandle>,
     edges: Vec<SocketAddr>,
     src_ports: Vec<u16>,
+    kernel_ts: bool,
     limiter: Arc<OpenLimiter>,
     inbound: mpsc::Sender<Inbound>,
     lookups: mpsc::UnboundedSender<Sym>,
@@ -209,6 +214,7 @@ impl<A: ExchangeAdapter> Effects for Runtime<A> {
             tokens,
             edge,
             src_port,
+            kernel_ts: self.kernel_ts,
             limiter: self.limiter.clone(),
             out: self.inbound.clone(),
             cancel: self.cancel.child_token(),
@@ -555,6 +561,9 @@ fn main() -> anyhow::Result<()> {
         0 => cpus.saturating_sub(cores + 1).max(1),
         n => n,
     };
+    if args.kernel_ts && !cfg!(target_os = "linux") {
+        tracing::warn!("--kernel-ts is Linux only; frames keep the app clock");
+    }
     let pins = if args.pin { pin::split(cores) } else { None };
     if let Some(p) = &pins {
         // Inherited by every thread started from here on; each core thread then moves to its own.
@@ -677,6 +686,7 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, pins: Option<Vec<u
             conns: HashMap::new(),
             edges: edges.clone(),
             src_ports: args.src_ports.clone(),
+            kernel_ts: args.kernel_ts,
             limiter: limiter.clone(),
             inbound: itx,
             lookups: lookups.clone(),
@@ -748,6 +758,9 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, pins: Option<Vec<u
                 let (queue_hwm_mb, queue_waits) = (wtx.hwm() as f64 / (1 << 20) as f64, wtx.waits());
                 tracing::info!(tokens, sourced, conns, ?per_core, stalls, queue_hwm_mb, queue_waits, m = ?m, "status");
                 tracing::info!(window = %conn::top_conns(5), "conn stats");
+                if let Some(d) = kts::take_report() {
+                    tracing::info!(window = %d, "host delay");
+                }
                 lat_report(&latest, &edges);
             }
             _ = rediscover.tick(), if !discovering => {
