@@ -36,7 +36,7 @@ pub struct Config {
     pub split_ratio: Option<f32>,
     /// ...and at least this many new deltas a minute (smoothed), so idle universes never split.
     pub split_min_rate: f32,
-    /// Keep per-socket latency ([`SockLat`]) and the arrival windows it needs (Ext 4).
+    /// Keep per-socket latency ([`SockLat`](super::SockLat)) and the arrival windows it needs (Ext 4).
     pub lat_detail: bool,
     /// Prefer each shard's fastest socket as source, and recycle one that stays slowest.
     /// Needs the arrival windows, so it keeps them whether or not `lat_detail` is set.

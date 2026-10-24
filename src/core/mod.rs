@@ -2,6 +2,19 @@
 //! source arbiter, failure detection, shard planning and recycling. Synchronous and
 //! deterministic: time comes in as arguments and every side effect goes through [`Effects`],
 //! so the whole failover logic is unit-testable without sockets.
+//!
+//! This file holds the data model ([`Core`] and its per-token, per-shard and per-socket state),
+//! event intake and the tick loop. Behaviour is split by concern, each an `impl Core` block:
+//!
+//! | File | Concern |
+//! |---|---|
+//! | `config.rs` | tuning ([`Config`], [`Quiet`], [`Fast`]) |
+//! | `metrics.rs` | counters and latency histograms ([`Metrics`], [`SockLat`]) |
+//! | `plan.rs` | placing markets on shards and sockets, removing them, hot shard splits |
+//! | `conns.rs` | socket up/down/gone, make-before-break recycling (Ext 2) |
+//! | `emit.rs` | what readers see: rotation, snapshots, diffs, source switches (D8) |
+//! | `health.rs` | integrity ladder (§5.5), resnapshots, quiet and lag checks (Ext 2) |
+//! | `speed.rs` | speed-aware source choice (Ext 4) |
 
 use std::{
     collections::{HashMap, HashSet},
@@ -20,9 +33,9 @@ mod config;
 mod conns;
 mod emit;
 mod health;
+mod metrics;
 mod plan;
 mod speed;
-mod metrics;
 
 pub use config::{Config, Fast, Quiet};
 pub use metrics::{Hist, Metrics, MsHist, SockLat};
@@ -357,8 +370,6 @@ impl<M> Core<M> {
             NormEvent::Trade { .. } | NormEvent::TickSize { .. } => {}
         }
     }
-
-    // ------------------------------------------------------------ timers
 
     /// Call once per second.
     pub fn on_tick(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
