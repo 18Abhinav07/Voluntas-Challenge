@@ -25,7 +25,7 @@ verify_done() {
 
 echo "== start $(date -u +%H:%M:%S) dur=$DUR rot=$ROT stop_at=$STOP_AT kill_at=$KILL_AT"
 NO_COLOR=1 ./target/release/collector --supervise --out out/ob.sbe --rotate-mins $ROT --universe-cache u.json > collect-$NAME.log 2>&1 &
-sup=$!; t0=$(date +%s); stopped=0; killed=0
+sup=$!; t0=$(date +%s); stopped=0; killed=0; termed=0
 while kill -0 $sup 2>/dev/null; do
   sleep 10
   el=$(( $(date +%s) - t0 ))
@@ -39,7 +39,7 @@ while kill -0 $sup 2>/dev/null; do
   if [ $KILL_AT -gt 0 ] && [ $killed = 0 ] && [ $el -ge $KILL_AT ] && [ -n "$child" ]; then
     killed=1; echo "kill -9 child at t=$el"; kill -9 $child
   fi
-  [ $el -ge $DUR ] && kill -TERM $sup
+  [ $termed = 0 ] && [ $el -ge $DUR ] && { termed=1; kill -TERM $sup; }
   verify_done
 done
 wait $sup; echo "supervisor exit $? at $(date -u +%H:%M:%S)"; verify_done

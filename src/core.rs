@@ -327,6 +327,9 @@ impl MsHist {
 
 impl std::fmt::Debug for MsHist {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.n == 0 {
+            return write!(f, "n=0");
+        }
         let q = |q| self.quantile_ms(q);
         write!(f, "n={} mean={:.1} p50={} p90={} p99={}ms", self.n, self.mean_ms(), q(0.5), q(0.9), q(0.99))
     }

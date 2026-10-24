@@ -949,3 +949,47 @@ on every delta never switches.
 - Tests: 62 unit (1 ignored) + 3 golden + 9 end-to-end pass. Clippy clean.
 
 **Open:** CI, clock offset, p99 profiling, README checklist, gate run, soak.
+
+## Turn — Task set 3: CI, clock offset, README checklist, gate run
+
+**Changed:**
+- **CI** (`.github/workflows/ci.yml`): Ubuntu, clippy with `-D warnings`, unit + golden tests,
+  then the end-to-end tests. The first run passed in 2m35s.
+- **Clock offset (D21).** `src/clock.rs` measures the host clock against an NTP server
+  (`--ntp-server`, default `time.google.com:123`, empty turns it off). It runs at start and every
+  10 minutes; the best of 4 tries by round trip is logged. It warns above 25 ms. It never changes
+  a timestamp.
+- **README:** a requirements checklist, the e2e and CI paragraph, and the new flag.
+- **`bench/gate.sh`:** one full-universe run under `--supervise` with optional SIGSTOP and kill -9
+  of the child. It verifies and deletes each finished file, and samples RSS and CPU every minute.
+- Two small fixes after the gate: an empty histogram prints `n=0` instead of fake percentiles,
+  and `gate.sh` sends SIGTERM once.
+
+**Gate run** (Codespace WestEurope, 4 vCPU, build 174cb77, 2026-10-24 08:42–09:08 UTC, 25 min,
+5-minute rotation, SIGSTOP 15 s at t=501 s, kill -9 of the child at t=902 s):
+
+| Check | Result |
+|---|---|
+| Coverage | 547.7k tokens, 547.1k sourced, 442 sockets, 2 cores |
+| Written | 21.3M updates, 13.8M snapshots, 7 files |
+| `verify` | 0 mismatches in all 7 files |
+| kill -9 | supervisor restarted the child after 1 s; `.part` recovered with 0 bytes dropped; the new child wrote `ob.…0855Z.r1.sbe` |
+| SIGSTOP 15 s | recovered; no stalls counted |
+| Memory | RSS 2.8–3.1 GB, flat; 2.85 GB right after the restart |
+| CPU | 130–195% of 400% |
+| wire / queue p99 | ≤ 32.8 ms / ≤ 32.8 ms; max 2.0 s / 1.0 s (the freeze) |
+| Source | 19.1k switches, 19.9k switch snapshots, 0 lag switches, 0 disconnects |
+| Clock | offset +6.2, +10.7, +12.9, +17.7 ms (rtt ~5.5 ms) |
+
+**What it shows:**
+- Every recovery path ran live at once, with zero replay errors.
+- **The Codespace clock drifts about 0.5 ms a minute** against time.google.com, and runs
+  *behind* it. Since `wire` is host time minus venue time, it reads low by the offset: the
+  printed p50 of ≤ 0 ms is that drift, not a real zero. Over a 2–3 h soak the offset should
+  cross the 25 ms warning; that is the check working, not a fault.
+- The source-port experiment was not run: it would share the CPU with the gate, and
+  Experiment 1 already saw up to 9 ms between ports on one edge. It stays in LATENCY "Not done".
+
+- Tests: 64 unit (1 ignored) + 3 golden + 9 end-to-end pass. Clippy clean.
+
+**Open:** 2–3 h soak, Kalshi (needs a US VPN), zip and email.
