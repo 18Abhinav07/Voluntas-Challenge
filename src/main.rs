@@ -22,6 +22,7 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use engineering_challenge::{
+    pin,
     adapter::{
         ConnId, ExchangeAdapter, Instrument, Sym,
         kalshi::{self, Kalshi},
@@ -31,12 +32,12 @@ use engineering_challenge::{
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
     core::{Config, Core, Effects, Fast, Metrics, SockLat},
     supervise::{self, Supervisor},
-    writer::{self, Tagged},
+    writer,
 };
 use tokio::{
     runtime::Handle,
     sync::mpsc,
-    time::{Instant, MissedTickBehavior, interval, timeout},
+    time::{MissedTickBehavior, interval, timeout},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio_util::sync::CancellationToken;
@@ -82,6 +83,17 @@ struct Args {
     /// Threads that own book state (0 = half the CPUs, at most 8).
     #[arg(long, default_value_t = 0)]
     core_threads: usize,
+    /// Tokio workers for sockets, TLS and decoding (0 = the CPUs left after the core threads
+    /// and the writer, at least 1).
+    #[arg(long, default_value_t = 0)]
+    io_threads: usize,
+    /// Linux: pin each core thread to a CPU of its own and keep every other thread off those
+    /// CPUs. A no-op elsewhere, or with fewer CPUs than core threads + 1.
+    #[arg(long)]
+    pin: bool,
+    /// Output queued in memory, in MiB, before the cores wait for the writer (nothing is dropped).
+    #[arg(long, default_value_t = 256)]
+    writer_queue_mb: usize,
     /// Decoded frames queued per core before socket readers wait (and stop reading).
     #[arg(long, default_value_t = 65536)]
     core_queue: usize,
@@ -306,23 +318,15 @@ fn apply<A: ExchangeAdapter>(core: &mut Core<A::Meta>, rt: &mut Runtime<A>, msg:
     }
 }
 
-async fn emit<M>(tx: &mpsc::Sender<Tagged>, src: usize, core: &mut Core<M>) -> anyhow::Result<()> {
+async fn emit<M>(tx: &writer::Tx, src: usize, core: &mut Core<M>) -> anyhow::Result<()> {
     if core.out.is_empty() {
         return Ok(());
     }
-    let batch = (src, std::mem::take(&mut core.out));
-    match tx.try_send(batch) {
-        Ok(()) => Ok(()),
-        Err(mpsc::error::TrySendError::Full(batch)) => {
-            let t = Instant::now();
-            tx.send(batch).await.map_err(|_| anyhow::anyhow!("writer stopped"))?;
-            if t.elapsed() > Duration::from_secs(1) {
-                tracing::warn!(waited = ?t.elapsed(), "writer backpressure");
-            }
-            Ok(())
-        }
-        Err(mpsc::error::TrySendError::Closed(_)) => anyhow::bail!("writer stopped"),
+    let waited = tx.send((src, std::mem::take(&mut core.out))).await?;
+    if waited > Duration::from_secs(1) {
+        tracing::warn!(?waited, "writer backpressure");
     }
+    Ok(())
 }
 
 /// What the main thread tells a core.
@@ -394,11 +398,13 @@ fn flush_all<M>(ctls: &[mpsc::UnboundedSender<Ctl<M>>]) {
 
 struct CoreSpec<A: ExchangeAdapter> {
     idx: usize,
+    /// The CPU this core runs on alone (--pin).
+    cpu: Option<usize>,
     cfg: Config,
     rt: Runtime<A>,
     ctl: mpsc::UnboundedReceiver<Ctl<A::Meta>>,
     inbound: mpsc::Receiver<Inbound>,
-    writer: mpsc::Sender<Tagged>,
+    writer: writer::Tx,
     status: mpsc::UnboundedSender<Status>,
     /// Cancelled by a core that fails, so the whole process stops rather than limps.
     fatal: CancellationToken,
@@ -408,6 +414,9 @@ struct CoreSpec<A: ExchangeAdapter> {
 fn spawn_core<A: ExchangeAdapter>(spec: CoreSpec<A>) -> std::io::Result<std::thread::JoinHandle<anyhow::Result<Metrics>>> {
     std::thread::Builder::new().name(format!("core-{}", spec.idx)).spawn(move || {
         let fatal = spec.fatal.clone();
+        if let Some(c) = spec.cpu {
+            pin::set(&[c]);
+        }
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
         let r = rt.block_on(core_loop(spec));
         if let Err(e) = &r {
@@ -515,8 +524,15 @@ fn raise_nofile() {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+/// Core threads: `--core-threads`, or half the CPUs, at most 8.
+fn n_cores(args: &Args) -> usize {
+    match args.core_threads {
+        0 => (std::thread::available_parallelism().map_or(2, |n| n.get()) / 2).clamp(1, 8),
+        n => n,
+    }
+}
+
+fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
@@ -532,13 +548,31 @@ async fn main() -> anyhow::Result<()> {
         return supervise(&args);
     }
     raise_nofile();
+    let cpus = std::thread::available_parallelism().map_or(2, |n| n.get());
+    let cores = n_cores(&args);
+    // The writer counts as one; the finisher is idle between rotations.
+    let io = match args.io_threads {
+        0 => cpus.saturating_sub(cores + 1).max(1),
+        n => n,
+    };
+    let pins = if args.pin { pin::split(cores) } else { None };
+    if let Some(p) = &pins {
+        // Inherited by every thread started from here on; each core thread then moves to its own.
+        pin::set(&p.rest);
+    }
+    tracing::info!(cpus, cores, io, pinned = pins.is_some(), "thread budget");
+    let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(io).enable_all().build()?;
+    rt.block_on(start(args, pins.map(|p| p.cores)))
+}
+
+async fn start(args: Args, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
     match args.venue {
         Venue::Polymarket => {
             let pm = Polymarket::with_endpoints(
                 args.ws_url.as_deref().unwrap_or(polymarket::WS_URL),
                 args.rest_url.as_deref().unwrap_or(polymarket::GAMMA),
             )?;
-            run(args, Arc::new(pm)).await
+            run(args, Arc::new(pm), pins).await
         }
         Venue::Kalshi => {
             // Only the mock venue in the tests (an overridden --ws-url) takes no key.
@@ -552,13 +586,13 @@ async fn main() -> anyhow::Result<()> {
                 args.rest_url.as_deref().unwrap_or(kalshi::REST),
                 auth,
             )?;
-            run(args, Arc::new(k)).await
+            run(args, Arc::new(k), pins).await
         }
     }
 }
 
 /// Everything after the venue is chosen: the engine does not know which one it runs.
-async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<()> {
+async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
     let cache_path = args.universe_cache.clone().unwrap_or_else(|| match args.venue {
         Venue::Polymarket => "universe.json".into(),
         Venue::Kalshi => "universe-kalshi.json".into(),
@@ -602,12 +636,9 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
         });
     }
 
-    let n_cores = match args.core_threads {
-        0 => (std::thread::available_parallelism().map_or(2, |n| n.get()) / 2).clamp(1, 8),
-        n => n,
-    };
+    let n_cores = n_cores(&args);
     let rotate = (args.rotate_mins > 0).then(|| Duration::from_secs(args.rotate_mins * 60));
-    let (wtx, writer) = writer::spawn(args.out.clone(), 1024, rotate, n_cores)?;
+    let (wtx, writer) = writer::spawn(args.out.clone(), args.writer_queue_mb.max(1) << 20, rotate, n_cores)?;
     let edges = match args.edge_ip {
         Some(ip) => vec![SocketAddr::new(ip, 443)],
         None => conn::resolve_edges(adapter.ws_url()).await.unwrap_or_else(|e| {
@@ -653,6 +684,7 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
         };
         cores.push(spawn_core(CoreSpec {
             idx,
+            cpu: pins.as_ref().map(|p| p[idx]),
             cfg,
             rt,
             ctl: crx,
@@ -713,7 +745,8 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
                 let (tokens, sourced, conns, m) = total(&latest);
                 let per_core: Vec<usize> = latest.iter().map(|s| s.as_ref().map_or(0, |s| s.tokens)).collect();
                 let stalls = conn::STALLS.load(std::sync::atomic::Ordering::Relaxed);
-                tracing::info!(tokens, sourced, conns, ?per_core, stalls, m = ?m, "status");
+                let (queue_hwm_mb, queue_waits) = (wtx.hwm() as f64 / (1 << 20) as f64, wtx.waits());
+                tracing::info!(tokens, sourced, conns, ?per_core, stalls, queue_hwm_mb, queue_waits, m = ?m, "status");
                 tracing::info!(window = %conn::top_conns(5), "conn stats");
                 lat_report(&latest, &edges);
             }
@@ -773,6 +806,7 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>) -> anyhow::Result<
         }
     }
     conn_cancel.cancel();
+    tracing::info!(queue_hwm_mb = wtx.hwm() as f64 / (1 << 20) as f64, queue_waits = wtx.waits(), "writer queue");
     drop(wtx);
     let all: Vec<_> = universe.values().cloned().collect();
     if let Err(e) = save_cache(&cache_path, &all) {

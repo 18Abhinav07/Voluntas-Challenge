@@ -1,5 +1,6 @@
-//! The only owner of the output files: a dedicated OS thread fed by a bounded channel, so
-//! disk latency never stalls the async runtime and nothing is ever dropped (§5.7).
+//! The only owner of the output files: a dedicated OS thread fed by a queue bounded in bytes,
+//! so disk latency never stalls the async runtime and nothing is ever dropped (§5.7). Past the
+//! bound the cores wait; [`Tx::hwm`] says how close a run came to it.
 //!
 //! With rotation, output is cut into wall-clock periods. Each core marks the cut in its own
 //! stream (`Rec::Rotate`) and follows it with a snapshot of every book it publishes, so each
@@ -10,10 +11,19 @@
 //! of a multi-GB file takes seconds; done inline it stopped the writer, which filled its
 //! channel and blocked every core and socket reader behind it.
 
-use std::{collections::BTreeMap, path::PathBuf, thread::JoinHandle, time::Duration};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
+    thread::JoinHandle,
+    time::{Duration, Instant},
+};
 
 use chrono::{DateTime, Utc};
-use tokio::sync::mpsc;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 
 use crate::{
     adapter::{Sym, Ts},
@@ -51,6 +61,63 @@ fn suffix(side: Side) -> &'static str {
 pub type Batch = Vec<Rec>;
 /// A batch tagged with the core that produced it: rotation is tracked per source.
 pub type Tagged = (usize, Batch);
+
+/// Heap bytes a batch holds while queued (the shared symbols are not counted).
+fn queued_bytes(b: &Batch) -> usize {
+    let levels: usize = b.iter().map(|r| if let Rec::Snapshot { levels, .. } = r { levels.len() } else { 0 }).sum();
+    b.len() * std::mem::size_of::<Rec>() + levels * std::mem::size_of::<(Fx, Fx)>()
+}
+
+struct Budget {
+    sem: Arc<Semaphore>,
+    bytes: usize,
+    hwm: AtomicUsize,
+    waits: AtomicU64,
+}
+
+/// The cores' end of the writer queue. A batch holds its bytes of the budget until the writer
+/// has written it.
+#[derive(Clone)]
+pub struct Tx {
+    tx: mpsc::UnboundedSender<(Tagged, OwnedSemaphorePermit)>,
+    budget: Arc<Budget>,
+}
+
+impl Tx {
+    /// Queues a batch, waiting while the queue is over its byte bound. Returns how long it
+    /// waited.
+    pub async fn send(&self, t: Tagged) -> anyhow::Result<Duration> {
+        let b = &self.budget;
+        // A batch larger than the whole bound still goes through, alone.
+        let n = queued_bytes(&t.1).clamp(1, b.bytes) as u32;
+        let start = Instant::now();
+        let permit = match b.sem.clone().try_acquire_many_owned(n) {
+            Ok(p) => p,
+            Err(_) => {
+                b.waits.fetch_add(1, Ordering::Relaxed);
+                b.sem.clone().acquire_many_owned(n).await.map_err(|_| anyhow::anyhow!("writer stopped"))?
+            }
+        };
+        b.hwm.fetch_max(b.bytes - b.sem.available_permits(), Ordering::Relaxed);
+        self.tx.send((t, permit)).map_err(|_| anyhow::anyhow!("writer stopped"))?;
+        Ok(start.elapsed())
+    }
+
+    #[cfg(test)]
+    fn blocking_send(&self, t: Tagged) -> anyhow::Result<()> {
+        tokio::runtime::Builder::new_current_thread().build()?.block_on(self.send(t)).map(drop)
+    }
+
+    /// The most bytes queued at once so far.
+    pub fn hwm(&self) -> usize {
+        self.budget.hwm.load(Ordering::Relaxed)
+    }
+
+    /// Sends that found the queue full and waited.
+    pub fn waits(&self) -> u64 {
+        self.budget.waits.load(Ordering::Relaxed)
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Stats {
@@ -102,14 +169,15 @@ fn free_name(fin: PathBuf) -> PathBuf {
     (1..).map(|n| fin.with_file_name(format!("{stem}.r{n}.sbe"))).find(|p| !taken(p)).expect("some free name")
 }
 
-/// Starts the writer thread for `sources` producers. It exits after the last sender is dropped
-/// and the channel is drained, flushing and syncing every open file.
+/// Starts the writer thread for `sources` producers, queueing at most `bytes` (see
+/// [`queued_bytes`]). It exits after the last sender is dropped and the queue is drained,
+/// flushing and syncing every open file.
 pub fn spawn(
     path: PathBuf,
-    cap: usize,
+    bytes: usize,
     rotate: Option<Duration>,
     sources: usize,
-) -> anyhow::Result<(mpsc::Sender<Tagged>, JoinHandle<anyhow::Result<Stats>>)> {
+) -> anyhow::Result<(Tx, JoinHandle<anyhow::Result<Stats>>)> {
     let target = if path.as_os_str() == "-" { PathBuf::from("/dev/stdout") } else { path };
     let period = rotate.map(|p| p.as_micros().max(1) as i64);
     anyhow::ensure!(
@@ -128,7 +196,9 @@ pub fn spawn(
     let start = period.map_or(0, |p| now_us / p);
     // Open before the thread starts so a bad path fails the process at once.
     let mut files = BTreeMap::from([(start, open(start)?)]);
-    let (tx, mut rx) = mpsc::channel::<Tagged>(cap);
+    let bytes = bytes.clamp(1, Semaphore::MAX_PERMITS.min(u32::MAX as usize));
+    let budget = Arc::new(Budget { sem: Arc::new(Semaphore::new(bytes)), bytes, hwm: AtomicUsize::new(0), waits: AtomicU64::new(0) });
+    let (tx, mut rx) = mpsc::unbounded_channel::<(Tagged, OwnedSemaphorePermit)>();
     let (done_tx, done_rx) = std::sync::mpsc::channel::<Part>();
     let finisher = std::thread::Builder::new().name("finisher".into()).spawn(move || -> anyhow::Result<()> {
         let mut res = Ok(());
@@ -153,7 +223,8 @@ pub fn spawn(
             quantity: 0,
             symbol: String::new(),
         };
-        while let Some((src, batch)) = rx.blocking_recv() {
+        // The permit is released once the batch is written.
+        while let Some(((src, batch), _permit)) = rx.blocking_recv() {
             for rec in batch {
                 if let Rec::Rotate { epoch } = rec {
                     if period.is_some() && epoch > at[src] {
@@ -223,7 +294,7 @@ pub fn spawn(
         finished?;
         Ok(stats)
     })?;
-    Ok((tx, h))
+    Ok((Tx { tx, budget }, h))
 }
 
 #[cfg(test)]
