@@ -571,17 +571,18 @@ fn main() -> anyhow::Result<()> {
     }
     tracing::info!(cpus, cores, io, pinned = pins.is_some(), "thread budget");
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(io).enable_all().build()?;
-    rt.block_on(start(args, pins.map(|p| p.cores)))
+    rt.block_on(start(args, cores, pins.map(|p| p.cores)))
 }
 
-async fn start(args: Args, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
+/// `n_cores` is counted before `--pin` narrows this thread's CPUs, which would halve it.
+async fn start(args: Args, n_cores: usize, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
     match args.venue {
         Venue::Polymarket => {
             let pm = Polymarket::with_endpoints(
                 args.ws_url.as_deref().unwrap_or(polymarket::WS_URL),
                 args.rest_url.as_deref().unwrap_or(polymarket::GAMMA),
             )?;
-            run(args, Arc::new(pm), pins).await
+            run(args, Arc::new(pm), n_cores, pins).await
         }
         Venue::Kalshi => {
             // Only the mock venue in the tests (an overridden --ws-url) takes no key.
@@ -595,13 +596,13 @@ async fn start(args: Args, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
                 args.rest_url.as_deref().unwrap_or(kalshi::REST),
                 auth,
             )?;
-            run(args, Arc::new(k), pins).await
+            run(args, Arc::new(k), n_cores, pins).await
         }
     }
 }
 
 /// Everything after the venue is chosen: the engine does not know which one it runs.
-async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
+async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, n_cores: usize, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
     let cache_path = args.universe_cache.clone().unwrap_or_else(|| match args.venue {
         Venue::Polymarket => "universe.json".into(),
         Venue::Kalshi => "universe-kalshi.json".into(),
@@ -645,7 +646,6 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, pins: Option<Vec<u
         });
     }
 
-    let n_cores = n_cores(&args);
     let rotate = (args.rotate_mins > 0).then(|| Duration::from_secs(args.rotate_mins * 60));
     let (wtx, writer) = writer::spawn(args.out.clone(), args.writer_queue_mb.max(1) << 20, rotate, n_cores)?;
     let edges = match args.edge_ip {
