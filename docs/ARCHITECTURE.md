@@ -126,6 +126,8 @@ book-to-book and starts being hashed the moment it becomes source.
   - counts of switches, hash outcomes, resnapshots, quiet resubscribes and recycles;
   - exchange-to-receive (`wire`) and core queue latency histograms;
   - per-socket bytes, frames, decode time and blocked time, with the five busiest sockets.
+  - with `--lat-detail`, per-socket and per-edge latency: `wire`, and how far each socket is
+    behind the first to deliver the same event (see LATENCY).
 
 ## Ext 3: the adapter boundary
 

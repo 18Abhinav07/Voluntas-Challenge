@@ -61,6 +61,7 @@ A small run for trying it out:
 | `--max-markets` | `0` | Only collect this many markets (0 = all). |
 | `--opens-per-sec` | `10` | Websocket handshakes per second across all sockets. |
 | `--duration-secs` | `0` | Stop after this long (0 = run until SIGINT). |
+| `--lat-detail` | off | Log per-socket and per-edge latency every 30 s (Ext 4, see LATENCY). |
 
 ## Output
 
@@ -134,8 +135,10 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
   - Running it under a supervisor (systemd, a shell loop) is left to deployment.
 - **Failover is not instant.** A silent subscription is detected when a peer replica has seen
   an event the source has not for 3 s. Until then the source's stale book is what readers have.
-- **Latency is measured but not tuned.** The challenge's latency experiments have not been run.
-  See [docs/LATENCY.md](docs/LATENCY.md).
+- **Latency is measured but not tuned.** One experiment has run: 8 sockets on the same 400
+  markets (`--lat-detail`). The fastest socket was 1.4 ms behind the first copy on average and the
+  slowest 10.3 ms, and the edge IP mattered less than the connection. The source choice does not
+  use this yet. See [docs/LATENCY.md](docs/LATENCY.md).
 - **Polymarket only.** No Kalshi adapter exists.
 - **Core CPU.** Two core threads run at about 31–38% each at steady state. The integrity hash
   is the largest part of core time.
@@ -152,7 +155,7 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
 | `src/book.rs`, `src/fixed.rs` | Book type, fixed-point parsing |
 | `src/bin/verify.rs` | Output checker |
 | `src/util/` | The template's SBE helpers, unchanged |
-| `bench/` | Scripts and raw logs from the profiled and A/B runs |
+| `bench/` | Scripts and raw logs from the profiled, A/B and latency runs |
 
 The template's original notes on the SBE schema are in
 [challenge_orderbook.yaml](sbe_schemas/engineering_challenge/challenge_orderbook.yaml) and

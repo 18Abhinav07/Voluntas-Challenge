@@ -750,3 +750,54 @@ SIGSTOP at about t=600 s, and `--split-ratio 3` to force splitting back on. The 
 - A `--lag-ms` flag.
 - A supervisor example.
 - Zip and email (ask first).
+
+## Turn — Ext 4: per-socket latency, then 8 sockets on the same tokens
+
+**Ask:** add per-socket wire histograms and edge logging, run the many-connections and per-edge
+experiment on a Codespace, fill in LATENCY.md.
+
+**Built** (2b6c150):
+- `--lat-detail`. Per socket, the core keeps:
+  - `wire` (`recv − exch`) in signed 1 ms buckets, with an exact mean, so a negative clock
+    offset is no longer clamped to 0;
+  - `behind`: time after the first socket to deliver the same (market, exch_ts). It needs no
+    clock sync.
+- Matching uses a 16-event window per market. A copy that misses the window is counted `late`,
+  not timed. A single "last event" slot would have dropped the slow sockets' copies on busy
+  markets and biased the result (DECISIONS D18).
+- Every 30 s and at shutdown, main logs one line per socket with its edge IP, and one per edge.
+  Socket opens log their edge at info.
+- 2 new unit tests: negative wire and an exact mean; first/behind/late and same-ms dedup. 52
+  unit + 3 golden pass, clippy clean.
+
+**Run** (`bench/lat.sh`, `bench/lat-2026-10-24/`): WestEurope Codespace, 06:01–06:21 UTC, 400
+markets, one core, one shard, 8 replica sockets, 2 edges (104.18.34.205, 172.64.153.51), 4
+sockets each. About 154k events on every socket. 0 disconnects, 0 lag switches, verify OK with 0
+mismatches. Codespace deleted.
+
+| | best socket (2) | worst socket (6) | edge .34.205 | edge .153.51 |
+|---|---|---|---|---|
+| `behind` mean / p50 / p99 ms | 1.4 / 0 / 17 | 10.3 / 7 / 75 | 5.0 / 1 / 47 | 2.5 / 0 / 39 |
+| delivered first | 76,968 | 16 | | |
+
+- **Per-socket spread is larger than per-edge.** The best and worst sockets share an edge. TCP
+  connect (2.5 ms) and TLS (23.6 ms) are the same to both edges.
+- **Speed sticks to the connection:** socket 6 was about 10 ms behind in both halves, and socket
+  2 was first about half the time in both.
+- **It can drift:** socket 0 went from 2.4 to 8.3 ms with no reconnect.
+- **`wire` means rank the sockets identically.** Every socket's `wire` mean moved about −4 to −9
+  ms between the halves, which is the common clock/market shift that `behind` removes.
+- **The 3 s lag window is about 40×** the worst socket's p99 at this load.
+- **Gain if acted on:** a few ms at the mean and tens of ms at p99. The source choice does not
+  use it.
+
+**Docs:** LATENCY gains Experiment 1 (per-socket and per-edge tables, findings, limits, the
+four steps to make it a policy). DECISIONS D10 now cites the measurement, and D18 is new. README
+and ARCHITECTURE mention `--lat-detail`.
+
+**Open:**
+- Speed-aware source choice / recycle the slowest socket.
+- A shorter `--lag-ms`.
+- A repeat at another hour and under the full universe.
+- A supervisor example.
+- Zip and email (ask first).

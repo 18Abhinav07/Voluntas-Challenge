@@ -1,0 +1,2 @@
+connect 104.18.34.205 tcp_ms min 2.09 med 2.52 max 6.15  tls_ms med 23.59
+connect 172.64.153.51 tcp_ms min 2.23 med 2.48 max 2.64  tls_ms med 23.63

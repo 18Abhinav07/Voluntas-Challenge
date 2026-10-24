@@ -100,8 +100,10 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
   Only a peer's delta counts; a fresh `book` dump's timestamp is not evidence. Counting dumps
   caused a switch storm in the first build.
 - **Why 3 s:** a margin well above the normal delivery gap between two sockets, so ordinary
-  jitter does not switch the source. The gap itself has not been measured per socket; see
-  [LATENCY.md](LATENCY.md). A shorter window should be chosen from that measurement.
+  jitter does not switch the source. Measured later (LATENCY.md, Experiment 1, 8 sockets,
+  400 markets): the slowest socket's p99 behind the first copy was 75 ms, so 3 s is about 40×
+  that. A window of a few hundred ms looks safe at that load, but it has not been tried, and the
+  full universe has longer in-process stalls.
 - **Cost:** up to 3 s of stale book on a silent subscription.
 - **Not done:** the window is a `Config` field (`lag`) but has no CLI flag.
 
@@ -168,3 +170,14 @@ The challenge asks for a snapshot on a source switch. This is a deliberate devia
 - **Choice:** decimal strings are parsed straight to `i64` (1e6 = 1). Never through `f64`.
 - **Why:** Polymarket prices have at most 3 dp and sizes at most 2, so every value is exact.
 - Anything with more than 6 dp is rejected loudly rather than rounded.
+
+## D18. Per-socket latency is opt-in (`--lat-detail`)
+
+- **Choice:** per-socket `wire` and `behind` histograms are kept only with the flag.
+- **Why:** `behind` needs a window of recent events per market to match copies across sockets.
+  At about 283k markets that is about 110 MB (16 entries of 24 bytes each), plus 16 KB of
+  histograms per socket, all for a measurement. The always-on `wire` and `queue` histograms stay.
+- **Rejected:** first-arrival dedup with a single "last event" per market. A socket 10 ms behind
+  on a busy market finds the newer event already in place, and its copy would go untimed. That
+  biases the measurement towards the fast sockets. The window is 16 events, and copies that miss
+  it are counted as `late` (at most 98 of 154k on the slowest socket).
