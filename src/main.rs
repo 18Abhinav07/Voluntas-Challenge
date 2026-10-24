@@ -22,7 +22,7 @@ use clap::Parser;
 use engineering_challenge::{
     adapter::{
         ConnId, ExchangeAdapter, Instrument, Sym,
-        polymarket::{Meta, Polymarket},
+        polymarket::{self, Meta, Polymarket},
     },
     conn::{self, ConnCmd, ConnHandle, ConnSpec, Inbound, OpenLimiter, now_us},
     core::{Config, Core, Effects, Fast, Metrics, SockLat},
@@ -105,6 +105,12 @@ struct Args {
     /// Test only: panic after this many seconds, to exercise fail-fast and --supervise.
     #[arg(long, hide = true)]
     fault_panic_after_secs: Option<u64>,
+    /// Test only: the market websocket (the mock venue in tests/e2e.rs).
+    #[arg(long, hide = true)]
+    ws_url: Option<String>,
+    /// Test only: the Gamma API base URL.
+    #[arg(long, hide = true)]
+    gamma_url: Option<String>,
 }
 
 /// Cancelled by a panic anywhere, so a dead thread or task stops the whole process (D20).
@@ -492,7 +498,10 @@ async fn main() -> anyhow::Result<()> {
         return supervise(&args);
     }
     raise_nofile();
-    let adapter = Arc::new(Polymarket::new()?);
+    let adapter = Arc::new(Polymarket::with_endpoints(
+        args.ws_url.as_deref().unwrap_or(polymarket::WS_URL),
+        args.gamma_url.as_deref().unwrap_or(polymarket::GAMMA),
+    )?);
 
     let cancel = CancellationToken::new();
     FATAL.set(cancel.clone()).expect("main runs once");

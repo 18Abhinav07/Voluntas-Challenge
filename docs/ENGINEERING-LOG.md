@@ -910,3 +910,42 @@ everything is right.
   64 MiB chunk. That is the D11 cost, now written in README "Known limits".
 
 **Open:** mock venue and end-to-end fault tests, CI, clock offset, p99 profiling, gate run, soak.
+
+## Turn — Task set 2: mock venue, end-to-end fault tests, lag-check fix
+
+**Changed:**
+- **Endpoints can be overridden.** Hidden flags `--ws-url` and `--gamma-url`, and
+  `Polymarket::with_endpoints`. The defaults are unchanged.
+- **`tests/e2e.rs`: a mock venue on localhost.** It has a Gamma keyset and lookup over raw
+  HTTP, and a market websocket with books, `price_change` deltas carrying correct SHA1
+  hashes, and PING/PONG. Socket 0 is every token's source, because the other socket gets
+  its books 500 ms later. Each test runs the real `collector` binary, reads the final
+  metrics, and runs `verify` on the output.
+
+| Test | Fault | Asserted |
+|---|---|---|
+| baseline | none | 2 sockets, hashes verify, no switch or miss |
+| drop | TCP dropped at 5 s | switches + switch snapshots, disconnect, reconnect |
+| silent | no frames or PONGs from 5 s | lag switch at once, watchdog reconnect |
+| stall | one token silent on socket 0 | lag switch, socket stays up |
+| delay | socket 0 frames 5 s late | lag switch |
+| corrupt | one wrong size, true hash | hash miss, book replaced |
+| Gamma 429 | first 2 requests 429 | discovery completes after retries |
+| resolved | close "all subscribed assets resolved" | resolved_closes, no reconnect |
+| supervise | panic at 5 s under `--supervise` | restart, reset marker, verify OK |
+
+  `verify` passes every run with 0 mismatches. Three repeat runs gave 9/9 each time, in 42 s.
+
+**Bug found by the mock: the lag check never fired on a ticking token.** It timed the
+source from the peer's *newest* delta (`adv_at`), which resets on every delta. A stalled or
+late source was switched only if the peer also went quiet for 3 s. So on any active token a
+dead subscription was caught only by the hash, the quiet check or the watchdog. Now each
+replica keeps `unseen`: its oldest delta the source has not seen, and when it arrived. The
+lag runs from that. When the source catches up, `unseen` moves to the peer's newest delta,
+so detection can be late but never early. `adopt` clears it. Two new unit tests cover it: a
+stalled source switches while the peer ticks every 900 ms, and a source 100 ms behind a peer
+on every delta never switches.
+
+- Tests: 62 unit (1 ignored) + 3 golden + 9 end-to-end pass. Clippy clean.
+
+**Open:** CI, clock offset, p99 profiling, README checklist, gate run, soak.

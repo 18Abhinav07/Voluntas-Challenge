@@ -366,6 +366,10 @@ struct Replica {
     last_delta: Ts,
     /// When `last_delta` last advanced.
     adv_at: Instant,
+    /// The oldest delta here that the source had not seen, and when it arrived: the lag check
+    /// times the source from it. Once the source catches up it moves to `last_delta`, which
+    /// may be later than the next unseen delta; detection can be late, never early.
+    unseen: Option<(Ts, Instant)>,
     last_book_ts: Ts,
     last_ok_ts: Ts,
     /// Hash misses since the last verified match.
@@ -387,6 +391,7 @@ impl Replica {
             last_exch: 0,
             last_delta: 0,
             adv_at: now,
+            unseen: None,
             last_book_ts: 0,
             last_ok_ts: 0,
             strikes: 0,
@@ -880,6 +885,7 @@ impl<M> Core<M> {
                 }
                 for c in changes {
                     let Some(tok) = self.tokens.get_mut(&c.token) else { continue };
+                    let src_seen = tok.source.filter(|&s| s != conn).and_then(|s| tok.replicas.get(&s)).map(Replica::seen);
                     let Some(rep) = tok.replicas.get_mut(&conn) else { continue };
                     if *exch_ts > tok.newest {
                         tok.newest = *exch_ts;
@@ -894,6 +900,9 @@ impl<M> Core<M> {
                     if *exch_ts > rep.last_delta {
                         rep.last_delta = *exch_ts;
                         rep.adv_at = now;
+                        if src_seen.is_some_and(|s| *exch_ts > s) && rep.unseen.is_none() {
+                            rep.unseen = Some((*exch_ts, now));
+                        }
                         if tok.source != Some(conn) && !tok.lag_cand {
                             tok.lag_cand = true;
                             self.lag_cands.push(c.token.clone());
@@ -1008,6 +1017,7 @@ impl<M> Core<M> {
     /// challenge asks for on a switch.
     fn adopt(tok: &mut Tok, conn: ConnId, epoch: Option<i64>, recv: Ts, out: &mut Vec<Rec>, m: &mut Metrics) {
         tok.source = Some(conn);
+        tok.replicas.values_mut().for_each(|r| r.unseen = None);
         if tok.announced {
             Self::emit_diff(tok, conn, epoch, recv, out, m);
             Self::snapshot(tok, epoch, recv, out, m);
@@ -1281,11 +1291,14 @@ impl<M> Core<M> {
                 return false;
             };
             // Only a peer's delta proves the source missed something; see `Replica::last_delta`.
-            let ahead = tok.replicas.iter().filter(|(c, r)| **c != src.0 && r.valid && r.last_delta > src.1);
+            let ahead = tok.replicas.iter_mut().filter(|(c, r)| **c != src.0 && r.valid && r.last_delta > src.1);
             let (mut pending, mut behind) = (false, false);
             for (_, r) in ahead {
                 pending = true;
-                behind |= now.duration_since(r.adv_at) >= lag;
+                if r.unseen.is_none_or(|(ts, _)| ts <= src.1) {
+                    r.unseen = Some((r.last_delta, r.adv_at));
+                }
+                behind |= r.unseen.is_some_and(|(_, at)| now.duration_since(at) >= lag);
             }
             if behind {
                 lagging.push((t.clone(), src.0));
@@ -1722,6 +1735,36 @@ mod tests {
         assert_eq!(core.metrics.lag_switches, 1);
         assert!(fx.sent.iter().any(|(c, s)| *c == 0 && s.starts_with("Resnapshot")));
         assert_eq!(diff_then_snap(&core.out), (vec![Rec::Update { sym: "a:bid".into(), recv: 4, exch: 6, px: 400, qty: 2 }], 2));
+    }
+
+    #[test]
+    fn stalled_source_switches_while_the_peer_keeps_ticking() {
+        // The peer's newest delta is always fresh; the lag runs from its oldest unseen one.
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        for i in 0..5 {
+            let t = now + Duration::from_millis(900 * i);
+            core.on_events(1, 2, &[lvl("a", 6 + i as i64, Side::Bid, 400, 2 + i as i64)], t, &mut fx);
+            core.on_tick(t, 3, &mut fx);
+        }
+        assert_eq!(core.metrics.lag_switches, 1);
+    }
+
+    #[test]
+    fn source_racing_a_peer_is_not_lag() {
+        // Each peer delta reaches the source 100 ms later: never behind by the lag window.
+        let (mut core, mut fx, now) = setup();
+        core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+        for i in 0..50 {
+            let t = now + Duration::from_millis(200 * i);
+            let e = lvl("a", 6 + i as i64, Side::Bid, 400, 2 + i as i64);
+            core.on_events(1, 2, std::slice::from_ref(&e), t, &mut fx);
+            core.on_tick(t + Duration::from_millis(50), 3, &mut fx);
+            core.on_events(0, 2, &[e], t + Duration::from_millis(100), &mut fx);
+        }
+        assert_eq!(core.metrics.lag_switches, 0);
     }
 
     /// Both replicas hold the same book at ts 5; the source (conn 0) then sees one more delta.

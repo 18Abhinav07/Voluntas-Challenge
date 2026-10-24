@@ -19,8 +19,8 @@ use crate::{
     fixed::{self, Fx, SCALE},
 };
 
-const WS_URL: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
-const GAMMA: &str = "https://gamma-api.polymarket.com";
+pub const WS_URL: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
+pub const GAMMA: &str = "https://gamma-api.polymarket.com";
 /// Gamma requests are retried this many times in all; the wait doubles from `GAMMA_BACKOFF`.
 const GAMMA_ATTEMPTS: u32 = 8;
 const GAMMA_BACKOFF: Duration = Duration::from_millis(500);
@@ -36,15 +36,22 @@ pub struct Meta {
 
 pub struct Polymarket {
     http: reqwest::Client,
+    ws_url: String,
+    gamma_url: String,
 }
 
 impl Polymarket {
     pub fn new() -> anyhow::Result<Self> {
+        Self::with_endpoints(WS_URL, GAMMA)
+    }
+
+    /// Talks to another websocket and Gamma host: the mock venue in `tests/e2e.rs`.
+    pub fn with_endpoints(ws_url: &str, gamma_url: &str) -> anyhow::Result<Self> {
         let http = reqwest::Client::builder()
             .user_agent("voluntas-collector/0.1")
             .timeout(Duration::from_secs(30))
             .build()?;
-        Ok(Self { http })
+        Ok(Self { http, ws_url: ws_url.into(), gamma_url: gamma_url.trim_end_matches('/').into() })
     }
 
     /// Sends a Gamma GET built by `req`, backing off on 429, 5xx and transport errors
@@ -197,7 +204,7 @@ impl ExchangeAdapter for Polymarket {
     const NAME: &'static str = "polymarket";
 
     fn ws_url(&self) -> &str {
-        WS_URL
+        &self.ws_url
     }
 
     fn ping_interval(&self) -> Duration {
@@ -304,7 +311,7 @@ impl ExchangeAdapter for Polymarket {
         loop {
             let page: KeysetPage = self
                 .gamma(|| {
-                    let req = self.http.get(format!("{GAMMA}/markets/keyset")).query(&[
+                    let req = self.http.get(format!("{}/markets/keyset", self.gamma_url)).query(&[
                         ("active", "true"),
                         ("closed", "false"),
                         ("limit", "100"),
@@ -332,7 +339,7 @@ impl ExchangeAdapter for Polymarket {
             .gamma(|| {
                 let ids = markets.iter().map(|m| ("condition_ids", m.as_ref()));
                 let q: Vec<_> = ids.chain([("limit", limit.as_str())]).collect();
-                self.http.get(format!("{GAMMA}/markets")).query(&q)
+                self.http.get(format!("{}/markets", self.gamma_url)).query(&q)
             })
             .await?;
         Ok(ms.into_iter().filter_map(to_instrument).collect())
