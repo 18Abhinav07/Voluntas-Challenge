@@ -16,6 +16,21 @@ would take.
 | [docs/KALSHI.md](docs/KALSHI.md) | Ext 3: mapping Kalshi onto the adapter trait, and the trait gaps |
 | [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md) | Every run, bug and fix, in order |
 
+## Requirements checklist
+
+| Requirement | Where it is met | Evidence |
+|---|---|---|
+| Every live market, new listings in, resolved ones out | Gamma keyset discovery every 10 min, `new_market` / `market_resolved` events, universe cache (D16) | ~283k markets, ~566k tokens; e2e `resolved_close` |
+| Many websockets, tokens balanced across them | Shards of `--tokens-per-conn`, × `--replicas` (`core.rs`) | ~450 sockets on the full universe |
+| One L2 book per token | `book.rs`, owned by core threads | hash check on every delta (98.9–100%) |
+| `PriceLevelUpdate` per level change, `Snapshot` per symbol every 60 s | `core.rs` → `writer.rs`, template `AlignedSbeWriter`, 64 MiB chunks | `verify`: 0 replay mismatches in every run |
+| Snapshot on a source switch | `Core::adopt`: diff, then snapshot (D8) | e2e `dropped_socket`: `switch_snaps` ≥ 1 |
+| SIGINT: close sockets, flush, close the file | `main.rs` shutdown order; also on a panic (D20) | every run ends with `done` and a readable file |
+| Ext 1: redundancy | 2 replicas per shard on different edges, source arbitration, lag check, `--supervise` | e2e drop / silent / stall / delay / supervise; 224-socket edge kill live |
+| Ext 2: silent failures and exchange-side decay | venue hash ladder, quiet resubscribe, per-socket quiet reconnect, make-before-break recycling | e2e corrupt / stall; hourly recycle of 448 sockets with no gaps |
+| Ext 3: a second exchange | `ExchangeAdapter` trait (`src/adapter/`) | [docs/KALSHI.md](docs/KALSHI.md) |
+| Ext 4: latency | per-socket latency (`--lat-detail`), `--fast-source`, clock offset (D21) | [docs/LATENCY.md](docs/LATENCY.md) |
+
 ## Build and run
 
 Needs a stable Rust toolchain (edition 2024).
