@@ -716,3 +716,37 @@ SIGSTOP at about t=600 s, and `--split-ratio 3` to force splitting back on. The 
   differs. These numbers show the loop is fixed. They are not a new A/B.
 - Splits still chase the short-lived hot markets: `shard=28` was split 3 times in a row. So
   `--split-ratio 0` stays the default.
+
+## Turn — Part 2 docs: README, ARCHITECTURE, LATENCY, DECISIONS, KALSHI
+
+**Ask:** write the submission docs.
+
+**Written** (docs only, no code changed):
+- `README.md` replaces the template text. It covers build and run, flags, the output format,
+  `verify`, tests, results and known limits.
+- `docs/ARCHITECTURE.md`: components, the replica and emitted-book model, and a table of how each
+  Ext 1 failure is detected and handled. Also covers Ext 2, the adapter boundary, rotation and CPU.
+- `docs/LATENCY.md` (Ext 4): what `wire`, `queue` and `verify` measure, and their limits:
+  ms venue timestamps, power-of-two buckets, clock drift. Also what is built and the results by
+  run. **It says plainly that none of the challenge's latency experiments have been run**, and
+  gives a plan for each.
+- `docs/DECISIONS.md`: 17 decisions with the rejected option and the evidence.
+- `docs/KALSHI.md` (Ext 3): Kalshi's feed and the mapping (`:ask` = NO bids at 1−p). It lists
+  six gaps against the trait, four of them real trait changes. Unverified details are marked
+  "to confirm".
+
+**Found while checking the docs against the code:**
+- **A source switch writes a diff, not the snapshot the challenge asks for.** This was decided in
+  Phase 0, after switch snapshots caused 15.5k replay mismatches. It is now written up as
+  deviation D8, with the one-line change that would revert it.
+- **The 3 s failover window has no measurement behind it.** The per-socket delivery gap was never
+  measured, and the window has no CLI flag.
+- **The resolved edge IPs were never logged** in any run, so per-edge comparison needs that
+  first.
+- **Process crashes are not restarted in-process.** This is listed under known limits.
+
+**Open:**
+- Ext 4 experiments, starting with per-socket `wire` histograms.
+- A `--lag-ms` flag.
+- A supervisor example.
+- Zip and email (ask first).
