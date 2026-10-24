@@ -1078,3 +1078,29 @@ rotation and no injected faults. 2026-10-24 09:11:57–11:42:23 UTC (14:41–17:
   trade-off (D11). A faster disk (NVMe on a real host) removes it.
 - `queue` p99 rose from ≤ 32.8 ms in the 25-min gate to ≤ 65.5 ms here: one bucket up, from the
   same stalls.
+
+## Turn — Final gate on the submission build
+
+**Run:** same Codespace, build 0d400ec (the Kalshi adapter, generic `main`, `core/` split),
+2026-10-24 11:47–12:12 UTC (17:17–17:42 IST), 25 min, 5-minute rotation, SIGSTOP 15 s at
+t=543 s, kill -9 of the child at t=900 s.
+
+| Check | Result |
+|---|---|
+| Coverage | 558.8k tokens, 548.8k sourced, 450 sockets, 2 cores |
+| Written | 23.5M updates, 13.8M snapshots, 7 files |
+| `verify` | **0 mismatches in all 7 files** |
+| kill -9 | supervisor restarted the child after 1 s; `ob.…1200Z.sbe` recovered with 0 bytes dropped; the new child wrote `ob.…1200Z.r1.sbe` |
+| SIGSTOP 15 s | recovered; the readers then found the core queues full 269k times and waited (`stalls`). Nothing was dropped, and no socket was lost |
+| Writer | one 3.5 s disk wait in the second child, followed by 241 reader waits |
+| Memory | RSS 2.96–3.12 GB after the restart |
+| CPU | ~191% of 400% |
+| Venue | 5 server Away closes, 0 unplaced tokens, 31 lag switches |
+| Clock | offset +90 → +101 ms (Codespace drift, warned) |
+
+**What it shows:** the refactor and the generic adapter changed nothing visible. Every recovery
+path ran again on the final build with zero replay errors.
+
+**About `stalls`:** the counter is reader waits on a full core queue, which is backpressure, not
+loss. It is 0 in normal running and rises only after a freeze or a slow disk. It resets on a
+restart, because it lives in the child.
