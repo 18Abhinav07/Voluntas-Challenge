@@ -846,3 +846,37 @@ known-limits line; ARCHITECTURE metrics bullet. Codespace deleted.
 - A repeat at another hour and under the full universe.
 - A supervisor example.
 - Zip and email (ask first).
+
+## Turn — Fast-source A/B rerun: equal-book fix, 3 ms margin, longer score
+
+**Asked:** rerun the A/B with the equal-book fix, a 3 ms margin and a longer score, then update
+LATENCY Experiment 2.
+
+**Changed:** `Fast.weight` (the newest window's share of the score) and two flags,
+`--fast-margin-ms` and `--fast-weight`. Defaults are now 3 ms and 0.25 (about 4 windows of
+memory). `bench/fast.sh` passes `FAST_ARGS` to B. The unit tests pin the old 1 ms / 0.5 where
+their numbers depend on it. 55 unit (1 ignored) + 3 golden pass, clippy clean. Commit 91211f0.
+
+**Run** (`bench/fast-2026-10-24-b/`): WestEurope Codespace, 4 CPUs, 07:21–07:41 UTC, 400 markets,
+4 replicas each. Both verify OK, 31,794 snapshots, 0 mismatches, 0 disconnects.
+
+| `src_behind` | n | mean | p50 | p90 | p99 ms |
+|---|---|---|---|---|---|
+| A | 173,370 | 3.0 | 0 | 3 | 20 |
+| B | 173,369 | 3.2 | 0 | 2 | 26 |
+
+- A tie. A calmer market than run 1 (A's p99 20 ms against 88).
+- Preferred socket changed twice (7 in run 1). 1,893 token moves (5,175). 32 moves refused for
+  differing books.
+- Max receive − exchange 5,815 ms in both: the 240 s outlier of run 1 is gone.
+- One slow recycle (socket 2, 10.9 ms behind).
+- B lost ground after picking during a common 7 ms stall at 07:26–07:31.
+
+**Housekeeping:** stopped two stale local ssh tasks (one for the deleted `voluntas-check`
+Codespace, running 2.5 h). Codespace `voluntas-fast2` deleted.
+
+**Open:**
+- Skip score windows in which every socket is behind (common stall).
+- Fast-source under the full universe.
+- A shorter `--lag-ms`; a supervisor example.
+- Zip and email (ask first).

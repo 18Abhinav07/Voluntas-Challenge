@@ -167,9 +167,11 @@ Experiment 1's steps 1–3, built and run against the old choice.
 
 **What it does** (`Core::check_speed`, every 30 s window):
 - Each settled socket's mean `behind` over the window is folded into a score:
-  `0.5 × old + 0.5 × window`. A window counts only with at least 50 timed events.
+  `(1 − w) × old + w × window`, with w = 0.5 in run 1 and 0.25 (`--fast-weight`, now the default)
+  in run 2. A window counts only with at least 50 timed events.
 - The socket with the lowest score in a shard becomes the preferred one. It changes only when
-  the current one is more than 1 ms worse than the best (hysteresis).
+  the current one is more than a margin worse than the best (hysteresis): 1 ms in run 1, 3 ms
+  (`--fast-margin-ms`, now the default) in run 2.
 - Tokens move onto the preferred socket only when its book equals the source's book, so the move
   writes nothing. A failover among replicas that have seen the same events also picks it.
 - A socket that is the slowest in its shard and at least 4 ms behind the best for 10 windows in a
@@ -202,11 +204,39 @@ symbols, 31,794 snapshots, 0 mismatches. 0 disconnects and 0 lag switches in bot
   wrote a diff, stamped with that replica's last event time, which on a quiet token can be a
   minutes-old book dump. **Fixed after the run:** a move now needs equal books, and a disagreeing
   standby is counted (`fast_disagree`) and left alone. It is not hashed (D9), so speed is no
-  reason to trust it. The A/B was not rerun with the fix.
+  reason to trust it.
 
-**Verdict:** a small gain at the median and p90, a loss at p99 from flapping, in one run. It stays
-opt-in. Next: a larger margin (for example 3 ms), a longer score (3–5 windows), and a repeat with
-the fix, ideally at another hour.
+**Verdict on run 1:** a small gain at the median and p90, a loss at p99 from flapping.
+
+**Rerun with the fix, a 3 ms margin and a longer score** (`bench/fast-2026-10-24-b/`): same
+host type, same region, 07:21–07:41 UTC, commit 91211f0. B ran with `--fast-margin-ms 3
+--fast-weight 0.25`: the newest window now weighs a quarter, so the score remembers about 4
+windows (2 minutes). Both verified OK: 1,600 symbols, 31,794 snapshots, 0 mismatches. 0
+disconnects and 0 lag switches in both.
+
+| | n | mean | p50 | p90 | p99 ms | 5-min means ms |
+|---|---|---|---|---|---|---|
+| A, old choice | 173,370 | 3.0 | 0 | 3 | 20 | 1.7 / 7.0 / 1.7 / 1.9 |
+| B, `--fast-source` | 173,369 | 3.2 | 0 | 2 | 26 | 0.5 / 7.6 / 2.9 / 2.1 |
+
+- **No gain this time.** p90 was 1 ms better, the mean 0.2 ms and p99 6 ms worse. The market was
+  calmer than in the first run (A's p99 was 20 ms here against 88 ms).
+- **Flapping is fixed:** the preferred socket changed twice in 20 minutes (socket 1 at the start,
+  socket 0 at 07:29), against 7 times.
+- **The outlier is gone:** verify's max receive − exchange was 5,815 ms in both, the same record.
+  32 moves were refused because the faster socket's book differed (`fast_disagree`).
+- **The recycle fired once again:** socket 2 at 07:26, 10.9 ms behind the best.
+- **Where B won and lost:** the first 5 minutes (0.5 against 1.7 ms), when socket 1 was clearly
+  fastest. Between 07:26 and 07:31 every socket fell 7 ms behind together, and the pick made then
+  (socket 0) did worse than A's choice for the next 5 minutes. A score built in a common stall
+  says little about which socket is faster afterwards.
+- **Moves:** 1,893 token moves onto the preferred socket, against 5,175 in the first run.
+
+**Verdict after two runs:** the safety problems are fixed (no flapping, nothing stale written),
+but there is no consistent latency gain. Run 1 helped the body and hurt p99; run 2 was a tie. At
+400 markets the sockets differ by a few ms and that difference does not persist reliably. It
+stays opt-in. What could still change this: ignoring windows where every socket is behind (a
+common stall), and a run under the full universe, where the spread between sockets is larger.
 
 ## Not done yet
 
@@ -218,7 +248,7 @@ varied on purpose, though, so it is still listed below.
 
 | Experiment | How it would run here | What it needs |
 |---|---|---|
-| **Tune the speed-aware source** | Experiment 2 again with the equal-book fix, a 3 ms margin and a longer score, at two hours of the day | nothing new: `--fast-source` and `bench/fast.sh` |
+| **Tune the speed-aware source** | Experiment 2 again, skipping windows where every socket is behind, and under the full universe | a common-stall filter in `check_speed`; `--fast-source` and `bench/fast.sh` otherwise |
 | **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
 | **Change the TCP source port** | Reconnect the same edge with different local ports, which may land on different load-balancer paths. Compare per connection. | bind the local port before `connect` |
 | **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |

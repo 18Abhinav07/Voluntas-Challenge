@@ -63,6 +63,8 @@ A small run for trying it out:
 | `--duration-secs` | `0` | Stop after this long (0 = run until SIGINT). |
 | `--lat-detail` | off | Log per-socket and per-edge latency every 30 s (Ext 4, see LATENCY). |
 | `--fast-source` | off | Prefer each shard's fastest socket as source and recycle one that stays slowest (see LATENCY, Experiment 2). |
+| `--fast-margin-ms` | `3` | With `--fast-source`: how much slower the preferred socket must be before it changes. |
+| `--fast-weight` | `0.25` | With `--fast-source`: weight of the newest 30 s window in a socket's score. |
 
 ## Output
 
@@ -139,7 +141,7 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
 - **Latency is measured but not tuned.** One experiment has run: 8 sockets on the same 400
   markets (`--lat-detail`). The fastest socket was 1.4 ms behind the first copy on average and the
   slowest 10.3 ms, and the edge IP mattered less than the connection. `--fast-source` acts on it
-  (opt-in): in one A/B it improved p50/p90 of the written events by 1 ms but worsened p99. See
+  (opt-in): in two A/B runs it gave no consistent gain, so it is off by default. See
   [docs/LATENCY.md](docs/LATENCY.md).
 - **Polymarket only.** No Kalshi adapter exists.
 - **Core CPU.** Two core threads run at about 31–38% each at steady state. The integrity hash
