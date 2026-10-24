@@ -3,7 +3,7 @@
 # the same markets, each with its own REPS sockets: A picks sources as before (--lat-detail),
 # B with --fast-source. Compare `src_behind` (how late the written events are) and verify both.
 set -u
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 REV=${REV:?}; DUR=${DUR:-1200}; REPS=${REPS:-4}; MARKETS=${MARKETS:-400}
 exec > fast.log 2>&1
 command -v cargo >/dev/null || { curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; . "$HOME/.cargo/env"; }
