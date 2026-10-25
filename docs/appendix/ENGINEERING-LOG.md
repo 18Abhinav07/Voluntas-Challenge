@@ -1562,3 +1562,26 @@ about **$0.39**.
   ideas that were built, A/B tested and kept off.
 - **Logs:** `bench/aws-2026-10-25/driver.log` (the tuning-day teardown) and
   `bench/both-venues-2026-10-25/` (both venues at once) are committed.
+
+## Turn — Two-hour run, both venues
+
+- **Why:** the measured run was 60 minutes on one venue. A longer run on both venues, each from
+  the region next to its exchange, checks that nothing drifts over time and that the Kalshi
+  adapter holds the whole demo universe, not a capped 1,000 markets.
+- **Method:** `host.sh` gained `MAIN_SECS` (run length) and a `kalshi` phase that runs the same
+  tests, sampling, `kill -9` and `verify` against the demo URLs (23db0d7). Two hosts launched at
+  06:11Z on 2026-10-25: c7i.xlarge in eu-west-2 (Polymarket) and c7i-flex.large in us-east-1
+  (Kalshi). Both self-terminating, tagged `Project=voluntas-run`.
+- **Polymarket, London:** 488k tokens on 392–400 sockets, 231.7M updates in 14 files, 118.2M
+  snapshots replayed with **0 mismatches**. recv − exch p50 5–6 ms; host delay p50 ≤ 16–32 µs.
+  RSS 1.97 GB peak, flat; load 1.1 of 4; 0 writer waits. The `kill -9` at t = 6,908 s restarted
+  in 1 s and the rotated file was recovered and verified.
+- **Kalshi demo, Virginia:** about 100k markets (200k–205k tokens) on 162–166 sockets, 32.3M
+  updates, 48.9M snapshots replayed with **0 mismatches**, 0 crossed books. recv − exch p50
+  33–36 ms, against 214–222 ms from India. RSS 629 MB peak. 162 resets and 24 `429` on
+  reconnect, all retried.
+- **Cost and cleanup:** about $0.72 for both hosts (2.22 h each, plus EBS and two public IPv4).
+  The demo key was shredded on the host before termination; nothing tagged was left in either
+  region.
+- **Docs:** PERFORMANCE gets a 2-hour section; README, KALSHI, LATENCY, HOW_TO_RUN and the page
+  (Runs stage 5, Kalshi tab) carry the numbers. Files: `bench/aws-2h-2026-10-25/`.

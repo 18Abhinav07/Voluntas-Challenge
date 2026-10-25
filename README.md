@@ -7,23 +7,23 @@ book once a minute, in the challenge template's aligned SBE format.
 The same engine runs both venues. Only the websocket encode/decode layer changes between them
 (Ext 3):
 
-- **Polymarket** is the venue it was built and measured on. It has run the full universe of
-  about 550k tokens for an hour on AWS.
-- **Kalshi** needs an API key even for public data. It ran live on Kalshi's demo environment: 1.73M
-  updates, 0 mismatches. There was no production Kalshi account from where this was built
-  (India).
+- **Polymarket** is the venue it was built and measured on. It has run the full universe on AWS:
+  about 550k tokens for an hour, and about 488k tokens for two hours.
+- **Kalshi** needs an API key even for public data. It ran the whole demo environment (about 100k
+  markets) for two hours from Virginia: 32.3M updates, 48.9M snapshots replayed, 0 mismatches.
+  Production is the same code with a production key and the default URLs.
 
 **The presentation:** [18abhinav07.github.io/Voluntas-Challenge](https://18abhinav07.github.io/Voluntas-Challenge/)
 covers how it was built, every run, the fixes and what each one moved, with charts. It is also in
 this repo at [docs/index.html](docs/index.html); open it in a browser.
 
-| | Full universe, AWS c7i.xlarge (London), 60 min |
-|---|---|
-| Coverage | 548k–554k tokens on 442–452 websockets |
-| Throughput | 41–43k updates/s |
-| Correctness | about 55M snapshots replayed from the deltas: **0 mismatches** |
-| Latency | exchange → collector p50 8–9 ms; kernel → collector p50 ≤ 32 µs |
-| Resources | 1.9 GB RSS peak, load 1.2 of 4 vCPU |
+| | Full universe, AWS c7i.xlarge (London), 60 min | The same, 120 min, a day later |
+|---|---|---|
+| Coverage | 548k–554k tokens on 442–452 websockets | 488k tokens on 392–400 websockets |
+| Throughput | 41–43k updates/s | 31–34k updates/s (231.7M in total) |
+| Correctness | about 55M snapshots replayed from the deltas: **0 mismatches** | 118.2M snapshots replayed: **0 mismatches** |
+| Latency | exchange → collector p50 8–9 ms; kernel → collector p50 ≤ 32 µs | p50 5–6 ms; kernel → collector p50 ≤ 16–32 µs |
+| Resources | 1.9 GB RSS peak, load 1.2 of 4 vCPU | 1.97 GB RSS peak, load 1.1 of 4 vCPU |
 
 ## Run it
 

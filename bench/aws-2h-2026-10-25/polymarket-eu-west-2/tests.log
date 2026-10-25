@@ -1,0 +1,142 @@
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.13s
+     Running unittests src/lib.rs (target/release/deps/engineering_challenge-af26c29297c280f9)
+
+running 82 tests
+test adapter::kalshi::tests::markets_page_becomes_instruments ... ok
+test adapter::kalshi::tests::delta_before_snapshot_drops_the_socket ... ok
+test adapter::kalshi::tests::lifecycle_lists_and_resolves ... ok
+test adapter::kalshi::tests::relative_deltas_become_absolute_sizes ... ok
+test adapter::kalshi::tests::sequence_gap_drops_the_socket ... ok
+test adapter::kalshi::tests::ed25519_handshake_signature_verifies ... ok
+test adapter::kalshi::tests::slow_consumer_error_drops_the_socket ... ok
+test adapter::kalshi::tests::snapshot_maps_no_bids_to_asks ... ok
+test adapter::polymarket::tests::bench_digest ... ignored
+test adapter::kalshi::tests::subscriptions_follow_the_acknowledged_sid ... ok
+test adapter::polymarket::tests::decodes_price_change ... ok
+test adapter::polymarket::tests::streamed_digest_matches_plain_json ... ok
+test book::tests::from_levels_sorts_and_dedups ... ok
+test clock::tests::ntp_round_trips_through_unix_time ... ok
+test clock::tests::offset_and_rtt_from_the_four_timestamps ... ok
+test conn::tests::fixed_source_port_is_bound_and_reusable ... ok
+test conn::tests::offline_commands_update_the_token_set ... ok
+test conn::tests::outage_gap_is_not_kept_once_opens_recover ... ok
+test core::tests::a_window_where_every_socket_is_behind_is_not_scored ... ok
+test core::tests::behind_is_timed_against_the_first_socket_to_deliver_an_event ... ok
+test core::tests::capped_round_takes_the_most_overdue ... ok
+test core::tests::caught_up_source_leaves_the_lag_candidates ... ok
+test core::tests::conn_ids_start_at_the_core_base ... ok
+test core::tests::connection_cap_leaves_tokens_unplaced ... ok
+test core::tests::disconnect_fails_over_with_snapshot_from_peer ... ok
+test core::tests::failover_prefers_the_fast_socket_among_equals ... ok
+test core::tests::first_book_snapshots_then_only_source_emits ... ok
+test core::tests::fresh_peer_book_is_not_lag ... ok
+test book::tests::diff_applies ... ok
+test core::tests::initial_book_that_never_comes_is_asked_again ... ok
+test core::tests::hot_shard_splits_make_before_break ... ok
+test core::tests::lagging_source_switches_and_resnapshots ... ok
+test core::tests::listed_market_is_looked_up_once ... ok
+test core::tests::late_markets_do_not_join_a_split_off_shard ... ok
+test core::tests::metrics_merge_sums_counts_and_histograms ... ok
+test core::tests::mid_stream_book_on_source_emits_diff ... ok
+test core::tests::miss_corroborated_by_peer_refreshes_at_once ... ok
+test core::tests::miss_with_agreeing_peer_counts_as_agreed ... ok
+test core::tests::ms_hist_keeps_negative_wire_and_exact_mean ... ok
+test core::tests::no_valid_replica_goes_dark_until_book ... ok
+test core::tests::only_the_source_is_offered_for_hashing ... ok
+test core::tests::partial_shard_opens_after_wait ... ok
+test core::tests::plans_one_shard_with_two_replicas ... ok
+test core::tests::quiet_backs_off_through_deltas_until_a_resubscribe_catches_a_miss ... ok
+test core::tests::quiet_token_is_resubscribed_on_every_replica ... ok
+test core::tests::rates_follow_delta_counts ... ok
+test core::tests::recycle_is_make_before_break ... ok
+test core::tests::recycles_run_in_parallel_across_shards_only ... ok
+test core::tests::resolved_market_zeroes_levels_and_unsubscribes ... ok
+test core::tests::rotation_marks_the_cut_and_snapshots_every_published_book ... ok
+test core::tests::shard_near_the_median_does_not_split ... ok
+test core::tests::shard_quiet_on_both_sockets_is_not_a_socket_fault ... ok
+test core::tests::shorter_lag_window_switches_sooner ... ok
+test core::tests::single_uncorroborated_miss_is_tolerated ... ok
+test core::tests::slow_token_is_left_to_recycling ... ok
+test core::tests::socket_closed_as_all_resolved_ends_its_markets ... ok
+test core::tests::snapshots_every_period_per_token ... ok
+test core::tests::socket_quiet_while_peer_is_busy_reconnects ... ok
+test core::tests::socket_that_never_came_up_is_not_asked ... ok
+test core::tests::source_racing_a_peer_is_not_lag ... ok
+test core::tests::socket_that_stays_slowest_is_recycled ... ok
+test core::tests::sources_follow_the_fastest_socket_past_a_margin ... ok
+test core::tests::split_hands_over_after_grace_and_survives_a_resolved_market ... ok
+test core::tests::stalled_source_switches_while_the_peer_keeps_ticking ... ok
+test core::tests::strikes_settle_while_active_long_after_the_last_resubscribe ... ok
+test core::tests::update_before_its_rotation_turn_snapshots_first ... ok
+test core::tests::verified_match_clears_strikes ... ok
+test fixed::tests::known_values ... ok
+test fixed::tests::canonical_strings_round_trip ... ok
+test fixed::tests::round_trip ... ok
+test kts::tests::report_buckets_by_power_of_two ... ok
+test kts::tests::reads_carry_a_kernel_timestamp ... ok
+test supervise::tests::relay_passes_whole_chunks_and_drops_a_torn_one ... ok
+test adapter::kalshi::tests::rsa_pss_handshake_signature_verifies ... ok
+test supervise::tests::crashed_part_files_are_cut_to_whole_chunks ... ok
+test book::tests::matches_naive_model ... ok
+test writer::tests::a_taken_period_name_gets_a_restart_suffix ... ok
+test supervise::tests::reset_marker_reads_back_through_the_template_reader ... ok
+test writer::tests::round_trips_through_template_reader ... ok
+test writer::tests::rotation_closes_a_period_once_every_source_has_left_it ... ok
+test writer::tests::a_synced_chunk_file_replays_before_it_is_finished ... ok
+test supervise::tests::restarts_a_dying_child_and_marks_each_restart ... ok
+
+test result: ok. 81 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.03s
+
+     Running unittests src/main.rs (target/release/deps/collector-4bcadabbdc6c1c5b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/verify.rs (target/release/deps/verify-b01b32ad400caae6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/e2e.rs (target/release/deps/e2e-73389d37348bcb97)
+
+running 11 tests
+test baseline_no_fault ... ok
+test corrupt_update_is_caught_by_the_hash_and_repaired ... ok
+test dropped_socket_fails_over_and_reconnects ... ok
+test delayed_socket_loses_the_source ... ok
+test sigkill_keeps_what_was_written ... ok
+test gamma_429_slows_discovery_down_but_it_completes ... ok
+test sigterm_flushes_and_exits_cleanly ... ok
+test resolved_close_drops_tokens_without_reconnecting ... ok
+test stalled_subscription_switches_that_token ... ok
+test supervisor_restarts_after_a_panic ... ok
+test silent_socket_is_switched_off_then_reconnected ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 66.11s
+
+     Running tests/golden.rs (target/release/deps/golden-b2059077996cf9ca)
+
+running 3 tests
+test active_capture_all_hashes_verify ... ok
+test quiet_capture_all_hashes_verify ... ok
+test trade_heavy_capture_matches_reference ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/kalshi_e2e.rs (target/release/deps/kalshi_e2e-3e36c415f0e44f9d)
+
+running 3 tests
+test kalshi_baseline ... ok
+test kalshi_lifecycle_listing_joins_the_existing_subscription ... ok
+test kalshi_seq_gap_reconnects_and_the_output_stays_exact ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.04s
+
+   Doc-tests engineering_challenge
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

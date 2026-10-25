@@ -1,0 +1,80 @@
+     3.61%  tokio-rt-worker  [.] <&mut serde_json::de::Deserializer<serde_json::read::StrRead> as serde_core::de::Deserializer>::__deserialize_content_v1::<serde::private::de::content::ContentVisitor>                                                                                                                                                                                                                                                                                                                                                                                                                                    -      -            
+            |          
+            |--0.96%--next_entry_seed<serde_json::de::MapAccess<serde_json::read::StrRead>, serde::private::de::content::ContentVisitor, serde::private::de::content::ContentVisitor> (inlined)
+            |          visit_map<serde_json::de::MapAccess<serde_json::read::StrRead>> (inlined)
+            |          deserialize_any<serde_json::read::StrRead, serde::private::de::content::ContentVisitor> (inlined)
+            |          __deserialize_content_v1<&mut serde_json::de::Deserializer<serde_json::read::StrRead>, serde::private::de::content::ContentVisitor> (inlined)
+            |          
+             --0.67%--deserialize_any<serde_json::read::StrRead, serde::private::de::content::ContentVisitor> (inlined)
+                       |          
+                        --0.59%--__deserialize_content_v1<&mut serde_json::de::Deserializer<serde_json::read::StrRead>, serde::private::de::content::ContentVisitor> (inlined)
+     2.83%  core-0           [.] engineering_challenge::fixed::encode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       -      -            
+            |          
+            |--1.92%--encode (inlined)
+            |          
+             --0.68%--encode_int (inlined)
+                       encode (inlined)
+     2.42%  core-0           [.] sha1::compress::x86::digest_blocks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         -      -            
+            |          
+            |--0.89%--_mm_sha1msg1_epu32 (inlined)
+            |          digest_blocks (inlined)
+            |          
+             --0.84%--_mm_sha1nexte_epu32 (inlined)
+                       digest_blocks (inlined)
+     2.39%  core-1           [.] engineering_challenge::fixed::encode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       -      -            
+            |          
+            |--1.62%--encode (inlined)
+            |          
+             --0.55%--encode_int (inlined)
+                       encode (inlined)
+     2.23%  tokio-rt-worker  [.] _mi_page_malloc_zero                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       -      -            
+            |          
+             --2.18%--mi_page_malloc_zero (inlined)
+                       _mi_page_malloc_zero
+     2.08%  tokio-rt-worker  [.] <serde_json::read::SliceRead>::skip_to_escape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              -      -            
+            |          
+             --1.54%--skip_to_escape (inlined)
+     2.00%  core-1           [.] sha1::compress::x86::digest_blocks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         -      -            
+            |          
+            |--0.70%--_mm_sha1nexte_epu32 (inlined)
+            |          digest_blocks (inlined)
+            |          
+             --0.57%--_mm_sha1msg1_epu32 (inlined)
+                       digest_blocks (inlined)
+     1.31%  core-1           [.] <engineering_challenge::adapter::polymarket::HashCheck>::prefix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            -      -            
+     1.22%  core-0           [.] <engineering_challenge::adapter::polymarket::HashCheck>::prefix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            -      -            
+     1.19%  tokio-rt-worker  [.] engineering_challenge::conn::run::<engineering_challenge::adapter::polymarket::Polymarket>::{closure#0}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    -      -            
+            |          
+             --0.68%--{async_fn#0}<engineering_challenge::adapter::polymarket::Polymarket> (inlined)
+                       |          
+                        --0.65%--{closure#1}<engineering_challenge::adapter::polymarket::Polymarket> (inlined)
+                                  poll<engineering_challenge::conn::run::{async_fn#0}::__tokio_select_util::Out<(), engineering_challenge::conn::Exit>, engineering_challenge::conn::run::{async_fn#0}::{closure_env#1}<engineering_challenge::adapter::polymarket::Polymarket>> (inlined)
+                                  {async_fn#0}<engineering_challenge::adapter::polymarket::Polymarket> (inlined)
+     1.12%  core-0           [.] <engineering_challenge::core::Core<engineering_challenge::adapter::polymarket::Meta>>::on_events                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           -      -            
+     1.10%  tokio-rt-worker  [.] <futures_util::stream::stream::split::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::stream::MaybeTlsStream<engineering_challenge::kts::Stamped>>> as futures_core::stream::Stream>::poll_next                                                                                                                                                                                                                                                                                                                                                                                          -      -            
+     1.08%  core-0           [k] native_queued_spin_lock_slowpath                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           -      -            
+            |
+            ---native_queued_spin_lock_slowpath
+               |          
+                --1.04%--_raw_spin_lock
+                          raw_spin_rq_lock_nested
+     1.06%  core-1           [.] <engineering_challenge::core::Core<engineering_challenge::adapter::polymarket::Meta>>::on_events                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           -      -            
+     0.94%  tokio-rt-worker  [.] <serde_json::read::StrRead as serde_json::read::Read>::parse_str                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           -      -            
+     0.94%  tokio-rt-worker  [.] miniz_oxide::inflate::core::decompress_fast                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                -      -            
+     0.90%  tokio-rt-worker  [.] engineering_challenge::fixed::parse                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        -      -            
+     0.83%  core-1           [.] <engineering_challenge::book::Book>::apply                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 -      -            
+            |          
+             --0.73%--select_unpredictable<usize> (inlined)
+                       binary_search_by<(i64, i64), core::slice::{impl#0}::binary_search_by_key::{closure_env#0}<(i64, i64), i64, engineering_challenge::book::{impl#0}::apply::{closure_env#0}>> (inlined)
+                       binary_search_by_key<(i64, i64), i64, engineering_challenge::book::{impl#0}::apply::{closure_env#0}> (inlined)
+                       apply (inlined)
+     0.81%  tokio-rt-worker  [.] _mi_page_free_collect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      -      -            
+            |          
+             --0.74%--mi_page_thread_collect_to_local (inlined)
+                       mi_page_thread_free_collect (inlined)
+                       _mi_page_free_collect
+                       |          
+                        --0.70%--mi_page_queue_find_free_ex
+                                  mi_find_free_page (inlined)
+                                  mi_find_page (inlined)
+                                  _mi_malloc_generic

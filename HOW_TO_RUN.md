@@ -114,6 +114,11 @@ interrupted, clean up with:
 bench/aws/run.sh teardown
 ```
 
+On a host already set up, `MAIN_SECS` sets the length of the main run and `host.sh kalshi` runs
+the same phase against Kalshi's demo (it reads `~/kalshi.env` and `~/kalshi.pem`). The two-hour
+run used `MAIN_SECS=7200 bench/aws/host.sh main` in London and `MAIN_SECS=7200 bench/aws/host.sh
+kalshi` in Virginia, for about $0.72 in total: [bench/aws-2h-2026-10-25/](bench/aws-2h-2026-10-25/).
+
 The full run took about 75 minutes and cost about $0.50. `bench/aws/run.sh tune` runs the A/B rounds
 from docs/LATENCY.md instead. [docs/appendix/AWS-RUN.md](docs/appendix/AWS-RUN.md) has the plan
 and the gates.

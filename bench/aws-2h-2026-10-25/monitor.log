@@ -1,0 +1,24 @@
+06:33 main BENCH_OK 2026-10-25T06:21:21Z|740 rss_mb=1622 rx_mbps=236 wr_mbs=24 load=0.99 core=44 finisher=0 main=0 tokio=51 writer=7 |1|0|
+06:33 kalshi TESTS_OK 2026-10-25T06:20:54Z|775 rss_mb=434 rx_mbps=24 wr_mbs=0 load=0.07 core=3 finisher=0 main=0 tokio=6 writer=1 |1|0|
+06:43 main BENCH_OK 2026-10-25T06:21:21Z|1354 rss_mb=1693 rx_mbps=166 wr_mbs=0 load=1.75 core=32 finisher=0 main=0 tokio=38 writer=5 |2|0|
+06:44 kalshi TESTS_OK 2026-10-25T06:20:54Z|1380 rss_mb=436 rx_mbps=22 wr_mbs=0 load=0.22 core=3 finisher=0 main=0 tokio=6 writer=1 |2|0|
+06:54 main BENCH_OK 2026-10-25T06:21:21Z|1957 rss_mb=1736 rx_mbps=203 wr_mbs=0 load=1.00 core=37 finisher=0 main=0 tokio=45 writer=7 |3|0|
+06:54 kalshi TESTS_OK 2026-10-25T06:20:54Z|1986 rss_mb=442 rx_mbps=24 wr_mbs=0 load=0.42 core=3 finisher=0 main=0 tokio=6 writer=1 |3|0|
+07:04 main BENCH_OK 2026-10-25T06:21:21Z|2569 rss_mb=1755 rx_mbps=193 wr_mbs=0 load=0.95 core=37 finisher=0 main=0 tokio=44 writer=6 |4|0|
+07:04 kalshi TESTS_OK 2026-10-25T06:20:54Z|2591 rss_mb=440 rx_mbps=22 wr_mbs=2 load=0.20 core=3 finisher=0 main=0 tokio=6 writer=1 |4|0|
+07:14 main BENCH_OK 2026-10-25T06:21:21Z|3170 rss_mb=1764 rx_mbps=187 wr_mbs=22 load=0.88 core=36 finisher=0 main=0 tokio=42 writer=6 |5|0|
+07:14 kalshi TESTS_OK 2026-10-25T06:20:54Z|3207 rss_mb=439 rx_mbps=19 wr_mbs=0 load=0.05 core=3 finisher=0 main=0 tokio=5 writer=1 |5|0|
+07:24 main BENCH_OK 2026-10-25T06:21:21Z|3782 rss_mb=1828 rx_mbps=190 wr_mbs=0 load=1.59 core=35 finisher=0 main=0 tokio=42 writer=6 |6|0|
+07:24 kalshi TESTS_OK 2026-10-25T06:20:54Z|3812 rss_mb=487 rx_mbps=19 wr_mbs=0 load=0.13 core=3 finisher=0 main=0 tokio=5 writer=1 |6|0|
+07:34 main BENCH_OK 2026-10-25T06:21:21Z|4385 rss_mb=1880 rx_mbps=177 wr_mbs=0 load=0.73 core=35 finisher=0 main=0 tokio=41 writer=6 |7|0|
+07:34 kalshi TESTS_OK 2026-10-25T06:20:54Z|4418 rss_mb=484 rx_mbps=27 wr_mbs=0 load=0.11 core=4 finisher=0 main=0 tokio=7 writer=1 |7|0|
+07:44 main BENCH_OK 2026-10-25T06:21:21Z|4997 rss_mb=1891 rx_mbps=180 wr_mbs=0 load=1.17 core=35 finisher=0 main=0 tokio=42 writer=6 |8|0|
+07:44 kalshi TESTS_OK 2026-10-25T06:20:54Z|5023 rss_mb=513 rx_mbps=23 wr_mbs=2 load=0.23 core=3 finisher=0 main=0 tokio=6 writer=1 |8|0|
+07:54 main BENCH_OK 2026-10-25T06:21:21Z|5607 rss_mb=1890 rx_mbps=204 wr_mbs=22 load=0.93 core=39 finisher=0 main=0 tokio=46 writer=7 |9|0|
+07:54 kalshi TESTS_OK 2026-10-25T06:20:54Z|5639 rss_mb=503 rx_mbps=23 wr_mbs=0 load=0.44 core=3 finisher=0 main=0 tokio=6 writer=1 |9|0|
+08:05 main BENCH_OK 2026-10-25T06:21:21Z|6217 rss_mb=1895 rx_mbps=194 wr_mbs=0 load=0.88 core=37 finisher=0 main=0 tokio=42 writer=6 |10|0|
+08:05 kalshi TESTS_OK 2026-10-25T06:20:54Z|6244 rss_mb=503 rx_mbps=27 wr_mbs=0 load=0.13 core=4 finisher=0 main=0 tokio=7 writer=1 |10|0|
+08:15 main BENCH_OK 2026-10-25T06:21:21Z|6817 rss_mb=1917 rx_mbps=187 wr_mbs=0 load=0.79 core=35 finisher=0 main=0 tokio=42 writer=6 |11|0|
+08:15 kalshi TESTS_OK 2026-10-25T06:20:54Z|6850 rss_mb=497 rx_mbps=23 wr_mbs=0 load=0.15 core=3 finisher=0 main=0 tokio=6 writer=1 |11|0|
+08:25 main Connection timed out during banner exchange|Connection to 35.176.68.36 port 22 timed out|
+08:25 kalshi Connection timed out during banner exchange|Connection to 52.91.194.152 port 22 timed out|

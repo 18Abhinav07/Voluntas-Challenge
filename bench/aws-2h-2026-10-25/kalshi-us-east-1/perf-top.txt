@@ -1,0 +1,80 @@
+     5.75%  tokio-rt-worker  [.] <serde_json::read::SliceRead>::skip_to_escape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              -      -            
+            |          
+            |--4.06%--skip_to_escape (inlined)
+            |          
+             --0.51%--copied<[u8; 8], core::array::TryFromSliceError> (inlined)
+                       try_from<u8, 8> (inlined)
+                       try_into<&[u8], [u8; 8]> (inlined)
+                       skip_to_escape (inlined)
+     4.40%  core-0           [k] finish_task_switch.isra.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  -      -            
+            |
+            ---finish_task_switch.isra.0
+               __schedule
+               schedule
+               schedule_hrtimeout_range_clock
+               schedule_hrtimeout_range
+               ep_poll
+               do_epoll_wait
+               __x64_sys_epoll_wait
+               x64_sys_call
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               epoll_wait
+               select (inlined)
+               poll (inlined)
+               turn (inlined)
+     3.97%  tokio-rt-worker  [k] finish_task_switch.isra.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  -      -            
+            |
+            ---finish_task_switch.isra.0
+               __schedule
+               schedule
+               |          
+               |--2.70%--schedule_hrtimeout_range_clock
+               |          schedule_hrtimeout_range
+               |          ep_poll
+               |          do_epoll_wait
+               |          __x64_sys_epoll_wait
+               |          x64_sys_call
+               |          do_syscall_64
+               |          entry_SYSCALL_64_after_hwframe
+               |          epoll_wait
+               |          select (inlined)
+               |          poll (inlined)
+               |          turn (inlined)
+               |          
+               |--0.76%--exit_to_user_mode_loop
+               |          do_syscall_64
+               |          entry_SYSCALL_64_after_hwframe
+               |          
+                --0.51%--futex_do_wait
+                          __futex_wait
+                          futex_wait
+                          do_futex
+                          __x64_sys_futex
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          syscall
+     3.63%  tokio-rt-worker  [k] _raw_spin_unlock_irq                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       -      -            
+            |
+            ---_raw_spin_unlock_irq
+               eventfd_write
+               vfs_write
+               ksys_write
+               __x64_sys_write
+               x64_sys_call
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               write
+               is_minus_one (inlined)
+               cvt<isize> (inlined)
+               write (inlined)
+               write (inlined)
+               write (inlined)
+               wake (inlined)
+     3.63%  tokio-rt-worker  [.] engineering_challenge::conn::run::<engineering_challenge::adapter::kalshi::Kalshi>::{closure#0}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            -      -            
+            |          
+             --1.18%--{async_fn#0}<engineering_challenge::adapter::kalshi::Kalshi> (inlined)
+                       {closure#1}<engineering_challenge::adapter::kalshi::Kalshi> (inlined)
+                       poll<engineering_challenge::conn::run::{async_fn#0}::__tokio_select_util::Out<(), engineering_challenge::conn::Exit>, engineering_challenge::conn::run::{async_fn#0}::{closure_env#1}<engineering_challenge::adapter::kalshi::Kalshi>> (inlined)
+                       {async_fn#0}<engineering_challenge::adapter::kalshi::Kalshi> (inlined)

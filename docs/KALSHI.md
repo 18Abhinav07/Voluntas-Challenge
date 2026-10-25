@@ -8,7 +8,8 @@
 - end to end, against a mock of the documented API ([`tests/kalshi_e2e.rs`](../tests/kalshi_e2e.rs)):
   the collector binary, two replicas, and `verify` on the output;
 - **live, on Kalshi's demo environment** (2026-10-25): 1,000 markets for 15 minutes, 1.73M
-  updates, 0 replay mismatches. See [Live run on the demo environment](#live-run-on-the-demo-environment).
+  updates, 0 replay mismatches; then the whole demo universe (about 100k markets) for 2 hours
+  from AWS in Virginia, 32.3M updates, 0 mismatches. See [Live run on the demo environment](#live-run-on-the-demo-environment).
   The demo environment serves the same API as production; production is the default endpoint.
 
 Items marked **(to confirm)** are not stated in the docs. Check them against the live API before
@@ -123,6 +124,22 @@ Three runs on 2026-10-25 from a laptop in India, with a read-only Ed25519 demo k
 | Main | 1,000 | 12 | 15 min | 1,726,633 | 29,806 | 0 | 0 |
 | One subscription | 2,500 | 2 | 150 s | 276,552 | 12,006 | 0 | 0 |
 
+Then a two-hour run on the whole demo universe, from a c7i-flex.large in us-east-1 (Virginia),
+next to the exchange. Files: [`bench/aws-2h-2026-10-25/kalshi-us-east-1/`](../bench/aws-2h-2026-10-25/kalshi-us-east-1/).
+
+| | Two hours, Virginia |
+|---|---|
+| Universe | 200k–205k tokens (about 100k markets), 100% sourced, 162–166 sockets |
+| Updates | 32.3M in 14 files (3.4–4.9k/s), about 6.0 GB |
+| Snapshots replayed | 48.9M matched, **0 did not**; 0 crossed books |
+| recv − exch | p50 33–36 ms, p90 37–44 ms, p99 43–49 ms (from India: p50 214–222 ms) |
+| Host delay | p50 ≤ 32–64 µs, p99 ≤ 1–2 ms on 2 vCPU |
+| Resources | core 3.5%, tokio 6.7% of a CPU; RSS 629 MB peak; 27 Mbit/s in |
+| `kill -9` at t = 6,900 s | restarted in 1 s; the new child ran 297 s and exited 0 |
+| Drops | 162 connection resets and 24 `429` on reconnect, each retried with backoff; 23 quiet-socket reconnects |
+
+The demo key was copied to that host for the run and shredded before it was terminated.
+
 What this settles:
 
 - **The signed handshake is accepted.** Ed25519 over `timestamp + "GET" + "/trade-api/ws/v2"`,
@@ -140,9 +157,10 @@ Reading these numbers:
 
 - **Scale.** Demo and production keys are separate, and production books are deeper and busier.
   The demo rate was about 1,900 updates/s for 1,000 markets.
-- **Latency.** recv − exch p50 was 214–222 ms, the round trip from India to the venue. It
-  measures the path, not the collector.
-- **Removals.** `--max-markets` capped the universe, so new listings were outside it. Five
+- **Latency.** recv − exch p50 was 214–222 ms from India and 33–36 ms from Virginia. The
+  difference is the path; host delay stayed in microseconds on both.
+- **Removals.** In the laptop runs `--max-markets` capped the universe, so new listings were
+  outside it; the Virginia run had no cap. Five
   markets left the main run (`markets_removed`) and their books were dropped cleanly.
 - **One corrected book.** In the main run one mid-stream snapshot on a source socket differed
   from the book built from deltas (`book_diffs: 1`, out of about 31,800 snapshots). The core

@@ -218,7 +218,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 <!-- ============================================================ RUNS -->
 <section class="panel" id="runs" role="tabpanel" aria-labelledby="t-runs">
   <h2>Every run, by host</h2>
-  <p>Four places, in the order they were used. Each move came from what the run before it showed. Every output file that was closed replayed with <span class="zero">0 mismatches</span>.</p>
+  <p>Five stages, in the order they ran. Each move came from what the run before it showed. Every output file that was closed replayed with <span class="zero">0 mismatches</span>.</p>
 
   <div class="phase">
     <div class="when">1 · Laptop in India, behind a VPN</div>
@@ -291,6 +291,23 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
         <tr><td>Smoke</td><td class="n">200</td><td class="n">12</td><td class="n">60 s</td><td class="n">80,062</td><td class="n">332</td><td class="n zero">0</td></tr>
         <tr><td>Main</td><td class="n">1,000</td><td class="n">12</td><td class="n">15 min</td><td class="n">1,726,633</td><td class="n">29,806</td><td class="n zero">0</td></tr>
         <tr><td>One subscription</td><td class="n">2,500</td><td class="n">2</td><td class="n">150 s</td><td class="n">276,552</td><td class="n">12,006</td><td class="n zero">0</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="phase">
+    <div class="when">5 · AWS, both venues at once, 2 hours</div>
+    <h3>Two hosts, each next to its exchange</h3>
+    <p>Polymarket from London on a c7i.xlarge, Kalshi's whole demo universe from Virginia on a c7i-flex.large, started together. Same flags, a <code>kill -9</code> near the end of each. About $0.72 for both.</p>
+    <div class="tw"><table>
+      <thead><tr><th></th><th>Polymarket, London</th><th>Kalshi demo, Virginia</th></tr></thead>
+      <tbody>
+        <tr><td>Universe</td><td>488k tokens, 392–400 sockets</td><td>about 100k markets, 162–166 sockets</td></tr>
+        <tr><td>Updates</td><td class="n">231.7M (31–34k/s)</td><td class="n">32.3M (3.4–4.9k/s)</td></tr>
+        <tr><td>Replay</td><td><span class="zero">0</span> / 118.2M, 14 files</td><td><span class="zero">0</span> / 48.9M, 14 files</td></tr>
+        <tr><td>recv − exch p50 / p99</td><td class="n">5–6 ms / 19–128 ms</td><td class="n">33–36 ms / 43–49 ms</td></tr>
+        <tr><td>Host delay p50</td><td class="n">≤ 16–32 µs</td><td class="n">≤ 32–64 µs</td></tr>
+        <tr><td>RSS peak, load</td><td>1.97 GB, 1.1 of 4</td><td>0.63 GB, 0.2 of 2</td></tr>
+        <tr><td><code>kill -9</code></td><td>restarted in 1 s, open file recovered</td><td>restarted in 1 s</td></tr>
       </tbody>
     </table></div>
   </div>
@@ -437,6 +454,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
     <div class="row"><div>Unit tests</div><div>Kalshi's example frames from its docs; signatures with both key types checked over the exact signed string.</div></div>
     <div class="row"><div>End to end, offline</div><div>A mock Kalshi venue: the real binary, two replicas, then <code>verify</code>. Cases: a baseline, a <code>seq</code> gap, a new listing.</div></div>
     <div class="row"><div>Live, demo environment</div><div>1,000 markets for 15 minutes: 1,726,633 updates, 29,806 snapshots replayed, <span class="zero">0</span> mismatches, 0 disconnects, 0 <code>seq</code> gaps. Also 2,500 markets on one subscription.</div></div>
+    <div class="row"><div>Live, two hours from AWS</div><div>The whole demo universe, about 100k markets, from Virginia: 32.3M updates, 48.9M snapshots replayed, <span class="zero">0</span> mismatches; recv − exch p50 33–36 ms against 214–222 ms from India.</div></div>
     <div class="row"><div>Both venues together</div><div><code>./demo.sh both</code>: one process per venue, side by side; each file replays with <span class="zero">0</span> mismatches.</div></div>
   </div>
 

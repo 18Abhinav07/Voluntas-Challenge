@@ -1,0 +1,356 @@
+===== main
+-- resources: steady mean (t>180) and peak; CPU in % of one CPU per thread group
+core=41.2 tokio=48.3 wr_mbs=8.5 finisher=0.0 load=1.1 main=0.0 rss_mb=1784.7 writer=6.9 rx_mbps=220.2 
+core=222 tokio=223 wr_mbs=47 finisher= load=2.84 main=3 rss_mb=1969 writer=32 rx_mbps=1120 
+-- verify
+verify ob.20261025T0620Z.sbe 3.8G 25s span:      518.7s, 978004 symbols messages:  9136234 snapshots, 16770271 updates (32333/s) replay:    8158230 snapshots matched the rebuilt book, 0 did not crossed:   548 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 7 p99 31 p99.9 241 max 207695 OK 
+verify ob.20261025T0630Z.sbe 4.6G 41s span:      600.0s, 977384 symbols messages:  10739236 snapshots, 20539395 updates (34232/s) replay:    9761852 snapshots matched the rebuilt book, 0 did not crossed:   585 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 7 p99 35 p99.9 221 max 560043 OK 
+verify ob.20261025T0640Z.sbe 4.6G 40s span:      600.0s, 977384 symbols messages:  10730568 snapshots, 20277610 updates (33796/s) replay:    9753184 snapshots matched the rebuilt book, 0 did not crossed:   3087 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 39 p99.9 235 max 1296044 OK 
+verify ob.20261025T0650Z.sbe 4.4G 39s span:      600.0s, 978072 symbols messages:  10739532 snapshots, 19268975 updates (32115/s) replay:    9761460 snapshots matched the rebuilt book, 0 did not crossed:   1850 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 5 p90 7 p99 50 p99.9 487 max 608725 OK 
+verify ob.20261025T0700Z.sbe 4.4G 38s span:      600.0s, 978992 symbols messages:  10779096 snapshots, 18776029 updates (31293/s) replay:    9800104 snapshots matched the rebuilt book, 0 did not crossed:   704 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 5 p90 7 p99 99 p99.9 458 max 558626 OK 
+verify ob.20261025T0710Z.sbe 4.4G 39s span:      600.0s, 978464 symbols messages:  10771736 snapshots, 19179282 updates (31965/s) replay:    9793272 snapshots matched the rebuilt book, 0 did not crossed:   825 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 5 p90 7 p99 23 p99.9 108 max 3093520 OK 
+verify ob.20261025T0720Z.sbe 4.6G 40s span:      600.0s, 975960 symbols messages:  12054730 snapshots, 18400224 updates (30667/s) replay:    11078770 snapshots matched the rebuilt book, 0 did not crossed:   1209 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 54 p99.9 1036 max 3695065 OK 
+verify ob.20261025T0730Z.sbe 4.5G 39s span:      600.0s, 976032 symbols messages:  10785912 snapshots, 19490259 updates (32484/s) replay:    9809880 snapshots matched the rebuilt book, 0 did not crossed:   676 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 63 p99.9 587 max 645850 OK 
+verify ob.20261025T0740Z.sbe 4.5G 37s span:      600.0s, 975968 symbols messages:  10804822 snapshots, 19213692 updates (32023/s) replay:    9828854 snapshots matched the rebuilt book, 0 did not crossed:   2328 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 7 p99 19 p99.9 103 max 1363601 OK 
+verify ob.20261025T0750Z.sbe 4.4G 36s span:      600.0s, 976648 symbols messages:  10800186 snapshots, 18351331 updates (30586/s) replay:    9823538 snapshots matched the rebuilt book, 0 did not crossed:   658 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 63 p99.9 1391 max 1720449 OK 
+verify ob.20261025T0800Z.sbe 4.5G 38s span:      600.0s, 976552 symbols messages:  10750594 snapshots, 19443453 updates (32406/s) replay:    9774042 snapshots matched the rebuilt book, 0 did not crossed:   2429 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 128 p99.9 540 max 1593272 OK 
+verify ob.20261025T0810Z.sbe 3.0G 18s span:      390.9s, 975740 symbols messages:  7339278 snapshots, 12783358 updates (32704/s) replay:    6363538 snapshots matched the rebuilt book, 0 did not crossed:   495 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 24 p99.9 121 max 2495707 OK 
+verify ob.20261025T0810Z.r1.sbe 1.6G 10s span:      207.7s, 975242 symbols messages:  4141900 snapshots, 6481437 updates (31211/s) replay:    3166658 snapshots matched the rebuilt book, 0 did not crossed:   245 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 8 p99 24 p99.9 96 max 71924 OK 
+verify ob.20261025T0820Z.sbe 784M 3s span:      82.5s, 974808 symbols messages:  2255422 snapshots, 2684514 updates (32544/s) replay:    1280614 snapshots matched the rebuilt book, 0 did not crossed:   119 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 9 p99 32 p99.9 121 max 101948 OK 
+-- mismatches total: 0 in 14 files
+-- host delay (app - kernel), every window
+ INFO collector: host delay window=frames 559311 app-kernel us p50<=32 p90<=256 p99<=4096 p99.9<=8192 max<=16384
+ INFO collector: host delay window=frames 1227351 app-kernel us p50<=32 p90<=64 p99<=2048 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1350491 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1249738 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1276458 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1258917 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1235369 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1277313 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1274295 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1285793 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1332833 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1270220 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1332417 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1349784 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1238411 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1231927 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1202351 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1313002 app-kernel us p50<=32 p90<=128 p99<=2048 p99.9<=4096 max<=4096
+ INFO collector: host delay window=frames 1328719 app-kernel us p50<=32 p90<=64 p99<=2048 p99.9<=4096 max<=4096
+ INFO collector: host delay window=frames 1358373 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1405353 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1351959 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1312751 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1358367 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1319871 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1386665 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1266312 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1243117 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1301008 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1305302 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1360212 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1350117 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1297955 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1303230 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1281303 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1243309 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1266003 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1211895 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1249317 app-kernel us p50<=32 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1287571 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1324219 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1193510 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1286673 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1226750 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1172251 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1229434 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1226512 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1318970 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1356503 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1402731 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1395298 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1372007 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1371718 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1321034 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1305899 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1365005 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1346796 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1309875 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1380947 app-kernel us p50<=32 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1338095 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1322312 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1332018 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1302950 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1299372 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1192604 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1210350 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1151912 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1214983 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1235504 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1239249 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1217476 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1142298 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1225376 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1152215 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1162276 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1103401 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=16384
+ INFO collector: host delay window=frames 1225525 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1295562 app-kernel us p50<=32 p90<=64 p99<=512 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1283134 app-kernel us p50<=32 p90<=64 p99<=1024 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1313012 app-kernel us p50<=32 p90<=128 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1261873 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1161748 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1250523 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1186664 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1204229 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1198287 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1126310 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1187590 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1216597 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1219835 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1227647 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1216023 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=16384
+ INFO collector: host delay window=frames 1197172 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1118223 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1163120 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1164376 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1224666 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1230262 app-kernel us p50<=16 p90<=64 p99<=512 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1296814 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=4096
+ INFO collector: host delay window=frames 1201174 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1188532 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1159592 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1219938 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1139179 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1208470 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1108857 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1114442 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1225277 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1302117 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1279350 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1257558 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1275435 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1186198 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1244517 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1223042 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1220601 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1236420 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1210244 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1218924 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=4096
+ INFO collector: host delay window=frames 1173869 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1182116 app-kernel us p50<=64 p90<=1024 p99<=4096 p99.9<=8192 max<=65536
+ INFO collector: host delay window=frames 1241682 app-kernel us p50<=32 p90<=256 p99<=2048 p99.9<=4096 max<=16384
+ INFO collector: host delay window=frames 1210783 app-kernel us p50<=32 p90<=64 p99<=1024 p99.9<=4096 max<=16384
+ INFO collector: host delay window=frames 1134902 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=16384
+ INFO collector: host delay window=frames 1200557 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1113339 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1137360 app-kernel us p50<=16 p90<=64 p99<=512 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1188890 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1145797 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1134787 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1183903 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1177971 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1157432 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1111849 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1109342 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1190175 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1196428 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1279483 app-kernel us p50<=32 p90<=64 p99<=512 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1261091 app-kernel us p50<=32 p90<=64 p99<=1024 p99.9<=4096 max<=4096
+ INFO collector: host delay window=frames 1183224 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1341262 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1225319 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1209312 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1210795 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1296631 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1320680 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1167787 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1295410 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1283816 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1206920 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1353507 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1397278 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1155145 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1254297 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1181502 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1201236 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1255428 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1308059 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1289910 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1287456 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1235900 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1281713 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=2048
+ INFO collector: host delay window=frames 1300527 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1210605 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1194667 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1161694 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1145336 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1226451 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1297824 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1263137 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1233763 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1260770 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1242524 app-kernel us p50<=32 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1273423 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1250727 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1232977 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1263435 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1272009 app-kernel us p50<=16 p90<=64 p99<=512 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1188077 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1207246 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1202794 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1235872 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1224263 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1223883 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1149122 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1214041 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1203905 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1203242 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1154456 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1212759 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1145986 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1239160 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1208900 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1164585 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1109976 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1121783 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1075317 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1299186 app-kernel us p50<=32 p90<=64 p99<=512 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1317421 app-kernel us p50<=32 p90<=128 p99<=1024 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1370688 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1366839 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1258268 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1210203 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1225128 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1270695 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1273005 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1144500 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1206986 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1244304 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1275420 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1309812 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1198228 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1279129 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1222473 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1164697 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1234220 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1232146 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1227278 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1229996 app-kernel us p50<=16 p90<=64 p99<=1024 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1281827 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1254912 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1247764 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=8192
+ INFO collector: host delay window=frames 1323353 app-kernel us p50<=32 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1295667 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1279002 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1257994 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 1212940 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=2048
+ INFO collector: host delay window=frames 1278329 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1265260 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=8192
+ INFO collector: host delay window=frames 1272480 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=2048 max<=16384
+ INFO collector: host delay window=frames 512053 app-kernel us p50<=32 p90<=512 p99<=4096 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1251550 app-kernel us p50<=32 p90<=64 p99<=2048 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1267830 app-kernel us p50<=16 p90<=64 p99<=256 p99.9<=1024 max<=4096
+ INFO collector: host delay window=frames 1245369 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=4096
+ INFO collector: host delay window=frames 1342202 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1245241 app-kernel us p50<=16 p90<=32 p99<=128 p99.9<=512 max<=4096
+ INFO collector: host delay window=frames 1267082 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=2048 max<=8192
+ INFO collector: host delay window=frames 1247584 app-kernel us p50<=16 p90<=64 p99<=2048 p99.9<=4096 max<=8192
+ INFO collector: host delay window=frames 1294493 app-kernel us p50<=16 p90<=64 p99<=128 p99.9<=512 max<=4096
+-- clock
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+ INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=-0.0 rtt_ms=0.1
+302 System time : 0.000000970 seconds slow of NTP time|RMS offset : 0.000002381 seconds|Root dispersion : 0.000037583 seconds|
+609 System time : 0.000000212 seconds slow of NTP time|RMS offset : 0.000002409 seconds|Root dispersion : 0.000039309 seconds|
+900 System time : 0.000000066 seconds fast of NTP time|RMS offset : 0.000001235 seconds|Root dispersion : 0.000045771 seconds|
+1203 System time : 0.000000223 seconds fast of NTP time|RMS offset : 0.000000672 seconds|Root dispersion : 0.000043680 seconds|
+1505 System time : 0.000000281 seconds fast of NTP time|RMS offset : 0.000000443 seconds|Root dispersion : 0.000039002 seconds|
+1807 System time : 0.000000072 seconds fast of NTP time|RMS offset : 0.000000632 seconds|Root dispersion : 0.000037921 seconds|
+2108 System time : 0.000000333 seconds fast of NTP time|RMS offset : 0.000000411 seconds|Root dispersion : 0.000031895 seconds|
+2408 System time : 0.000000982 seconds fast of NTP time|RMS offset : 0.000000909 seconds|Root dispersion : 0.000024236 seconds|
+2700 System time : 0.000000329 seconds fast of NTP time|RMS offset : 0.000000428 seconds|Root dispersion : 0.000023617 seconds|
+3009 System time : 0.000001332 seconds slow of NTP time|RMS offset : 0.000000755 seconds|Root dispersion : 0.000029975 seconds|
+3301 System time : 0.000000067 seconds fast of NTP time|RMS offset : 0.000000470 seconds|Root dispersion : 0.000027647 seconds|
+3601 System time : 0.000000003 seconds fast of NTP time|RMS offset : 0.000000286 seconds|Root dispersion : 0.000037338 seconds|
+3903 System time : 0.000000601 seconds slow of NTP time|RMS offset : 0.000000451 seconds|Root dispersion : 0.000031798 seconds|
+4204 System time : 0.000000198 seconds slow of NTP time|RMS offset : 0.000000288 seconds|Root dispersion : 0.000025009 seconds|
+4506 System time : 0.000000160 seconds slow of NTP time|RMS offset : 0.000000415 seconds|Root dispersion : 0.000036029 seconds|
+4806 System time : 0.000000426 seconds slow of NTP time|RMS offset : 0.000000565 seconds|Root dispersion : 0.000033168 seconds|
+5108 System time : 0.000000140 seconds slow of NTP time|RMS offset : 0.000000519 seconds|Root dispersion : 0.000047355 seconds|
+5406 System time : 0.000001028 seconds slow of NTP time|RMS offset : 0.000000442 seconds|Root dispersion : 0.000028996 seconds|
+5708 System time : 0.000000509 seconds slow of NTP time|RMS offset : 0.000000573 seconds|Root dispersion : 0.000022327 seconds|
+6006 System time : 0.000000240 seconds slow of NTP time|RMS offset : 0.000000486 seconds|Root dispersion : 0.000029297 seconds|
+6307 System time : 0.000000258 seconds fast of NTP time|RMS offset : 0.000000322 seconds|Root dispersion : 0.000024386 seconds|
+6606 System time : 0.000000270 seconds slow of NTP time|RMS offset : 0.000000353 seconds|Root dispersion : 0.000034104 seconds|
+6908 System time : 0.000000260 seconds fast of NTP time|RMS offset : 0.000000335 seconds|Root dispersion : 0.000031527 seconds|
+-- status (every 10th, and the last)
+ INFO collector: status tokens=304586 sourced=289979 conns=240 per_core=[152476, 152110] stalls=0 queue_hwm_mb=1.8332672119140625 queue_waits=0 m=Metrics { updates: 298117, snapshots: 690902, switches: 312, lag_switches: 0, hash_ok: 584660, hash_miss: 1718, hash_healed: 1680, divergent: 42, hash_agreed: 918, resnapshots: 561, book_miss: 20, book_diffs: 1, disconnects: 0, recycles: 0, markets_added: 152293, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 544, wire: n=225360 p50<=8.2ms p99<=65.5ms max=297.4ms, queue: n=226915 p50<=0.1ms p99<=8.2ms max=25.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488502 sourced=488500 conns=392 per_core=[244344, 244158] stalls=0 queue_hwm_mb=2.6692352294921875 queue_waits=0 m=Metrics { updates: 10188375, snapshots: 5885638, switches: 14611, lag_switches: 0, hash_ok: 10586174, hash_miss: 54055, hash_healed: 55743, divergent: 1290, hash_agreed: 50962, resnapshots: 15086, book_miss: 75, book_diffs: 41, disconnects: 0, recycles: 0, markets_added: 244483, markets_removed: 232, quiet_resubs: 352, quiet_caught: 20, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 15012, wire: n=10105040 p50<=8.2ms p99<=32.8ms max=982.5ms, queue: n=10155421 p50<=0.0ms p99<=8.2ms max=47.3ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488178 sourced=488176 conns=392 per_core=[244218, 243960] stalls=0 queue_hwm_mb=18.004638671875 queue_waits=0 m=Metrics { updates: 20325509, snapshots: 11714592, switches: 34254, lag_switches: 2, hash_ok: 20645028, hash_miss: 101575, hash_healed: 103655, divergent: 1724, hash_agreed: 97430, resnapshots: 27532, book_miss: 89, book_diffs: 121, disconnects: 3, recycles: 0, markets_added: 244503, markets_removed: 414, quiet_resubs: 1983, quiet_caught: 88, quiet_reconnects: 0, unplaced: 0, rot_early: 18895, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 34685, wire: n=20248684 p50<=8.2ms p99<=32.8ms max=3312.9ms, queue: n=20345285 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488312 sourced=488310 conns=392 per_core=[244302, 244010] stalls=0 queue_hwm_mb=18.004638671875 queue_waits=0 m=Metrics { updates: 30631116, snapshots: 16636748, switches: 51266, lag_switches: 2, hash_ok: 30873000, hash_miss: 147952, hash_healed: 151061, divergent: 2157, hash_agreed: 142588, resnapshots: 39579, book_miss: 108, book_diffs: 260, disconnects: 10, recycles: 0, markets_added: 244631, markets_removed: 475, quiet_resubs: 4637, quiet_caught: 214, quiet_reconnects: 0, unplaced: 0, rot_early: 18895, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 54186, wire: n=30553385 p50<=8.2ms p99<=65.5ms max=3312.9ms, queue: n=30735379 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488370 sourced=488368 conns=392 per_core=[244322, 244048] stalls=0 queue_hwm_mb=18.375137329101563 queue_waits=0 m=Metrics { updates: 40650554, snapshots: 22448522, switches: 62869, lag_switches: 2, hash_ok: 40813711, hash_miss: 194379, hash_healed: 198688, divergent: 2469, hash_agreed: 188061, resnapshots: 51164, book_miss: 122, book_diffs: 417, disconnects: 13, recycles: 0, markets_added: 244724, markets_removed: 539, quiet_resubs: 7422, quiet_caught: 358, quiet_reconnects: 0, unplaced: 0, rot_early: 36205, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 65818, wire: n=40578359 p50<=8.2ms p99<=65.5ms max=3312.9ms, queue: n=40832778 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488492 sourced=488490 conns=392 per_core=[244354, 244138] stalls=0 queue_hwm_mb=18.375137329101563 queue_waits=0 m=Metrics { updates: 50661450, snapshots: 27354260, switches: 73505, lag_switches: 2, hash_ok: 50754356, hash_miss: 238633, hash_healed: 244884, divergent: 2763, hash_agreed: 231300, resnapshots: 61864, book_miss: 138, book_diffs: 542, disconnects: 13, recycles: 0, markets_added: 244853, markets_removed: 607, quiet_resubs: 10410, quiet_caught: 462, quiet_reconnects: 0, unplaced: 0, rot_early: 36205, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 76464, wire: n=50598579 p50<=8.2ms p99<=65.5ms max=3312.9ms, queue: n=50942838 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488388 sourced=488386 conns=392 per_core=[244312, 244076] stalls=0 queue_hwm_mb=18.375137329101563 queue_waits=0 m=Metrics { updates: 61176574, snapshots: 33185088, switches: 94176, lag_switches: 2, hash_ok: 61181319, hash_miss: 283168, hash_healed: 306625, divergent: 3082, hash_agreed: 274701, resnapshots: 73127, book_miss: 168, book_diffs: 661, disconnects: 21, recycles: 0, markets_added: 244861, markets_removed: 667, quiet_resubs: 13303, quiet_caught: 550, quiet_reconnects: 0, unplaced: 0, rot_early: 53499, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 97161, wire: n=61105117 p50<=8.2ms p99<=65.5ms max=3312.9ms, queue: n=61490872 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488618 sourced=488616 conns=396 per_core=[244428, 244190] stalls=0 queue_hwm_mb=18.375137329101563 queue_waits=0 m=Metrics { updates: 70769257, snapshots: 38101574, switches: 109386, lag_switches: 8, hash_ok: 70712787, hash_miss: 326898, hash_healed: 347527, divergent: 3373, hash_agreed: 317560, resnapshots: 83745, book_miss: 175, book_diffs: 814, disconnects: 24, recycles: 0, markets_added: 245181, markets_removed: 872, quiet_resubs: 16260, quiet_caught: 700, quiet_reconnects: 0, unplaced: 0, rot_early: 53499, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 112379, wire: n=70708385 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=71252426 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=489434 sourced=489396 conns=396 per_core=[244816, 244618] stalls=0 queue_hwm_mb=18.390975952148438 queue_waits=0 m=Metrics { updates: 80160718, snapshots: 43924124, switches: 123430, lag_switches: 8, hash_ok: 80030223, hash_miss: 374303, hash_healed: 401030, divergent: 3673, hash_agreed: 363457, resnapshots: 95537, book_miss: 192, book_diffs: 962, disconnects: 25, recycles: 0, markets_added: 245620, markets_removed: 903, quiet_resubs: 19179, quiet_caught: 826, quiet_reconnects: 0, unplaced: 0, rot_early: 71883, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 126458, wire: n=80114627 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=80874722 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=489344 sourced=489342 conns=396 per_core=[244768, 244576] stalls=0 queue_hwm_mb=18.390975952148438 queue_waits=0 m=Metrics { updates: 89583527, snapshots: 48872428, switches: 143664, lag_switches: 8, hash_ok: 89388928, hash_miss: 418592, hash_healed: 441603, divergent: 3918, hash_agreed: 407037, resnapshots: 106181, book_miss: 198, book_diffs: 1113, disconnects: 38, recycles: 0, markets_added: 245628, markets_removed: 956, quiet_resubs: 22178, quiet_caught: 967, quiet_reconnects: 0, unplaced: 0, rot_early: 71883, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 153852, wire: n=89526026 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=90320775 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488906 sourced=488904 conns=396 per_core=[244528, 244378] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 98905407, snapshots: 54707858, switches: 161900, lag_switches: 8, hash_ok: 98647384, hash_miss: 464578, hash_healed: 477268, divergent: 4106, hash_agreed: 452529, resnapshots: 116811, book_miss: 205, book_diffs: 1232, disconnects: 48, recycles: 0, markets_added: 245643, markets_removed: 1190, quiet_resubs: 25164, quiet_caught: 1083, quiet_reconnects: 0, unplaced: 0, rot_early: 89073, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 172091, wire: n=98857491 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=99694074 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=488038 sourced=488036 conns=396 per_core=[244094, 243944] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 108367223, snapshots: 59651126, switches: 190593, lag_switches: 356, hash_ok: 108032585, hash_miss: 509746, hash_healed: 523190, divergent: 4391, hash_agreed: 496596, resnapshots: 127795, book_miss: 222, book_diffs: 1371, disconnects: 71, recycles: 0, markets_added: 245652, markets_removed: 1633, quiet_resubs: 28070, quiet_caught: 1207, quiet_reconnects: 0, unplaced: 0, rot_early: 89073, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 200813, wire: n=108314744 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=109190120 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487780 sourced=487778 conns=400 per_core=[243974, 243806] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 117957593, snapshots: 65709800, switches: 328426, lag_switches: 466, hash_ok: 117541261, hash_miss: 554283, hash_healed: 572838, divergent: 4648, hash_agreed: 539773, resnapshots: 138930, book_miss: 226, book_diffs: 1541, disconnects: 77, recycles: 76, markets_added: 245660, markets_removed: 1770, quiet_resubs: 31041, quiet_caught: 1361, quiet_reconnects: 0, unplaced: 0, rot_early: 105280, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 338667, wire: n=117902118 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=118816427 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487742 sourced=487740 conns=396 per_core=[243950, 243792] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 127185168, snapshots: 71702932, switches: 886190, lag_switches: 466, hash_ok: 126675684, hash_miss: 606275, hash_healed: 626096, divergent: 5772, hash_agreed: 589989, resnapshots: 152992, book_miss: 244, book_diffs: 1684, disconnects: 79, recycles: 392, markets_added: 245679, markets_removed: 1808, quiet_resubs: 34031, quiet_caught: 1492, quiet_reconnects: 0, unplaced: 0, rot_early: 105280, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 896435, wire: n=127205474 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=128164667 p50<=0.0ms p99<=8.2ms max=55.4ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487942 sourced=487940 conns=396 per_core=[244050, 243892] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 136474416, snapshots: 77527194, switches: 906808, lag_switches: 481, hash_ok: 135879942, hash_miss: 656998, hash_healed: 684504, divergent: 6385, hash_agreed: 639238, resnapshots: 166536, book_miss: 266, book_diffs: 1888, disconnects: 84, recycles: 392, markets_added: 245814, markets_removed: 1843, quiet_resubs: 37031, quiet_caught: 1660, quiet_reconnects: 0, unplaced: 0, rot_early: 124338, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 917082, wire: n=136510499 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=137562109 p50<=0.0ms p99<=8.2ms max=55.7ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487874 sourced=487872 conns=396 per_core=[244016, 243858] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 146268642, snapshots: 82465770, switches: 929791, lag_switches: 481, hash_ok: 145582623, hash_miss: 703364, hash_healed: 747332, divergent: 6754, hash_agreed: 684668, resnapshots: 178088, book_miss: 272, book_diffs: 2068, disconnects: 96, recycles: 392, markets_added: 245823, markets_removed: 1886, quiet_resubs: 40031, quiet_caught: 1829, quiet_reconnects: 0, unplaced: 0, rot_early: 124338, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 947033, wire: n=146292830 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=147379571 p50<=0.0ms p99<=8.2ms max=55.7ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487910 sourced=487908 conns=396 per_core=[244026, 243884] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 156046196, snapshots: 88352756, switches: 982035, lag_switches: 1336, hash_ok: 155280155, hash_miss: 751138, hash_healed: 794754, divergent: 7112, hash_agreed: 731511, resnapshots: 191104, book_miss: 288, book_diffs: 2180, disconnects: 129, recycles: 392, markets_added: 245875, markets_removed: 1920, quiet_resubs: 42998, quiet_caught: 1933, quiet_reconnects: 0, unplaced: 0, rot_early: 141560, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 999279, wire: n=156066118 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=157209057 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487870 sourced=487868 conns=396 per_core=[244006, 243864] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 165495591, snapshots: 93303826, switches: 1018180, lag_switches: 1358, hash_ok: 164659376, hash_miss: 799305, hash_healed: 834131, divergent: 7502, hash_agreed: 778899, resnapshots: 202764, book_miss: 299, book_diffs: 2304, disconnects: 150, recycles: 392, markets_added: 245886, markets_removed: 1951, quiet_resubs: 45923, quiet_caught: 2054, quiet_reconnects: 0, unplaced: 0, rot_early: 141560, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1035433, wire: n=165523450 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=166702917 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487796 sourced=487794 conns=396 per_core=[243972, 243824] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 175116119, snapshots: 99118554, switches: 1034105, lag_switches: 1358, hash_ok: 174207478, hash_miss: 847127, hash_healed: 875253, divergent: 7816, hash_agreed: 825905, resnapshots: 213871, book_miss: 307, book_diffs: 2414, disconnects: 152, recycles: 392, markets_added: 245894, markets_removed: 1996, quiet_resubs: 48828, quiet_caught: 2160, quiet_reconnects: 0, unplaced: 0, rot_early: 162320, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1051369, wire: n=175153045 p50<=8.2ms p99<=65.5ms max=3806.7ms, queue: n=176367728 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487806 sourced=487804 conns=396 per_core=[243954, 243852] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 184373103, snapshots: 104059608, switches: 1064599, lag_switches: 1556, hash_ok: 183398860, hash_miss: 891811, hash_healed: 914410, divergent: 8108, hash_agreed: 869682, resnapshots: 224526, book_miss: 316, book_diffs: 2548, disconnects: 166, recycles: 396, markets_added: 246094, markets_removed: 2191, quiet_resubs: 51795, quiet_caught: 2290, quiet_reconnects: 0, unplaced: 0, rot_early: 162320, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1081871, wire: n=184415021 p50<=8.2ms p99<=65.5ms max=6802.0ms, queue: n=185747402 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487794 sourced=487718 conns=396 per_core=[243948, 243846] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 193718520, snapshots: 109925564, switches: 1103300, lag_switches: 2508, hash_ok: 192664694, hash_miss: 942233, hash_healed: 968723, divergent: 8440, hash_agreed: 918460, resnapshots: 238288, book_miss: 337, book_diffs: 2691, disconnects: 185, recycles: 396, markets_added: 246555, markets_removed: 2658, quiet_resubs: 54691, quiet_caught: 2417, quiet_reconnects: 0, unplaced: 0, rot_early: 182581, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1125067, wire: n=193762658 p50<=8.2ms p99<=65.5ms max=6812.5ms, queue: n=195324775 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487800 sourced=487798 conns=396 per_core=[243948, 243852] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 203398322, snapshots: 114844852, switches: 1123890, lag_switches: 2730, hash_ok: 202268086, hash_miss: 986975, hash_healed: 1014162, divergent: 8679, hash_agreed: 962398, resnapshots: 249295, book_miss: 357, book_diffs: 2837, disconnects: 197, recycles: 396, markets_added: 246603, markets_removed: 2703, quiet_resubs: 57519, quiet_caught: 2554, quiet_reconnects: 0, unplaced: 0, rot_early: 182581, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1145676, wire: n=203441920 p50<=8.2ms p99<=65.5ms max=6812.5ms, queue: n=205054793 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=487790 sourced=487788 conns=396 per_core=[243960, 243830] stalls=0 queue_hwm_mb=18.462188720703125 queue_waits=0 m=Metrics { updates: 212975068, snapshots: 120667076, switches: 1143719, lag_switches: 2795, hash_ok: 211774099, hash_miss: 1034072, hash_healed: 1054638, divergent: 8922, hash_agreed: 1008846, resnapshots: 260161, book_miss: 362, book_diffs: 2977, disconnects: 204, recycles: 396, markets_added: 246627, markets_removed: 2732, quiet_resubs: 60416, quiet_caught: 2690, quiet_reconnects: 0, unplaced: 0, rot_early: 201588, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 1165517, wire: n=213024399 p50<=8.2ms p99<=65.5ms max=6812.5ms, queue: n=214685890 p50<=0.0ms p99<=8.2ms max=57.5ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=493088 sourced=455334 conns=396 per_core=[246616, 246472] stalls=0 queue_hwm_mb=2.3458251953125 queue_waits=0 m=Metrics { updates: 610956, snapshots: 1191840, switches: 364, lag_switches: 0, hash_ok: 1060223, hash_miss: 2349, hash_healed: 4795, divergent: 117, hash_agreed: 678, resnapshots: 952, book_miss: 82, book_diffs: 13, disconnects: 0, recycles: 0, markets_added: 246627, markets_removed: 83, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 925, wire: n=399900 p50<=8.2ms p99<=131.1ms max=367.8ms, queue: n=402782 p50<=0.1ms p99<=8.2ms max=148.1ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: status tokens=492564 sourced=487122 conns=396 per_core=[246364, 246200] stalls=0 queue_hwm_mb=18.1605224609375 queue_waits=0 m=Metrics { updates: 8533956, snapshots: 6071386, switches: 7534, lag_switches: 0, hash_ok: 8979406, hash_miss: 22064, hash_healed: 33498, divergent: 1128, hash_agreed: 18646, resnapshots: 51727, book_miss: 96, book_diffs: 30, disconnects: 0, recycles: 0, markets_added: 246665, markets_removed: 383, quiet_resubs: 174, quiet_caught: 8, quiet_reconnects: 0, unplaced: 0, rot_early: 19381, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 8227, wire: n=8288370 p50<=8.2ms p99<=32.8ms max=1770.0ms, queue: n=8318720 p50<=0.0ms p99<=8.2ms max=148.1ms, src_behind: n=0, src_wire: n=0 }
+-- thread budget
+ INFO collector: thread budget cpus=4 cores=2 io=2 pinned=true
+ INFO collector: core threads started cores=2
+ INFO collector: thread budget cpus=4 cores=2 io=2 pinned=true
+ INFO collector: core threads started cores=2
+-- edges / per-socket latency (last 3 windows)
+ INFO collector: websocket edges edges=[104.18.34.205:443, 172.64.153.51:443]
+ INFO collector: websocket edges edges=[104.18.34.205:443, 172.64.153.51:443]
+-- warn/error
+     57  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: A
+     55  WARN engineering_challenge::conn: connection lost  reason=read: WebSocket protocol error: Connection re
+     51  WARN engineering_challenge::conn: connection lost  reason=read: WebSocket protocol error: Connecti
+     39  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Again,
+      9  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Away, 
+      4  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Away, r
+      2  WARN engineering_challenge::conn: connection lost  reason=no frame for 
+      1 ERROR engineering_challenge::supervise: supervisor: child died; restarting status=signal: 9 (SIGKILL) ran=6909.8
+      1  WARN engineering_challenge::supervise: recovered crashed rotated file file=out-main/ob.20261025T0810Z.sbe dropp
+      1  WARN engineering_challenge::core::health: socket quiet while its peer is not; reconnecting 
+      1  WARN engineering_challenge::conn: connection lost  reason=server closed: Some(CloseFrame { code: Away, re
+      1  WARN engineering_challenge::conn: connection lost  reason=reconnect requested
+slow consumer closes: 73
+writer backpressure: 0
+-- supervisor
+ INFO engineering_challenge::supervise: supervisor: child started pid=7757 restarts=0
+ERROR engineering_challenge::supervise: supervisor: child died; restarting status=signal: 9 (SIGKILL) ran=6909.890222314s wait=1s
+ WARN engineering_challenge::supervise: recovered crashed rotated file file=out-main/ob.20261025T0810Z.sbe dropped_bytes=0
+ INFO engineering_challenge::supervise: supervisor: child started pid=47707 restarts=1
+ INFO engineering_challenge::supervise: supervisor: child finished status=exit status: 0 ran=290.91401053s restarts=1
+ INFO collector: supervisor: done restarts=1
+-- done
+ INFO collector: done updates=9165951 snapshots=6397322 m=Metrics { updates: 9165951, snapshots: 6397322, switches: 8022, lag_switches: 0, hash_ok: 9608176, hash_miss: 23461, hash_healed: 36593, divergent: 1169, hash_agreed: 19976, resnapshots: 61835, book_miss: 96, book_diffs: 32, disconnects: 0, recycles: 0, markets_added: 246665, markets_removed: 450, quiet_resubs: 252, quiet_caught: 10, quiet_reconnects: 0, unplaced: 0, rot_early: 19381, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 8715, wire: n=8921196 p50<=8.2ms p99<=32.8ms max=1770.0ms, queue: n=8953398 p50<=0.0ms p99<=8.2ms max=148.1ms, src_behind: n=0, src_wire: n=0 }
+ INFO collector: supervisor: done restarts=1

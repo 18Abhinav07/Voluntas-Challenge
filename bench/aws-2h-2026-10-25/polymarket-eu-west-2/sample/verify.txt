@@ -1,0 +1,7 @@
+file:      /home/ubuntu/results/sample/ob.sbe
+span:      119.7s, 1988 symbols
+messages:  5958 snapshots, 5432 updates (45/s)
+replay:    3970 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 4 p50 5 p90 14 p99 183 p99.9 323 max 347
+OK

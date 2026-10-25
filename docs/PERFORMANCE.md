@@ -40,6 +40,29 @@ Notes on reading these:
 - **Host delay** is the time from the kernel receiving a frame to the collector reading it
   (`--kernel-ts`, `SO_TIMESTAMPNS`). This is the part the collector controls.
 
+## Full universe, 2 hours (25 October)
+
+The same host type and flags, run for 2 hours with `MAIN_SECS=7200` on build 23db0d7 (collector
+code as 89055df). A Kalshi demo run went alongside it from Virginia ([KALSHI.md](KALSHI.md)). Raw
+files: [bench/aws-2h-2026-10-25/](../bench/aws-2h-2026-10-25/).
+
+| Check | Result |
+|---|---|
+| Coverage | 487.8k–488.4k tokens, 99.999% sourced, `unplaced 0`, on 392–400 sockets |
+| Throughput | 31–34k updates/s; 231.7M updates in 14 files, about 58 GB |
+| Correctness | 118.2M snapshots matched the rebuilt book, **0 did not** |
+| Host delay, 239 windows of 30 s | p50 ≤ 16–32 µs; p99 ≤ 128–256 µs in 210 windows |
+| recv − exch, per file | p50 5–6 ms, p90 7–8 ms, p99 19–128 ms |
+| Wire / core queue | wire p50 ≤ 8.2 ms, p99 ≤ 32.8 ms; core queue p99 ≤ 8.2 ms |
+| CPU, steady mean, % of one CPU | core threads 41, tokio workers 48, writer 7; load 1.1 of 4 |
+| Memory | RSS 1,785 MB mean, 1,969 MB peak, flat across both hours |
+| Writer | queue peak 18 MB; 0 backpressure waits; 0 disk stalls |
+| `kill -9` of the child at t = 6,908 s | restarted in 1 s; the open file was recovered and verified; the new child ran 291 s and exited 0 |
+| Venue-side drops | 110 server closes (73 "slow consumer") and 106 resets, each reconnected while the peer replica held the book |
+
+The universe was about 60k tokens smaller than the day before; Polymarket had delisted resolved
+markets. The cost was about $0.72 for both hosts.
+
 ## Tuning rounds
 
 Same host type and region, one more day (2026-10-25): five A/B rounds on `--fast-source`,

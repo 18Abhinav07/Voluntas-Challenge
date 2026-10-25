@@ -70,6 +70,7 @@ Full universe (about 566k tokens, about 450 sockets) unless noted.
 | A/B arm A, 15 min, 5-min files | Codespace | 8.4 s | 1.05 s | includes a forced 15 s freeze |
 | Lat 1, 20 min, 400 markets × 8 sockets | Codespace WestEurope | 262 ms (`verify`: p50 7 ms, p99 153 ms) | <1 ms | the experiment below; a small load, so no in-process stalls |
 | AWS, 60 min | c7i.xlarge eu-west-2, chrony | ≤ 66 ms (p50 ≤ 16 ms) | ≤ 8 ms | full universe; host delay (kernel → app) p50 ≤ 32 µs, p99 ≤ 128–256 µs |
+| AWS, 120 min | c7i.xlarge eu-west-2, chrony | ≤ 32.8 ms (p50 ≤ 8.2 ms) | ≤ 8.2 ms | 488k tokens; `verify` p50 5–6 ms; host delay p50 ≤ 16–32 µs |
 
 **Region probe** (AWS, the same 2,000 markets for 10 minutes, started at the same second, chrony
 on every host; `recv − exch` from `verify`):
