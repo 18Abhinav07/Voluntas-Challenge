@@ -1585,3 +1585,16 @@ about **$0.39**.
   region.
 - **Docs:** PERFORMANCE gets a 2-hour section; README, KALSHI, LATENCY, HOW_TO_RUN and the page
   (Runs stage 5, Kalshi tab) carry the numbers. Files: `bench/aws-2h-2026-10-25/`.
+
+## Turn — Reproducibility from the zip
+
+- **Why:** a reviewer gets only the zip, so it has to build and pass with nothing else present.
+- **Method:** the zip from 9725322 unpacked into an empty folder outside the repo, then
+  `cargo build --release --bins`, `verify` on the unpacked `sample/ob.sbe.gz`, and
+  `cargo test --release`.
+- **Result:** the build took 46 s; `verify` printed OK with 0 mismatches; 97 tests passed, 0
+  failed, 1 ignored on purpose. The zip holds no `.env`, `.pem`, universe file or `target/`. CI
+  and Pages passed for 9725322.
+- **Fix:** `bench/ab.sh`, `bench/check.sh` and `bench/lat.sh` were committed as 644, so
+  `./bench/lat.sh` failed with "permission denied". All three are now 755, like the other bench
+  scripts.
