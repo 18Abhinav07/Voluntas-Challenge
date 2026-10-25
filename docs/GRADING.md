@@ -55,7 +55,7 @@ What to look at in the collector's stderr while it runs:
   counters" below).
 - The `done` line at the end gives totals. A clean run has `unplaced: 0` and a high `hash_ok`.
 
-The full universe (about 550k tokens, about 450 sockets) used 1.9 GB RSS at peak and about 1.1 of
+The full universe (about 550k tokens, about 450 sockets) used 1.9 GB RSS at peak and about 1.2 of
 4 vCPU on a c7i.xlarge, and writes about 30 GB of disk an hour (docs/PERFORMANCE.md). Run it with no `--max-markets`. `bench/gate.sh` does that with
 faults injected (see below).
 
@@ -76,7 +76,7 @@ faults injected (see below).
 | SIGTERM flushes and closes the file | e2e `sigterm_flushes_and_exits_cleanly` | `cargo test --release --test e2e sigterm` |
 | The venue hash check matches Polymarket's | golden tests on captured live frames | `cargo test --release --test golden` |
 | Kalshi: a second venue on the same engine | `tests/kalshi_e2e.rs`: baseline, seq gap → failover, listing | `cargo test --release --test kalshi_e2e` |
-| Failover, integrity and recycling logic | 46 core unit tests | `cargo test --release --lib core::` |
+| Failover, integrity and recycling logic | 48 core unit tests | `cargo test --release --lib core::` |
 | Full universe for hours, no restart | 2.5 h soak: 16 files, 0 mismatches, 0 restarts | `REV=<commit> DUR=9000 ROT=10 NAME=soak bash bench/gate.sh` |
 | Latency, CPU and memory on a production-like host | AWS c7i.xlarge, 60 min full universe; three-region probe (PERFORMANCE) | `bench/aws/run.sh all` (AWS-RUN) |
 | Freeze and kill -9 recover live | 25-min gate: SIGSTOP 15 s, kill -9, 0 mismatches in 7 files | `REV=<commit> DUR=1500 STOP_AT=500 KILL_AT=900 bash bench/gate.sh` |

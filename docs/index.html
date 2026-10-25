@@ -168,13 +168,13 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 <!-- ============================================================ HOW IT WORKS -->
 <section class="panel" id="how" role="tabpanel" aria-labelledby="t-how">
   <h2>The result</h2>
-  <p>The full Polymarket universe for an hour on one AWS c7i.xlarge in London (4 vCPU, 8 GB).</p>
+  <p>Two hours on AWS, both venues at once: Polymarket's full universe from London (c7i.xlarge, 4 vCPU, 8 GB) and Kalshi's whole demo universe from Virginia. The hour-long run the day before held 550k Polymarket books at 42k updates/s.</p>
   <div class="stats">
-    <div class="stat"><b>550k</b><span>order books held, on about 450 websockets</span></div>
-    <div class="stat"><b>42k/s</b><span>price-level updates written</span></div>
-    <div class="stat"><b>0</b><span>mismatches in about 55M snapshots replayed</span></div>
-    <div class="stat"><b>8 ms</b><span>p50, exchange event to collector</span></div>
-    <div class="stat"><b>1.9 GB</b><span>peak memory; load 1.2 of 4 CPUs</span></div>
+    <div class="stat"><b>690k</b><span>order books held: 488k Polymarket, 200k Kalshi, on about 560 websockets</span></div>
+    <div class="stat"><b>264M</b><span>price-level updates written in the two hours</span></div>
+    <div class="stat"><b>0</b><span>mismatches in 167M snapshots replayed</span></div>
+    <div class="stat"><b>5–6 ms</b><span>p50, exchange event to collector, London</span></div>
+    <div class="stat"><b>2.0 GB</b><span>peak memory for the full Polymarket universe; load 1.1 of 4 CPUs</span></div>
   </div>
 
   <h2>The pipeline</h2>
@@ -350,7 +350,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
   <h2>How correctness is proven</h2>
   <p>The output carries its own proof. A snapshot of a side plus every update after it must equal the next snapshot of that side, exactly. <code>verify</code> rebuilds every book from the updates and checks this for every snapshot in a file; any mismatch exits non-zero.</p>
   <div class="stats">
-    <div class="stat"><b>~1B</b><span>price-level updates written across the runs</span></div>
+    <div class="stat"><b>1.2B+</b><span>price-level updates written across the runs</span></div>
     <div class="stat"><b>0</b><span>replay mismatches in any closed file</span></div>
     <div class="stat"><b>99</b><span>offline tests, run in CI with clippy and a Docker build</span></div>
     <div class="stat"><b>12</b><span>faults injected against mock venues, end to end</span></div>
@@ -358,7 +358,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
   <div class="rows">
     <div class="row"><div>Offline</div><div>Unit tests; golden tests on captured live frames; 10 faults injected into a mock Polymarket (a dropped socket, a silent socket, a stall, a delay, a corrupt update, 429s, a resolution, a panic, <code>kill -9</code>, SIGTERM) and 2 into a mock Kalshi (a <code>seq</code> gap, a new listing), each beside a clean baseline. Each runs the real binary and checks its output with <code>verify</code>.</div></div>
     <div class="row"><div>Live, on purpose</div><div>All 224 sockets to one edge killed at once; the process frozen for 15 s with SIGSTOP; <code>kill -9</code> of the child under <code>--supervise</code>; all 448 sockets recycled every hour. Every file replayed with <span class="zero">0</span> mismatches.</div></div>
-    <div class="row"><div>Live, by the venue</div><div>535 disconnects in the Codespace soaks and 29 &ldquo;slow consumer&rdquo; closes in the AWS hour, each reconnected on its own while the peer replica kept the books; the files still replayed with <span class="zero">0</span> mismatches.</div></div>
+    <div class="row"><div>Live, by the venue</div><div>535 disconnects in the Codespace soaks, 29 &ldquo;slow consumer&rdquo; closes in the AWS hour, and over 400 closes, resets and <code>429</code>s across both venues in the two-hour run, each reconnected on its own while the peer replica kept the books; the files still replayed with <span class="zero">0</span> mismatches.</div></div>
     <div class="row"><div>Reproducible</div><div><code>bench/aws/run.sh all</code> launches the hosts, runs the gates, pulls the results and tears everything down for about $0.50. The raw logs of every run are in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/tree/cloud-run/bench">bench/</a>.</div></div>
   </div>
 

@@ -1,7 +1,7 @@
 //! Prediction-market orderbook collector: discovers every live market, keeps redundant
 //! websocket replicas of each book and writes level updates plus periodic snapshots as aligned
 //! SBE. Polymarket is the venue it is built and measured on; `--venue kalshi` runs the same
-//! engine on the Kalshi adapter, which has only been tested against Kalshi's documented frames.
+//! engine on the Kalshi adapter, which has run live on Kalshi's demo environment.
 //!
 //! Threads: the main runtime runs discovery, lookups and every socket (decoding included).
 //! Book state is split across `--core-threads` core threads, each owning whole markets, their
