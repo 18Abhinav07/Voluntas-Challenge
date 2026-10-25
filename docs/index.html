@@ -152,7 +152,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
   <h1>Order-book collector</h1>
   <p class="byline">A Rust service for Polymarket and Kalshi · Abhinav Pangaria · take-home challenge, October 2026</p>
   <div class="texture" id="texture" aria-hidden="true"></div>
-  <p class="lede">It subscribes to every live market on a prediction-market exchange, keeps an L2 order book for each one, and writes every price-level change, plus a snapshot of every book once a minute, in the challenge's aligned SBE format. Every file it writes can be replayed to prove the books are exact.</p>
+  <p class="lede">It subscribes to every live market on a prediction-market exchange, keeps an L2 order book for each one, and writes every price-level change to stdout, plus a snapshot of every book once a minute, in the challenge's aligned SBE format. Every file it writes can be replayed to prove the books are exact.</p>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Sections">
@@ -283,7 +283,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 
   <div class="phase">
     <div class="when">4 · Kalshi demo environment, from the laptop</div>
-    <h3>The second venue, live</h3>
+    <h3>Kalshi, the challenge's venue, live</h3>
     <p>Kalshi needs a signed key even for public data, and production accounts are not open in India. The demo environment issues free keys. Same binary; only the URLs change.</p>
     <div class="tw"><table>
       <thead><tr><th>Run</th><th class="n">Markets</th><th class="n">Sockets</th><th class="n">Length</th><th class="n">Updates</th><th class="n">Snapshots</th><th class="n">Mismatches</th></tr></thead>
@@ -436,8 +436,8 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 
 <!-- ============================================================ KALSHI -->
 <section class="panel" id="kalshi" role="tabpanel" aria-labelledby="t-kalshi">
-  <h2>The second venue (Ext 3)</h2>
-  <p><code>--venue kalshi</code> runs the same core, socket actor, writer and <code>verify</code> on a Kalshi adapter. The adapter is the only part that knows Kalshi exists.</p>
+  <h2>Kalshi, the challenge's venue</h2>
+  <p>The challenge names Kalshi and allows Polymarket as the fallback. <code>--venue kalshi</code> runs the same core, socket actor, writer and <code>verify</code> on a Kalshi adapter (Ext 3). The adapter is the only part that knows Kalshi exists.</p>
   <div class="tw"><table>
     <thead><tr><th></th><th>Polymarket</th><th>Kalshi</th></tr></thead>
     <tbody>
@@ -469,8 +469,9 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 <pre><code>./demo.sh</code></pre>
   <h3>Polymarket, by hand</h3>
 <pre><code>cargo build --release --bins
-./target/release/collector --out ob.sbe --max-markets 2000 --duration-secs 120
+./target/release/collector --max-markets 2000 --duration-secs 120 &gt; ob.sbe
 ./target/release/verify ob.sbe</code></pre>
+  <p class="small muted">The output goes to stdout by default and status lines to stderr. <code>--out ob.sbe</code> writes the file directly; rotation needs that form.</p>
   <h3>Kalshi</h3>
   <p>Put a key in a gitignored <code>.env</code> (<code>KALSHI_API_KEY_ID</code>, <code>KALSHI_PRIVATE_KEY_PATH</code>), then:</p>
 <pre><code>./demo.sh kalshi                # production

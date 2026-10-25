@@ -3,6 +3,12 @@
 How to check every claim in the README yourself: a five-minute path first, then a table that
 maps each claim to the test or run that shows it.
 
+**Venue.** The challenge names Kalshi and allows Polymarket as the fallback. Both run on the same
+engine. Kalshi needs an API key even for public data. Production accounts are not open in
+India, so its live runs used Kalshi's demo environment (docs/KALSHI.md). Polymarket needs no key, so the five-minute path below uses it:
+anyone can run it with nothing to set up. With a Kalshi key in `.env`, `./demo.sh kalshi` runs the
+same path against Kalshi.
+
 ## The five-minute path
 
 `./demo.sh` runs this whole path and stops on the first failure. By hand, it is:
@@ -32,11 +38,12 @@ This takes about 2 minutes. It runs every unit, golden and end-to-end test, incl
 All of them run offline, on localhost.
 
 ```bash
-./target/release/collector --out small.sbe --max-markets 2000 --duration-secs 120
+./target/release/collector --max-markets 2000 --duration-secs 120 > small.sbe
 ```
 
 This is two minutes against live Polymarket: 2000 markets, about 4000 tokens, a handful of
-sockets.
+sockets. The data goes to stdout, which is the default, and the status lines go to stderr.
+`--out small.sbe` writes the same file directly.
 
 ```bash
 ./target/release/verify small.sbe
@@ -63,6 +70,8 @@ faults injected (see below).
 
 | Claim | Shown by | How to rerun |
 |---|---|---|
+| Deltas go to stdout | `--out` defaults to `-`; `demo.sh` and the five-minute path write through it | `collector --max-markets 200 --duration-secs 60 > ob.sbe` |
+| A full snapshot of every book each minute | `snapshot_every` is 60 s (`src/core/config.rs`); `verify` counts and replays them | `./target/release/verify <file>` |
 | Output replays exactly | `verify` on every file of every run: 0 mismatches | `./target/release/verify <file>` |
 | Every live market is covered | `status`: `tokens` ≈ `sourced`, `unplaced: 0`. The gap (about 1%) is tokens Gamma lists but the CLOB has no book for (`/book` answers "No orderbook exists"); `RUST_LOG=debug` lists them | full-universe run, or `bench/gate.sh` |
 | New listings join, resolved markets leave | `markets_added` / `markets_removed` in `done`; e2e `resolved_close_drops_tokens_without_reconnecting` | `cargo test --release --test e2e resolved_close` |
@@ -75,7 +84,8 @@ faults injected (see below).
 | A crash is restarted and the file recovered | e2e `supervisor_restarts_after_a_panic`; live kill -9 in the gate and on AWS | `cargo test --release --test e2e supervisor` |
 | SIGTERM flushes and closes the file | e2e `sigterm_flushes_and_exits_cleanly` | `cargo test --release --test e2e sigterm` |
 | The venue hash check matches Polymarket's | golden tests on captured live frames | `cargo test --release --test golden` |
-| Kalshi: a second venue on the same engine | `tests/kalshi_e2e.rs`: baseline, seq gap → failover, listing | `cargo test --release --test kalshi_e2e` |
+| Kalshi, the challenge's venue, on the same engine | `tests/kalshi_e2e.rs`: baseline, seq gap → failover, listing | `cargo test --release --test kalshi_e2e` |
+| Kalshi live, whole universe, no MVEs | Demo environment from AWS Virginia, 2 h: about 100k markets, 32.3M updates, 48.9M snapshots, 0 mismatches (`bench/aws-2h-2026-10-25/`) | `./demo.sh kalshi` with a key (`KALSHI_DEMO=1` for demo) |
 | Failover, integrity and recycling logic | 48 core unit tests | `cargo test --release --lib core::` |
 | Full universe for hours, no restart | 2.5 h soak: 16 files, 0 mismatches, 0 restarts | `REV=<commit> DUR=9000 ROT=10 NAME=soak bash bench/gate.sh` |
 | Latency, CPU and memory on a production-like host | AWS c7i.xlarge, 60 min full universe; three-region probe (PERFORMANCE) | `bench/aws/run.sh all` (AWS-RUN) |
@@ -102,7 +112,7 @@ A grader never needs any flag. Every default is the production setting.
 | **Venue** | `--venue` (`polymarket` by default; `kalshi` needs a key, see KALSHI.md) |
 | **Tuning, safe to leave** | `--tokens-per-conn`, `--replicas`, `--max-conns`, `--core-threads`, `--core-queue`, `--recycle-mins`, `--rediscover-mins`, `--opens-per-sec`, `--universe-cache`, `--ntp-server` |
 | **Experiments, off by default** | `--lat-detail` (per-socket latency log), `--fast-source` with `--fast-margin-ms` / `--fast-weight` (no consistent gain in two A/B runs), `--split-ratio` (hot-shard splits), `--edge-ip` / `--src-ports` (Experiment 3) |
-| **Test only, hidden** | `--ws-url`, `--rest-url` (point the collector at a mock venue) |
+| **Endpoints, hidden** | `--ws-url`, `--rest-url` (point the collector at a mock venue, or at Kalshi's demo environment) |
 
 ## Reading the counters
 

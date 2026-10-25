@@ -1598,3 +1598,22 @@ about **$0.39**.
 - **Fix:** `bench/ab.sh`, `bench/check.sh` and `bench/lat.sh` were committed as 644, so
   `./bench/lat.sh` failed with "permission denied". All three are now 755, like the other bench
   scripts.
+
+## Turn — Stdout first, Kalshi first
+
+- **Why:** a reread of the brief. It asks for deltas on stdout, but every headline command in
+  the README, HOW_TO_RUN, GRADING, the page and `demo.sh` used `--out <file>`, so a reviewer saw
+  the file form as the normal one. The brief also names Kalshi as the venue and Polymarket as the
+  fallback; the docs led with Polymarket and filed Kalshi under Ext 3.
+- **Stdout:** every headline command now writes through stdout (`collector … > ob.sbe`), with
+  `--out` shown as the alternative that rotation needs. README gains an "Output: stdout or a
+  file" table. `demo.sh` writes both live runs through stdout and ends by printing the commands
+  for each form. No code changed: `--out -` was already the default.
+- **Kalshi:** README, GRADING, KALSHI.md, HOW_TO_RUN and the page now name Kalshi as the
+  challenge's venue and Polymarket as the allowed fallback, and say why the live Kalshi runs used
+  the demo environment: production accounts are not open in India.
+- **Checked:** `./demo.sh live 30 200` through stdout: 402 snapshots matched, 0 did not.
+  `KALSHI_DEMO=1 ./demo.sh kalshi 30 100`: 72 matched, 0 did not (those 100 demo markets sent no
+  deltas in 30 s).
+- **Also fixed:** a broken code fence in KALSHI.md ("Running it") that ran the next sentence into
+  the code block.

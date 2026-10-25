@@ -1,8 +1,8 @@
-# Kalshi adapter (Ext 3)
+# Kalshi adapter
 
-`--venue kalshi` runs the same engine (core, socket actor, writer, `verify`) on a Kalshi adapter,
-[`src/adapter/kalshi.rs`](../src/adapter/kalshi.rs). It was written from Kalshi's public API docs
-(docs.kalshi.com, read 2026-10-24) and is tested:
+Kalshi is the venue the challenge names. `--venue kalshi` runs the same engine (core, socket
+actor, writer, `verify`) on a Kalshi adapter, [`src/adapter/kalshi.rs`](../src/adapter/kalshi.rs).
+It was written from Kalshi's public API docs (docs.kalshi.com, read 2026-10-24) and is tested:
 
 - on Kalshi's example frames, in the adapter's unit tests;
 - end to end, against a mock of the documented API ([`tests/kalshi_e2e.rs`](../tests/kalshi_e2e.rs)):
@@ -26,7 +26,7 @@ KALSHI_PRIVATE_KEY_PATH=/path/to/kalshi-key.pem
 ```
 
 ```bash
-set -a; . ./.env; set +a; cargo run --release --bin collector -- --venue kalshi --out kalshi.sbe
+set -a; . ./.env; set +a; cargo run --release --bin collector -- --venue kalshi > kalshi.sbe
 ```
 
 Without a key it stops at once with `--venue kalshi needs an API key`.
@@ -36,8 +36,9 @@ the collector at it with:
 
 ```bash
 --ws-url wss://demo-api.kalshi.co/trade-api/ws/v2 --rest-url https://demo-api.kalshi.co/trade-api/v2
-``` The universe cache defaults
-to `universe-kalshi.json`, so it never reads Polymarket's.
+```
+
+The universe cache defaults to `universe-kalshi.json`, so it never reads Polymarket's.
 
 ## The feed, as implemented
 

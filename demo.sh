@@ -38,8 +38,8 @@ tests() {
 
 live() {
   local secs=${1:-120} markets=${2:-2000}
-  step "live: $markets markets for $secs s against Polymarket (status line every 10 s)"
-  ./target/release/collector --out "$OUT/live.sbe" --max-markets "$markets" --duration-secs "$secs"
+  step "live: $markets markets for $secs s against Polymarket, output on stdout (status on stderr every 10 s)"
+  ./target/release/collector --max-markets "$markets" --duration-secs "$secs" > "$OUT/live.sbe"
   step "verify the live capture"
   ./target/release/verify "$OUT/live.sbe" | tee "$OUT/live-verify.txt"
   grep -q ' 0 did not' "$OUT/live-verify.txt"
@@ -65,7 +65,7 @@ kalshi() {
     env=demo
   fi
   step "live: $markets Kalshi markets for $secs s ($env environment)"
-  ./target/release/collector --venue kalshi ${urls[@]+"${urls[@]}"} --out "$OUT/kalshi.sbe" --max-markets "$markets" --duration-secs "$secs"
+  ./target/release/collector --venue kalshi ${urls[@]+"${urls[@]}"} --max-markets "$markets" --duration-secs "$secs" > "$OUT/kalshi.sbe"
   step "verify the Kalshi capture"
   ./target/release/verify "$OUT/kalshi.sbe" | tee "$OUT/kalshi-verify.txt"
   grep -q ' 0 did not' "$OUT/kalshi-verify.txt"
@@ -95,3 +95,12 @@ case "${1:-all}" in
   *) sed -n '2,13p' "$0"; exit 2 ;;
 esac
 step "done: every check passed"
+cat <<'USAGE'
+
+Run it yourself. The output goes to stdout by default; status lines go to stderr.
+  ./target/release/collector > ob.sbe                       every market, until Ctrl-C
+  ./target/release/collector --max-markets 200 --duration-secs 60 > ob.sbe
+  ./target/release/collector --out ob.sbe                   write a file directly instead
+  ./target/release/collector --venue kalshi > kalshi.sbe    Kalshi (load .env first)
+  ./target/release/verify ob.sbe                            replay a file and check every snapshot
+USAGE

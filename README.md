@@ -1,17 +1,21 @@
-# Order-book collector for Polymarket and Kalshi
+# Order-book collector for Kalshi and Polymarket
 
 A Rust service that subscribes to every live market on a prediction-market exchange and keeps an
-L2 order book for each one. It writes every price-level change, plus a full snapshot of every
-book once a minute, in the challenge template's aligned SBE format.
+L2 order book for each one. It writes every price-level change to stdout, plus a full snapshot of
+every book once a minute, in the challenge template's aligned SBE format.
 
 The same engine runs both venues. Only the websocket encode/decode layer changes between them
 (Ext 3):
 
-- **Polymarket** is the venue it was built and measured on. It has run the full universe on AWS:
-  about 550k tokens for an hour, and about 488k tokens for two hours.
-- **Kalshi** needs an API key even for public data. It ran the whole demo environment (about 100k
-  markets) for two hours from Virginia: 32.3M updates, 48.9M snapshots replayed, 0 mismatches.
-  Production is the same code with a production key and the default URLs.
+- **Kalshi**, the venue the challenge names. Kalshi needs an API key even for public data, and
+  production accounts are not open in India, so the live runs used Kalshi's demo environment,
+  which issues free keys. The adapter ran the whole demo universe (about 100k regular markets,
+  MVEs excluded) for two hours from Virginia: 32.3M updates, 48.9M snapshots replayed, 0
+  mismatches. The demo serves the same API as production; production is the default endpoint, and
+  only the key changes.
+- **Polymarket**, the fallback the challenge allows. It needs no key, so it is the venue anyone
+  can run with nothing to set up, and the one measured at full scale on AWS: about 550k tokens
+  for an hour, and about 488k tokens for two hours alongside the Kalshi run.
 
 **The presentation:** [18abhinav07.github.io/Voluntas-Challenge](https://18abhinav07.github.io/Voluntas-Challenge/)
 covers how it was built, every run, the fixes and what each one moved, with charts. It is also in
@@ -50,8 +54,11 @@ No key is needed.
 cargo build --release --bins
 ```
 
+The output goes to stdout by default. Status lines go to stderr, so redirect stdout to keep the
+data:
+
 ```bash
-./target/release/collector --out ob.sbe --max-markets 2000 --duration-secs 120
+./target/release/collector --max-markets 2000 --duration-secs 120 > ob.sbe
 ```
 
 ```bash
@@ -79,7 +86,21 @@ KALSHI_DEMO=1 ./demo.sh kalshi
 ```
 
 The first command uses production; the second uses the demo environment. To run Polymarket and
-Kalshi side by side, one process each, use `./demo.sh both`.
+Kalshi side by side, one process each, use `./demo.sh both`. By hand, with the key loaded:
+
+```bash
+set -a; . ./.env; set +a; ./target/release/collector --venue kalshi > kalshi.sbe
+```
+
+### Output: stdout or a file
+
+| | Command | Use |
+|---|---|---|
+| stdout (default) | `collector > ob.sbe`, or pipe it to another program | The challenge's output mode |
+| A file | `collector --out ob.sbe` | Needed for `--rotate-mins` (a new file every N minutes) |
+
+The collector refuses to write binary to a terminal: run it bare and it asks you to redirect
+stdout or pass `--out`. `verify` reads a file either way.
 
 ### Stopping
 
@@ -156,7 +177,7 @@ CI runs the same tests plus clippy and a Docker build.
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Each design choice, the alternative, and why it lost |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | The AWS numbers: latency, CPU, memory, regions |
 | [docs/LATENCY.md](docs/LATENCY.md) | Ext 4: what was measured, what helped, what did not |
-| [docs/KALSHI.md](docs/KALSHI.md) | Ext 3: the Kalshi adapter and its live demo runs |
+| [docs/KALSHI.md](docs/KALSHI.md) | Kalshi, the challenge's venue: the adapter and its live runs |
 
 [docs/appendix/](docs/appendix/) holds the deeper records: the full engineering log, the
 performance plan, the AWS run kit and the deployment notes.

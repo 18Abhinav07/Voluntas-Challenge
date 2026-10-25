@@ -10,7 +10,7 @@ Every way the collector has been run, from quickest to most production-like. Eac
 | [3. GitHub Codespace](#3-github-codespace) | A GitHub account | A Linux host in the browser, 4 cores |
 | [4. AWS, scripted](#4-aws-scripted) | AWS credentials | The measured full-universe run, launched and torn down from a laptop |
 | [5. Any Linux host, as a service](#5-any-linux-host-as-a-service) | A 4 vCPU / 8 GB VM | Running it continuously |
-| [Kalshi](#kalshi) | A Kalshi API key | The second venue, on any of the above |
+| [Kalshi](#kalshi) | A Kalshi API key | The challenge's venue, on any of the above |
 
 ## 1. Local
 
@@ -22,7 +22,8 @@ Linux both work. `--kernel-ts` and `--pin` are Linux only.
 ```
 
 This builds, replays the committed sample, runs the offline tests and collects 2,000 live
-Polymarket markets for two minutes. Output goes to `target/demo/`. The pieces on their own:
+Polymarket markets for two minutes, written through stdout. Output goes to `target/demo/`. The
+pieces on their own:
 
 | Command | What it does |
 |---|---|
@@ -39,23 +40,28 @@ By hand:
 cargo build --release --bins
 ```
 
+The output goes to stdout by default (`--out -`), so redirect it or pipe it on:
+
 ```bash
-./target/release/collector --out ob.sbe --max-markets 2000 --duration-secs 120
+./target/release/collector --max-markets 2000 --duration-secs 120 > ob.sbe
 ```
 
 ```bash
 ./target/release/verify ob.sbe
 ```
 
-The full universe is about 550k tokens. That needs about 2 GB of RAM, 2 cores and 30 GB of disk an
-hour; leave out `--max-markets` for it. Writing to stdout instead of a file is the default
-(`--out -`):
+To write a file directly instead, pass `--out`. Rotation (`--rotate-mins`) needs this form:
 
 ```bash
-./target/release/collector --max-markets 200 --duration-secs 30 > ob.sbe
+./target/release/collector --out ob.sbe --max-markets 2000 --duration-secs 120
 ```
 
-Status lines go to stderr every 10 s. Ctrl-C stops it cleanly.
+The collector refuses to write binary to a terminal, so a bare run with no redirect and no
+`--out` stops with a message saying so. Status lines go to stderr every 10 s. Ctrl-C stops it
+cleanly: it closes the websockets, writes the last chunk and closes the output.
+
+The full universe is about 550k tokens. That needs about 2 GB of RAM, 2 cores and 30 GB of disk an
+hour; leave out `--max-markets` and `--duration-secs` for it.
 
 ## 2. Docker
 
@@ -198,7 +204,7 @@ set -a; . ./.env; set +a
 ```
 
 ```bash
-./target/release/collector --venue kalshi --out kalshi.sbe --max-markets 500 --duration-secs 120
+./target/release/collector --venue kalshi --max-markets 500 --duration-secs 120 > kalshi.sbe
 ```
 
 For the demo environment, add
