@@ -8,11 +8,14 @@
 #   host.sh smoke             45 s on 20 markets, then verify: proves the venue is reachable
 #   host.sh probe START       region probe at epoch START: 2,000 markets, --lat-detail, 10 min
 #   host.sh main              tests, offline bench, 60-min full universe, 2-min sample
+#   host.sh kalshi            Kalshi demo venue: tests, full demo universe, supervised and rotated,
+#                             kill -9 of the child near the end (key from ~/kalshi.env, ~/kalshi.pem)
 #   host.sh tune              A/B rounds, two collectors at once on the same markets (TUNE.md):
 #                             speed-aware source, replica count, failover window, busy polling,
 #                             and a kill -9 of an unsupervised run
 #
-# DRY=1 shortens every duration (a dry run on any Linux box); NTP overrides the time server.
+# DRY=1 shortens every duration (a dry run on any Linux box); NTP overrides the time server;
+# MAIN_SECS sets the length of the main and kalshi runs (default 3600).
 set -u
 cd "$HOME"
 R=$HOME/results; mkdir -p "$R"
@@ -34,14 +37,15 @@ env_capture() { # host facts, clock state and the path to the venue
     echo "-- clock"; chronyc -n sources 2>&1; chronyc tracking 2>&1
     ls -l /dev/ptp* 2>&1; cat /sys/class/ptp/ptp*/clock_name 2>/dev/null
     echo "-- venue"
-    for h in ws-subscriptions-clob.polymarket.com clob.polymarket.com gamma-api.polymarket.com; do
+    for h in ${VENUE_HOSTS:-ws-subscriptions-clob.polymarket.com clob.polymarket.com gamma-api.polymarket.com}; do
       echo "$h $(getent ahostsv4 $h | awk '{print $1}' | sort -u | tr '\n' ' ')"
       curl -s -o /dev/null -m 10 -w "  https connect %{time_connect}s tls %{time_appconnect}s first byte %{time_starttransfer}s code %{http_code}\n" "https://$h/" || echo "  curl failed"
     done
-    for e in $(getent ahostsv4 ws-subscriptions-clob.polymarket.com | awk '{print $1}' | sort -u); do
+    local ws=${VENUE_HOSTS:-ws-subscriptions-clob.polymarket.com}; ws=${ws%% *}
+    for e in $(getent ahostsv4 $ws | awk '{print $1}' | sort -u); do
       echo "ping $e $(ping -c 20 -i 0.2 -q $e 2>&1 | tail -1)"
     done
-    echo "traceroute: $(command -v tracepath >/dev/null && tracepath -n -m 12 ws-subscriptions-clob.polymarket.com 2>&1 | tail -4 | tr '\n' '|')"
+    echo "traceroute: $(command -v tracepath >/dev/null && tracepath -n -m 12 $ws 2>&1 | tail -4 | tr '\n' '|')"
   } >> "$R/env.txt" 2>&1
 }
 
@@ -209,8 +213,8 @@ main() {
   { ./target/release/examples/bench cpu; ./target/release/examples/bench mem $(dur 283000 20000); } > "$R/bench.txt" 2>&1 \
     && mark BENCH_OK || mark BENCH_FAILED
 
-  local d rot; d=$(dur 3600 240); rot=$(dur 10 1)
-  PERF_AT=$(dur 1800 90); KILL_AT=$(dur 3300 200); export PERF_AT KILL_AT
+  local d rot; d=$(dur ${MAIN_SECS:-3600} 240); rot=$(dur 10 1)
+  PERF_AT=$(( d / 2 )); KILL_AT=$(( d - 300 )); export PERF_AT KILL_AT
   cd "$HOME"; rm -rf out-main; mkdir -p out-main
   echo "== main start $(date -u +%FT%TZ) dur=$d rot=$rot perf_at=$PERF_AT kill_at=$KILL_AT"
   NO_COLOR=1 $BIN/collector --supervise --out out-main/ob.sbe --rotate-mins $rot --pin --kernel-ts \
@@ -231,6 +235,37 @@ main() {
     --ntp-server $NTP --universe-cache out-main/u.json > "$R/sample/collector.log" 2>&1
   $BIN/verify "$R/sample/ob.sbe" > "$R/sample/verify.txt" 2>&1 && mark SAMPLE_OK || mark SAMPLE_FAILED
   du -h "$R/sample/ob.sbe" >> "$R/main.log"
+  env_capture
+  mark ALL_DONE
+}
+
+# Kalshi's demo venue, the same shape as main: supervised, rotated, verified as it goes.
+kalshi() {
+  exec >> "$R/main.log" 2>&1
+  . "$HOME/.cargo/env"
+  ulimit -n 65536 2>/dev/null || ulimit -n 4096
+  set -a; . "$HOME/kalshi.env"; set +a
+  export KALSHI_PRIVATE_KEY_PATH=$HOME/kalshi.pem
+  cd "$HOME/src"
+  echo "== tests $(date -u +%FT%TZ)"
+  if cargo test --release > "$R/tests.log" 2>&1; then mark TESTS_OK; else mark TESTS_FAILED; fi
+  grep -E '^test result|FAILED|panicked' "$R/tests.log" >> "$R/main.log"
+  local d rot demo; d=$(dur ${MAIN_SECS:-3600} 240); rot=$(dur 10 1)
+  demo="--ws-url wss://demo-api.kalshi.co/trade-api/ws/v2 --rest-url https://demo-api.kalshi.co/trade-api/v2"
+  PERF_AT=$(( d / 2 )); KILL_AT=$(( d - 300 )); export PERF_AT KILL_AT
+  cd "$HOME"; rm -rf out-main; mkdir -p out-main
+  echo "== kalshi start $(date -u +%FT%TZ) dur=$d rot=$rot perf_at=$PERF_AT kill_at=$KILL_AT"
+  NO_COLOR=1 $BIN/collector --venue kalshi $demo --supervise --out out-main/ob.sbe --rotate-mins $rot --pin --kernel-ts \
+    --ntp-server $NTP --universe-cache out-main/u.json > "$R/collect-main.log" 2>&1 &
+  local sup=$! t0=$(date +%s)
+  sleep 2
+  ( while kill -0 $sup 2>/dev/null; do sleep 5; [ $(( $(date +%s) - t0 )) -ge $d ] && { kill -TERM $sup; break; }; done ) &
+  HOOK=main_hook sample_loop $sup main $sup
+  wait $sup; echo "supervisor exit $? at $(date -u +%FT%TZ)"
+  verify_done out-main main
+  summarize main "$R/collect-main.log"
+  jq length out-main/u.json > "$R/universe-markets.txt" 2>/dev/null
+  if grep -q ' 0 did not' "$R/verify-main.txt" && ! grep -qE '[1-9][0-9]* did not' "$R/verify-main.txt"; then mark MAIN_OK; else mark MAIN_FAILED; fi
   env_capture
   mark ALL_DONE
 }
@@ -308,6 +343,7 @@ case "${1:-}" in
   smoke) smoke ;;
   probe) probe "${2:?START epoch}" ;;
   main) main ;;
+  kalshi) kalshi ;;
   tune) tune ;;
-  *) echo "usage: host.sh setup main|probe | smoke | probe START | main | tune"; exit 2 ;;
+  *) echo "usage: host.sh setup main|probe | smoke | probe START | main | kalshi | tune"; exit 2 ;;
 esac
