@@ -1,28 +1,28 @@
 # Running it in the cloud
 
-All full-universe runs in this repo used a GitHub Codespace: Azure WestEurope, 4 vCPU, 16 GB.
-This note says what the collector needs from a host and gives the closest machine on the
-common providers. Only the Codespace has been run. The other rows match it on paper.
+The full universe has run on two hosts: an AWS c7i.xlarge in London (4 vCPU, 8 GB; one hour,
+build 7170677, docs/PERFORMANCE.md) and a GitHub Codespace in Azure WestEurope (4 vCPU, 16 GB;
+the 2.5-hour soak, build 1a4d84c). This note says what the collector needs from a host and gives
+the closest machine on the common providers. GCP and Hetzner match on paper only.
 
 ## What the collector needs
 
-The numbers are measured in the 2.5-hour soak on the full universe (ENGINEERING-LOG).
-
-| Resource | Measured | Plan for |
+| Resource | Measured (c7i.xlarge, 60 min) | Plan for |
 |---|---|---|
-| CPU | 172–197% of 4 vCPU (about 2 cores) | 4 vCPU. Two core threads, plus decode on the tokio runtime |
-| Memory | RSS 2.8–3.3 GB, rising with the universe | 8 GB minimum, 16 GB to match the tested host |
-| Disk write | about 5 GB per 10 minutes: 8.5 MB/s sustained, 30 GB an hour | a disk that sustains ≥ 50 MB/s. The Codespace disk stalled the writer for 1–1.5 s eight times in 2.5 h |
+| CPU | load 1.2 of 4 vCPU: core threads 47%, tokio 54%, writer 6% of one CPU. The Codespace, on an older build, used 172–197% | 4 vCPU. Two core threads, plus decode on the tokio runtime |
+| Memory | RSS 1.8 GB mean, 1.9 GB peak, flat (Codespace, older build: 2.8–3.3 GB) | 8 GB |
+| Disk write | 9 MB/s, 5.4 GB per 10-minute file, about 30 GB an hour; 0 stalls on gp3 | a disk that sustains ≥ 50 MB/s. The Codespace disk stalled the writer for 1–1.5 s eight times in 2.5 h |
 | Disk space | 30 GB an hour of output | rotate (`--rotate-mins`) and ship finished files off the host |
 | Network | about 450 websockets, outbound only | no inbound ports. `ulimit -n` ≥ 4096 |
-| Clock | Codespace drifted about 0.45 ms a minute | chrony against the provider's time service, so `wire` is absolute |
+| Clock | chrony on Amazon Time Sync: 0.4–9 µs RMS. The Codespace, with no time sync, drifted about 0.45 ms a minute | chrony against the provider's time service, so `wire` is absolute |
+| Region | London p50 7 ms, Ireland 12 ms, Virginia 43 ms `recv − exch` on the same 2,000 markets | eu-west-2 (London), or eu-west-1 for the tighter p99 |
 
 ## Equivalent machines
 
 | Provider | Machine | vCPU / RAM | Disk for output | Time sync |
 |---|---|---|---|---|
+| AWS (tested) | `c7i.xlarge` (or `m7i.xlarge` for 16 GB) | 4 / 8 GB | gp3 EBS (125 MB/s baseline) or an instance-store NVMe type (`m7gd`, `c7gd`) | Amazon Time Sync, `169.254.169.123`, via chrony |
 | GitHub Codespaces (tested) | 4-core | 4 / 16 GB | the workspace disk (slow, see above) | none |
-| AWS | `m7i.xlarge` (or `c7i.xlarge` with 8 GB) | 4 / 16 GB | gp3 EBS (125 MB/s baseline) or an instance-store NVMe type (`m7gd`, `c7gd`) | Amazon Time Sync, `169.254.169.123`, via chrony |
 | GCP | `n2-standard-4` (or `c3-standard-4`) | 4 / 16 GB | `pd-balanced`, or Hyperdisk Balanced for more throughput | the metadata server, `metadata.google.internal`, via chrony |
 | Hetzner | `CCX23` (dedicated vCPU) | 4 / 16 GB | local NVMe | chrony against the Hetzner NTP servers |
 

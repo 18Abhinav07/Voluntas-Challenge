@@ -19,5 +19,14 @@ jobs:
       # No rustfmt check: the template's code under src/util is kept as given.
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release --lib --bins --test golden
-      # The mock venue on localhost: nine fault scenarios against the real binary.
+      # The mock venues on localhost: fault scenarios against the real binary.
       - run: cargo test --release --test e2e
+      - run: cargo test --release --test kalshi_e2e
+      # The committed capture from the AWS run still replays with zero mismatches.
+      - run: ./demo.sh sample
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t collector .
+      - run: gunzip -c sample/ob.sbe.gz > /tmp/ob.sbe && docker run --rm -v /tmp:/out --entrypoint verify collector /out/ob.sbe

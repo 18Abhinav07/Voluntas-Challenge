@@ -9,9 +9,34 @@ Polymarket is the venue it runs against: Kalshi could not be reached from where 
 It runs on the same engine and passes end-to-end tests against a mock of Kalshi's documented API,
 but it has never run live, which needs a Kalshi API key. See [docs/KALSHI.md](docs/KALSHI.md).
 
-**Grading:** [docs/GRADING.md](docs/GRADING.md) has a five-minute path (build, test, a 2-minute
-live run, `verify`), a table from each claim to the command that reproduces it, and what every
-counter means.
+## Start here
+
+```bash
+./demo.sh
+```
+
+That builds, replays the committed two-minute capture from the AWS run (`sample/`, offline),
+runs every test against mock venues on localhost, then runs 2,000 live markets for two minutes
+and replays that file too. Each step stops on a failure. `./demo.sh sample`, `./demo.sh test`
+and `./demo.sh live [SECS] [MARKETS]` run one step.
+
+Without a Rust toolchain, the same binaries are in a Docker image:
+
+```bash
+docker build -t collector .
+```
+
+```bash
+docker run --rm -v "$PWD/out:/out" collector --out /out/ob.sbe --max-markets 2000 --duration-secs 120
+```
+
+```bash
+docker run --rm -v "$PWD/out:/out" --entrypoint verify collector /out/ob.sbe
+```
+
+**Grading:** [docs/GRADING.md](docs/GRADING.md) has the five-minute path, a table from each claim
+to the command that reproduces it, and what every counter means. The measured numbers are in
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 | Doc | What it covers |
 |---|---|
@@ -20,19 +45,21 @@ counter means.
 | [docs/LATENCY.md](docs/LATENCY.md) | Ext 4: what is measured, what is built, what is still untested |
 | [docs/KALSHI.md](docs/KALSHI.md) | Ext 3: the Kalshi adapter, what the trait had to change, what a live run must check |
 | [docs/GRADING.md](docs/GRADING.md) | Five-minute check, claim → evidence table, flags, counters, clock-corrected latency |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | The full universe on a c7i.xlarge: latency, CPU, memory, a three-region probe, benchmarks |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Host requirements, AWS / GCP / Hetzner equivalents, systemd unit, shipping output |
+| [docs/AWS-RUN.md](docs/AWS-RUN.md) | The one-shot AWS run that produced PERFORMANCE.md: hosts, phases, safety, how to rerun it |
 | [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md) | Every run, bug and fix, in order |
 
 ## Requirements checklist
 
 | Requirement | Where it is met | Evidence |
 |---|---|---|
-| Every live market, new listings in, resolved ones out | Gamma keyset discovery every 10 min, `new_market` / `market_resolved` events, universe cache (D16) | ~283k markets, ~566k tokens; e2e `resolved_close` |
-| Many websockets, tokens balanced across them | Shards of `--tokens-per-conn`, × `--replicas` (`core/plan.rs`) | ~450 sockets on the full universe |
+| Every live market, new listings in, resolved ones out | Gamma keyset discovery every 10 min, `new_market` / `market_resolved` events, universe cache (D16) | 280k markets, 548k–554k tokens sourced of 549k–556k listed on AWS; e2e `resolved_close` |
+| Many websockets, tokens balanced across them | Shards of `--tokens-per-conn`, × `--replicas` (`core/plan.rs`) | 442–452 sockets on the full universe |
 | One L2 book per token | `book.rs`, owned by core threads | hash check on every delta (98.9–100%) |
 | `PriceLevelUpdate` per level change, `Snapshot` per symbol every 60 s | `core/emit.rs` → `writer.rs`, template `AlignedSbeWriter`, 64 MiB chunks | `verify`: 0 replay mismatches in every run |
 | Snapshot on a source switch | `core/emit.rs` `adopt`: diff, then snapshot (D8) | e2e `dropped_socket`: `switch_snaps` ≥ 1 |
-| SIGINT: close sockets, flush, close the file | `main.rs` shutdown order; also on a panic (D20) | every run ends with `done` and a readable file |
+| SIGINT: close sockets, flush, close the file | `main.rs` shutdown order, on SIGINT and SIGTERM; also on a panic (D20) | every run ends with `done` and a readable file; e2e `sigterm_flushes` |
 | Ext 1: redundancy | 2 replicas per shard on different edges, source arbitration, lag check, `--supervise` | e2e drop / silent / stall / delay / supervise; 224-socket edge kill live |
 | Ext 2: silent failures and exchange-side decay | venue hash ladder, quiet resubscribe, per-socket quiet reconnect, make-before-break recycling | e2e corrupt / stall; hourly recycle of 448 sockets with no gaps |
 | Ext 3: a second exchange | `ExchangeAdapter` trait; Polymarket and Kalshi adapters (`src/adapter/`), `--venue` | Kalshi e2e: seq gap → failover, listing → subscribe; never run live ([docs/KALSHI.md](docs/KALSHI.md)) |
@@ -59,7 +86,8 @@ Or to a file:
 ```
 
 It refuses to write binary to a terminal. Stop with Ctrl-C: the first SIGINT closes every
-websocket, writes the last chunk and closes the output. A second SIGINT forces an exit.
+websocket, writes the last chunk and closes the output. A second SIGINT forces an exit. SIGTERM
+(`kill`, `docker stop`, systemd) does the same.
 
 To restart it automatically if it dies:
 
@@ -150,44 +178,47 @@ cargo test --release
 - Three golden tests in `tests/golden.rs` replay captured live Polymarket frames from
   `tests/fixtures/` through decode and the hash check. They pin the verdict counts, including
   the 98.9% pass rate on the trade-heavy capture.
-- Nine end-to-end tests in `tests/e2e.rs` run the real binary against a mock venue on
+- Ten end-to-end tests in `tests/e2e.rs` run the real binary against a mock venue on
   localhost (Gamma over HTTP, the market websocket with correct hashes). Each injects one
   fault and checks the reaction in the final metrics, then runs `verify` on the output:
   dropped socket, silent socket, one stalled subscription, a 5 s delay, a corrupt update,
-  Gamma 429s, a resolved-assets close, and a panic under `--supervise`. About 45 s.
+  Gamma 429s, a resolved-assets close, a panic under `--supervise`, and a stop by SIGTERM.
+  About 45 s.
 - Three end-to-end tests in `tests/kalshi_e2e.rs` run the same binary with `--venue kalshi`
   against a mock Kalshi (signed handshake, `sid` acks, relative deltas with `seq`):
   a baseline, a `seq` gap that must fail over and reconnect, and a lifecycle listing that must
   join the existing subscription.
-- CI (`.github/workflows/ci.yml`) runs clippy with `-D warnings` and all of the above.
+- CI (`.github/workflows/ci.yml`) runs clippy with `-D warnings` and all of the above, replays
+  the sample capture, and builds the Docker image and runs `verify` on the sample inside it.
 
 ## Results
 
-All runs were against live Polymarket. A GitHub Codespace in WestEurope (4 vCPU, 16 GB) did the
-full-universe runs.
+All runs were against live Polymarket. The headline run is one hour of the full universe on an
+AWS c7i.xlarge (4 vCPU, 8 GB) in London, build 7170677. Details, the method and how to rerun it
+are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
-- **Coverage:** about 283k markets, which is about 566k tokens, on about 450 sockets.
-- **2.5-hour soak (build 1a4d84c):**
-  - 320M updates and 184M snapshots in 16 files of 10 minutes each;
-  - 0 replay mismatches in any file;
-  - 0 restarts; 535 venue disconnects, all healed by reconnect and failover;
-  - RSS rose from 2.8 to 3.3 GB as the universe grew, by 279k listings and 3.6k removals;
-  - CPU 186–197% of 400%.
-- **Volume:** a 15-minute run writes about 30M updates. One 10-minute file is about 5 GB.
-- **Memory:** RSS 2.8–3.3 GB on the full universe.
-- **Latency (2.5 h):** `wire` p99 ≤ 16.4 ms and `queue` p99 ≤ 65.5 ms. Both are histogram bucket
-  bounds, not exact values.
-  - The host clock drifted from +19 to +88 ms against time.google.com, which the clock check
-    logged, so `wire` reads low by that much.
-  - Eight disk stalls of 1.0–1.5 s made the writer apply backpressure. That is the Codespace disk
-    at about 8.5 MB/s sustained, not the collector.
-- **Faults injected:**
-  - Killing all 224 sockets to one edge moved those tokens to their replicas with no replay error.
-  - A 15 s process freeze recovered.
-  - The hourly recycle of all 448 sockets left no gaps.
-- **Correctness:** 0 replay mismatches in every file of every run.
+| | c7i.xlarge, eu-west-2, 60 min |
+|---|---|
+| Coverage | 280,559 markets; 548k–554k tokens sourced on 442–452 sockets |
+| Throughput | 41–43k updates/s; 9 MB/s to disk |
+| Correctness | 8 files, about 33 GB, about 55M snapshots replayed: **0 mismatches** |
+| Host delay (kernel receive → collector) | p50 ≤ 32 µs in every 30 s window; p99 ≤ 128–256 µs in most |
+| recv − exch | p50 8–9 ms, p99 50–348 ms (London; Ireland p99 73 ms, Virginia p50 43 ms) |
+| CPU | load 1.2 of 4 vCPU: core threads 47%, tokio 54%, writer 6% of one CPU |
+| Memory | RSS 1.8 GB mean, 1.9 GB peak, flat |
+| Crash | `kill -9` of the child: back in 1 s under `--supervise`, open file recovered |
 
-The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md).
+Earlier, a GitHub Codespace (4 vCPU, 16 GB, West Europe) ran the long soak on build 1a4d84c:
+
+- **2.5 hours:** 320M updates and 184M snapshots in 16 files of 10 minutes each, 0 replay
+  mismatches, 0 restarts, and 535 venue disconnects, all healed by reconnect and failover.
+- **Faults injected live:** killing all 224 sockets to one edge moved those tokens to their
+  replicas with no replay error; a 15 s process freeze recovered; the hourly recycle of all 448
+  sockets left no gaps.
+- **Host limits:** the Codespace disk (about 8.5 MB/s) stalled the writer eight times for
+  1.0–1.5 s, and its clock drifted by up to 88 ms. Neither happened on AWS.
+
+The full table of runs is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md).
 
 ## Known limits
 
@@ -205,8 +236,11 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
 - **Kalshi is untested live.** The adapter passes against a mock built from Kalshi's docs.
   KALSHI.md lists what the first live run must check (per-subscription market limit, `seq`
   scope, lifecycle event names).
-- **Core CPU.** Two core threads run at about 31–38% each at steady state. The integrity hash
-  is the largest part of core time.
+- **Core CPU.** The two core threads together use about 47% of one CPU on the full universe.
+  The integrity hash is the largest part of core time (PERFORMANCE.md).
+- **Some networks block the venue.** An ISP that answers `ws-subscriptions-clob.polymarket.com`
+  with its own block page gives a live run with no data; `./demo.sh live` says so instead of
+  passing. The sample and the tests need no network.
 
 ## Layout
 
@@ -221,7 +255,9 @@ The full table is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.m
 | `src/book.rs`, `src/fixed.rs` | Book type, fixed-point parsing |
 | `src/bin/verify.rs` | Output checker |
 | `src/util/` | The template's SBE helpers, unchanged |
-| `bench/` | Scripts and raw logs from the profiled, A/B and latency runs |
+| `bench/` | Scripts and raw logs from the profiled, A/B, latency and AWS runs |
+| `sample/` | Two minutes of live output from the AWS run, gzipped, with its log |
+| `demo.sh`, `Dockerfile` | The reviewer's path in one script; the binaries in a slim image |
 
 The template's original notes on the SBE schema are in
 [challenge_orderbook.yaml](sbe_schemas/engineering_challenge/challenge_orderbook.yaml) and

@@ -1415,3 +1415,23 @@ decode 1,410 ns/frame (460 MB/s), core 4,665 ns/event, 2.43 allocs/event. `bench
 - The summary's host-delay section is complete (119 windows); an earlier read of it filtered
   those lines out by mistake.
 - Cost: about 1.5 h of c7i.xlarge and 0.4 h per probe, roughly $0.50 of the credits.
+
+## Turn — Packaging
+
+- **Bug: SIGTERM lost the last chunk.** Only `--supervise` handled SIGTERM; a collector run
+  directly (as the Docker image runs it, or under systemd, `kill` or Kubernetes) took the default
+  action and died with up to one chunk unwritten. `main.rs` now treats SIGTERM like SIGINT. New
+  e2e test `sigterm_flushes_and_exits_cleanly`: SIGTERM after 10 s, exit 0, `verify` clean.
+- **`sample/`:** the two-minute, 500-market capture from the AWS run, gzipped to 588 KB (the
+  64 MiB chunk is mostly padding), with its log. It replays with 3,950 snapshots matched, 0 not,
+  and needs no network.
+- **`demo.sh`:** build, verify the sample, all tests, a 2-minute live run and its verify. The
+  live step fails if the file has no snapshots: from this laptop the ISP answers the venue's DNS
+  with a block page (49.44.79.236), and an empty file replays cleanly, so the check would
+  otherwise pass on no data.
+- **`Dockerfile`:** two stages, `rust:1-bookworm` to `debian:bookworm-slim`. TLS roots are
+  compiled in, so the runtime image needs no CA bundle.
+- **CI:** now also runs `kalshi_e2e`, replays the sample, and builds the image and runs `verify`
+  on the sample inside it.
+- **Docs:** new PERFORMANCE.md with the AWS numbers; README, GRADING, DEPLOY and LATENCY now
+  quote the AWS run instead of the Codespace where both exist.

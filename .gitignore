@@ -2,3 +2,5 @@
 .env
 *.pem
 universe*.json
+sample/ob.sbe
+bench/**/*.sbe

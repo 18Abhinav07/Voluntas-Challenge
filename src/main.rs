@@ -613,6 +613,16 @@ async fn start(args: Args, n_cores: usize, pins: Option<Vec<usize>>) -> anyhow::
     }
 }
 
+/// Resolves on the next SIGINT or SIGTERM. `kill`, systemd, Docker and Kubernetes stop with
+/// SIGTERM, whose default action would lose the chunk not yet written.
+#[cfg(unix)]
+async fn stop_signal(term: &mut tokio::signal::unix::Signal) {
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = term.recv() => {}
+    }
+}
+
 /// Everything after the venue is chosen: the engine does not know which one it runs.
 async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, n_cores: usize, pins: Option<Vec<usize>>) -> anyhow::Result<()> {
     let cache_path = args.universe_cache.clone().unwrap_or_else(|| match args.venue {
@@ -638,10 +648,18 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, n_cores: usize, pi
     }
     {
         let cancel = cancel.clone();
+        #[cfg(unix)]
+        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
         tokio::spawn(async move {
+            #[cfg(unix)]
+            stop_signal(&mut term).await;
+            #[cfg(not(unix))]
             let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("SIGINT: shutting down (again to force)");
+            tracing::info!("stop signal: shutting down (again to force)");
             cancel.cancel();
+            #[cfg(unix)]
+            stop_signal(&mut term).await;
+            #[cfg(not(unix))]
             let _ = tokio::signal::ctrl_c().await;
             std::process::exit(130);
         });

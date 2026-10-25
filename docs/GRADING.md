@@ -5,18 +5,28 @@ maps each claim to the test or run that shows it.
 
 ## The five-minute path
 
-Needs stable Rust (edition 2024) and network access to Polymarket.
+`./demo.sh` runs this whole path and stops on the first failure. By hand, it is:
+
+Needs stable Rust (edition 2024) and network access to Polymarket. Without Rust, the Dockerfile
+builds the same two binaries (README, "Start here").
 
 ```bash
 cargo build --release --bins
 ```
 
 ```bash
+gunzip -k sample/ob.sbe.gz && ./target/release/verify sample/ob.sbe
+```
+
+This is offline: two minutes of live output from the AWS run (`sample/README.md`). It should end
+in `3950 snapshots matched the rebuilt book, 0 did not` and `OK`.
+
+```bash
 cargo test --release
 ```
 
 This takes about 2 minutes. It runs every unit, golden and end-to-end test, including:
-- nine fault injections against a mock Polymarket;
+- ten fault injections against a mock Polymarket, one of them a stop by SIGTERM;
 - three against a mock Kalshi.
 
 All of them run offline, on localhost.
@@ -35,13 +45,18 @@ sockets.
 It should end in `OK` with `0 did not`. That means every snapshot in the file equals the book
 rebuilt from the snapshot before it plus the updates in between.
 
+If the run ends with `0 snapshots`, the network is blocking the venue. Some ISPs answer
+`ws-subscriptions-clob.polymarket.com` with their own block page instead of Cloudflare
+(104.18.x / 172.64.x); `dig +short ws-subscriptions-clob.polymarket.com` shows which. The sample
+above covers the same check offline.
+
 What to look at in the collector's stderr while it runs:
 - The `status` line every 10 s shows tokens, sockets and the counters (see "Reading the
   counters" below).
 - The `done` line at the end gives totals. A clean run has `unplaced: 0` and a high `hash_ok`.
 
-The full universe (about 550k tokens, about 450 sockets) needs about 3.3 GB RAM, 2 cores, and
-about 30 GB of disk an hour. Run it with no `--max-markets`. `bench/gate.sh` does that with
+The full universe (about 550k tokens, about 450 sockets) used 1.9 GB RSS at peak and about 1.1 of
+4 vCPU on a c7i.xlarge, and writes about 30 GB of disk an hour (docs/PERFORMANCE.md). Run it with no `--max-markets`. `bench/gate.sh` does that with
 faults injected (see below).
 
 ## Claim → evidence
@@ -57,11 +72,13 @@ faults injected (see below).
 | A slow socket loses the source | e2e `delayed_socket_loses_the_source` | `cargo test --release --test e2e delayed_socket` |
 | A corrupt update is caught and repaired | e2e `corrupt_update_is_caught_by_the_hash_and_repaired` | `cargo test --release --test e2e corrupt_update` |
 | REST rate limits slow discovery but do not break it | e2e `gamma_429_slows_discovery_down_but_it_completes` | `cargo test --release --test e2e gamma_429` |
-| A crash is restarted and the file recovered | e2e `supervisor_restarts_after_a_panic`; live kill -9 in the gate | `cargo test --release --test e2e supervisor` |
+| A crash is restarted and the file recovered | e2e `supervisor_restarts_after_a_panic`; live kill -9 in the gate and on AWS | `cargo test --release --test e2e supervisor` |
+| SIGTERM flushes and closes the file | e2e `sigterm_flushes_and_exits_cleanly` | `cargo test --release --test e2e sigterm` |
 | The venue hash check matches Polymarket's | golden tests on captured live frames | `cargo test --release --test golden` |
 | Kalshi: a second venue on the same engine | `tests/kalshi_e2e.rs`: baseline, seq gap → failover, listing | `cargo test --release --test kalshi_e2e` |
 | Failover, integrity and recycling logic | 46 core unit tests | `cargo test --release --lib core::` |
 | Full universe for hours, no restart | 2.5 h soak: 16 files, 0 mismatches, 0 restarts | `REV=<commit> DUR=9000 ROT=10 NAME=soak bash bench/gate.sh` |
+| Latency, CPU and memory on a production-like host | AWS c7i.xlarge, 60 min full universe; three-region probe (PERFORMANCE) | `bench/aws/run.sh all` (AWS-RUN) |
 | Freeze and kill -9 recover live | 25-min gate: SIGSTOP 15 s, kill -9, 0 mismatches in 7 files | `REV=<commit> DUR=1500 STOP_AT=500 KILL_AT=900 bash bench/gate.sh` |
 | Losing an edge moves its tokens | Soak 1: all 224 sockets to one edge killed, 0 replay errors (ENGINEERING-LOG) | done by hand during that soak; no script |
 | Which socket is fastest, and whether picking it helps | Experiment 1 and 2 in LATENCY | `bench/lat.sh`, `bench/fast.sh` |

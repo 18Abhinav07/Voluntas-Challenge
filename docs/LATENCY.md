@@ -69,6 +69,19 @@ Full universe (about 566k tokens, about 450 sockets) unless noted.
 | A/B arm A, 35 min, 15-min files | Codespace | 262 ms | 1.05 s | after the rotation-stall fix; its 15 s freeze is diluted over 35 min |
 | A/B arm A, 15 min, 5-min files | Codespace | 8.4 s | 1.05 s | includes a forced 15 s freeze |
 | Lat 1, 20 min, 400 markets × 8 sockets | Codespace WestEurope | 262 ms (`verify`: p50 7 ms, p99 153 ms) | <1 ms | the experiment below; a small load, so no in-process stalls |
+| AWS, 60 min | c7i.xlarge eu-west-2, chrony | ≤ 66 ms (p50 ≤ 16 ms) | ≤ 8 ms | full universe; host delay (kernel → app) p50 ≤ 32 µs, p99 ≤ 128–256 µs |
+
+**Region probe** (AWS, the same 2,000 markets for 10 minutes, started at the same second, chrony
+on every host; `recv − exch` from `verify`):
+
+| Region | p50 | p90 | p99 | p99.9 |
+|---|---|---|---|---|
+| eu-west-2 London | 7 ms | 21 ms | 118 ms | 381 ms |
+| eu-west-1 Ireland | 12 ms | 25 ms | 73 ms | 232 ms |
+| us-east-1 Virginia | 43 ms | 62 ms | 349 ms | 725 ms |
+
+London is fastest by median, Ireland has the tightest tail, and Virginia pays about 35 ms for
+the Atlantic. Details in PERFORMANCE.md.
 
 Earlier, from the design probe (8 tokens, 30 s): from India via Singapore, `recv − exch` was p50
 166 ms and p90 255 ms.
@@ -333,15 +346,15 @@ slow ones, since a new connection draws again from the spread.
 Done:
 - many sockets on the same tokens, and a per-edge comparison (Experiment 1);
 - a speed-aware source, and recycling the slowest socket (Experiment 2);
-- the TCP source port (Experiment 3).
+- the TCP source port (Experiment 3);
+- three host regions at the same time, with synced clocks (the region probe above).
 
 | Experiment | How it would run here | What it needs |
 |---|---|---|
 | **Tune the speed-aware source** | Experiment 2 again, skipping windows where every socket is behind, and under the full universe | a common-stall filter in `check_speed`; `--fast-source` and `bench/fast.sh` otherwise |
 | **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
 | **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |
-| **Host region** | Repeat a run from a second region (e.g. us-east-1) at the same time and compare `wire` medians. | a second host; the user has no AWS account |
-| **Clock offset** | Sync the host with chrony or a PTP source before the run, so `wire` can be read as an absolute number. | root on the host |
+| **PTP clock** | chrony on Amazon Time Sync already gives µs-level offsets; the ENA PTP device would tighten it further. | an instance type that exposes `/dev/ptp*` (the c7i.xlarge did not) |
 
 Every experiment above can reuse `--lat-detail` and `bench/lat.sh`.
 

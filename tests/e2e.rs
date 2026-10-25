@@ -350,9 +350,19 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// Runs the collector for `secs` against a mock venue with `fault`. With `supervise`, the
-/// supervisor is stopped with SIGTERM after `secs` instead.
-fn run(fault: Fault, secs: u64, extra: &[&str], supervise: bool) -> Run {
+/// How a run ends after `secs`.
+#[derive(PartialEq)]
+enum Stop {
+    /// `--duration-secs`: the collector stops itself.
+    Duration,
+    /// SIGTERM to the collector, as `kill`, systemd and Docker send.
+    Sigterm,
+    /// SIGTERM to a `--supervise` parent, which passes it on to the child.
+    Supervised,
+}
+
+/// Runs the collector for `secs` against a mock venue with `fault`, then stops it by `stop`.
+fn run(fault: Fault, secs: u64, extra: &[&str], stop: Stop) -> Run {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let venue = Venue::new(fault);
     let (ws, http) = rt.block_on(async {
@@ -391,11 +401,14 @@ fn run(fault: Fault, secs: u64, extra: &[&str], supervise: bool) -> Run {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(std::fs::File::create(&log).unwrap());
-    if supervise {
-        let mut child = cmd.arg("--supervise").spawn().unwrap();
+    if stop != Stop::Duration {
+        if stop == Stop::Supervised {
+            cmd.arg("--supervise");
+        }
+        let mut child = cmd.spawn().unwrap();
         std::thread::sleep(Duration::from_secs(secs));
         unsafe { libc::kill(child.id() as i32, libc::SIGTERM) };
-        assert!(child.wait().unwrap().success(), "supervisor exits 0 on SIGTERM");
+        assert!(child.wait().unwrap().success(), "exits 0 on SIGTERM: {}", std::fs::read_to_string(&log).unwrap());
     } else {
         let st = cmd.args(["--duration-secs", &secs.to_string()]).status().unwrap();
         assert!(st.success(), "collector failed: {}", std::fs::read_to_string(&log).unwrap());
@@ -431,7 +444,7 @@ fn assert_clean(r: &Run) {
 
 #[test]
 fn baseline_no_fault() {
-    let r = run(Fault::None, 12, &[], false);
+    let r = run(Fault::None, 12, &[], Stop::Duration);
     assert_clean(&r);
     assert_eq!(r.accepts, 2, "two replicas, no reconnect");
     assert!(r.metric("hash_ok") > 100, "the mock's hashes verify");
@@ -440,7 +453,7 @@ fn baseline_no_fault() {
 
 #[test]
 fn dropped_socket_fails_over_and_reconnects() {
-    let r = run(Fault::Drop { after: after(5) }, 14, &[], false);
+    let r = run(Fault::Drop { after: after(5) }, 14, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.metric("switches") >= 1, "tokens move to the replica");
     assert!(r.metric("switch_snaps") >= 1, "each switch writes a snapshot");
@@ -452,7 +465,7 @@ fn dropped_socket_fails_over_and_reconnects() {
 fn silent_socket_is_switched_off_then_reconnected() {
     // No frames at all, PONGs included: the lag check moves tokens off at once (3 s), and the
     // 30 s watchdog reconnects the socket.
-    let r = run(Fault::Silent { after: after(5) }, 42, &[], false);
+    let r = run(Fault::Silent { after: after(5) }, 42, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.metric("lag_switches") >= 1);
     assert!(r.accepts >= 3, "the watchdog reconnects socket 0");
@@ -460,7 +473,7 @@ fn silent_socket_is_switched_off_then_reconnected() {
 
 #[test]
 fn stalled_subscription_switches_that_token() {
-    let r = run(Fault::Stall { after: after(5) }, 14, &[], false);
+    let r = run(Fault::Stall { after: after(5) }, 14, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.metric("lag_switches") >= 1, "the stalled token moves to its replica");
     assert_eq!(r.accepts, 2, "the socket itself stays up");
@@ -468,14 +481,14 @@ fn stalled_subscription_switches_that_token() {
 
 #[test]
 fn delayed_socket_loses_the_source() {
-    let r = run(Fault::Delay { after: after(5), by: Duration::from_secs(5) }, 16, &[], false);
+    let r = run(Fault::Delay { after: after(5), by: Duration::from_secs(5) }, 16, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.metric("lag_switches") >= 1);
 }
 
 #[test]
 fn corrupt_update_is_caught_by_the_hash_and_repaired() {
-    let r = run(Fault::Corrupt { after: after(5) }, 14, &[], false);
+    let r = run(Fault::Corrupt { after: after(5) }, 14, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.metric("hash_miss") >= 1, "the venue hash catches the bad size");
     assert!(r.metric("switches") + r.metric("resnapshots") >= 1, "the bad book is replaced");
@@ -483,7 +496,7 @@ fn corrupt_update_is_caught_by_the_hash_and_repaired() {
 
 #[test]
 fn gamma_429_slows_discovery_down_but_it_completes() {
-    let r = run(Fault::Gamma429(2), 12, &[], false);
+    let r = run(Fault::Gamma429(2), 12, &[], Stop::Duration);
     assert_clean(&r);
     assert!(r.gamma_requests >= 3, "retried after the 429s");
     assert!(r.log.contains("discovery pass complete"));
@@ -491,7 +504,7 @@ fn gamma_429_slows_discovery_down_but_it_completes() {
 
 #[test]
 fn resolved_close_drops_tokens_without_reconnecting() {
-    let r = run(Fault::Resolved { after: after(5) }, 12, &[], false);
+    let r = run(Fault::Resolved { after: after(5) }, 12, &[], Stop::Duration);
     assert!(r.verify_ok, "verify failed:\n{}", r.verify);
     assert!(r.metric("resolved_closes") >= 1);
     assert_eq!(r.accepts, 2, "no reconnect for resolved assets");
@@ -499,9 +512,16 @@ fn resolved_close_drops_tokens_without_reconnecting() {
 
 #[test]
 fn supervisor_restarts_after_a_panic() {
-    let r = run(Fault::None, 16, &["--fault-panic-after-secs", "5"], true);
+    let r = run(Fault::None, 16, &["--fault-panic-after-secs", "5"], Stop::Supervised);
     assert!(r.verify_ok, "verify failed:\n{}", r.verify);
     assert!(r.verify.contains("0 did not"), "{}", r.verify);
     assert!(r.verify.contains("resets:"), "a reset marker between runs: {}", r.verify);
     assert!(r.log.contains("supervisor: child died; restarting"));
+}
+
+#[test]
+fn sigterm_flushes_and_exits_cleanly() {
+    let r = run(Fault::None, 10, &[], Stop::Sigterm);
+    assert_clean(&r);
+    assert!(r.log.contains("stop signal: shutting down"));
 }
