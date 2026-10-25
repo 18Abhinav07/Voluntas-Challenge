@@ -48,7 +48,7 @@ to the command that reproduces it, and what every counter means. The measured nu
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | The full universe on a c7i.xlarge: latency, CPU, memory, a three-region probe, benchmarks |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Host requirements, AWS / GCP / Hetzner equivalents, systemd unit, shipping output |
 | [docs/AWS-RUN.md](docs/AWS-RUN.md) | The one-shot AWS run that produced PERFORMANCE.md: hosts, phases, safety, how to rerun it |
-| [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md) | Every run, bug and fix, in order |
+| [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md) | Every run, bug and fix, in order; charted under "How each fix moved the numbers" below |
 
 ## Requirements checklist
 
@@ -60,6 +60,8 @@ to the command that reproduces it, and what every counter means. The measured nu
 | `PriceLevelUpdate` per level change, `Snapshot` per symbol every 60 s | `core/emit.rs` → `writer.rs`, template `AlignedSbeWriter`, 64 MiB chunks | `verify`: 0 replay mismatches in every run |
 | Snapshot on a source switch | `core/emit.rs` `adopt`: diff, then snapshot (D8) | e2e `dropped_socket`: `switch_snaps` ≥ 1 |
 | SIGINT: close sockets, flush, close the file | `main.rs` shutdown order, on SIGINT and SIGTERM; also on a panic (D20) | every run ends with `done` and a readable file; e2e `sigterm_flushes` |
+| Output to stdout by default | `--out` defaults to `-`; a path writes a file (D4) | `collector --max-markets 50 > ob.sbe` then `verify ob.sbe`: OK; it refuses to write binary to a terminal |
+| No multivariate events (Kalshi) | `mve_filter=exclude` on discovery and lookup (`adapter/kalshi.rs`); Polymarket has none | [docs/KALSHI.md](docs/KALSHI.md) |
 | Ext 1: redundancy | 2 replicas per shard on different edges, source arbitration, lag check, `--supervise` | e2e drop / silent / stall / delay / supervise; 224-socket edge kill live |
 | Ext 2: silent failures and exchange-side decay | venue hash ladder, quiet resubscribe, per-socket quiet reconnect, make-before-break recycling | e2e corrupt / stall; hourly recycle of 448 sockets with no gaps |
 | Ext 3: a second exchange | `ExchangeAdapter` trait; Polymarket and Kalshi adapters (`src/adapter/`), `--venue` | Kalshi e2e: seq gap → failover, listing → subscribe; never run live ([docs/KALSHI.md](docs/KALSHI.md)) |
@@ -220,6 +222,51 @@ Earlier, a GitHub Codespace (4 vCPU, 16 GB, West Europe) ran the long soak on bu
 
 The full table of runs is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md).
 
+## How each fix moved the numbers
+
+Each point is a run against live Polymarket; the grey line under each run names the fixes (#n,
+from the bottleneck table in [docs/ENGINEERING-LOG.md](docs/ENGINEERING-LOG.md)) that landed
+before it. Hosts and builds change along the x axis: Runs 6–7 are a laptop on a VPN, Cloud and
+Soak runs a GitHub Codespace, AWS the c7i.xlarge. The values come from
+[docs/charts/data.json](docs/charts/data.json); `python3 docs/charts/make_charts.py` redraws them.
+
+![Order books held: tokens with a live book rose from 47.5k of 131k on a laptop to 551k of 553k on AWS](docs/charts/coverage.svg)
+
+![Core queue delay p99, log scale: 524 ms on the first cloud run, 4.2 s at the rotation stall, 8 ms on AWS](docs/charts/queue.svg)
+
+![Updates written per second: 18.9k before the hash fix, 32.3k after, 42k on AWS](docs/charts/throughput.svg)
+
+![Heap per token in the offline bench: total 7,598 to 4,574 B, overhead 1,528 to 652 B](docs/charts/memory.svg)
+
+<p>
+<img src="docs/charts/rss.svg" width="49%" alt="Live RSS: 3.05 GB before the memory work, 1.73 GB after, 1.82 GB on AWS">
+<img src="docs/charts/core-cpu.svg" width="49%" alt="CPU per core thread: 99.9% with one thread, 50-90% with K threads, 31-38% after hashing only the source">
+</p>
+<p>
+<img src="docs/charts/host-delay.svg" width="49%" alt="Host delay p99: 16 ms with one io worker, 8 ms with two, 256 µs on AWS">
+<img src="docs/charts/stalls.svg" width="49%" alt="Writer waits on disk: 8 in the 2.5 h soak, 0 after the byte-bounded queue, 0 on AWS">
+</p>
+
+The same data as a table:
+
+| # | Fix | Metric | Before | After |
+|---|---|---|---|---|
+| 1 | Cloud host near London | exch→recv p99 | minutes | 173 ms |
+| 2 | Open limiter, book re-ask | tokens with a book | 47.5k | 96k (link-bound) |
+| 3 | Socket cap from the universe, 429 backoff | tokens placed | 250k | 459k (all) |
+| 4 | Timers before inbound | exch→recv p99 | 71 s | 524 ms |
+| 5 | Hash once per check | updates/s | 18.9k | 32.3k |
+| 6 | K core threads | CPU of the busiest core thread | 99.9% | 50–90% |
+| 7 | Rate-aware quiet detection | resubscribes in 90 min | 400k | the truly quiet tokens only |
+| 8 | Hash only the source | core thread CPU | 50–60% | 31–38% |
+| 9 | fsync off the writer | time blocked in rotation | 330 s and 1,153 s | 0 in 11 rotations |
+| 10 | Drop resolved tokens | disconnects in the A/B | ×11–19 | loop gone |
+| 11 | Memory layout | live RSS | 3.0 GB | 1.73 GB |
+| 12 | Byte-bounded writer queue | writer waits on disk | 8 | 0 |
+| 13 | `--kernel-ts` | what host delay measures | TLS + parse + scheduling | kernel → read, p50 ≤ 128 µs |
+| 14 | Count CPUs before pinning | core threads with `--pin` | 1 | 2 |
+| 15 | At least 2 io workers | host delay p99 | 8–16 ms | 4–8 ms |
+
 ## Known limits
 
 - **A crash loses the unwritten chunk.** Output is written in whole 64 MiB chunks (D11), so a
@@ -257,6 +304,7 @@ The full table of runs is at the top of [docs/ENGINEERING-LOG.md](docs/ENGINEERI
 | `src/util/` | The template's SBE helpers, unchanged |
 | `bench/` | Scripts and raw logs from the profiled, A/B, latency and AWS runs |
 | `sample/` | Two minutes of live output from the AWS run, gzipped, with its log |
+| `docs/charts/` | The README charts: `data.json` (values from the log) and `make_charts.py` (draws the SVGs) |
 | `demo.sh`, `Dockerfile` | The reviewer's path in one script; the binaries in a slim image |
 
 The template's original notes on the SBE schema are in

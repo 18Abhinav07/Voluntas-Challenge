@@ -1,0 +1,386 @@
+{
+  "_source": "Every value is copied from docs/ENGINEERING-LOG.md (the run tables and the bottleneck table) or docs/PERFORMANCE.md. Each point is a run; 'fix' names the bottleneck-table fixes (#n) that landed before it. Edit this file, then run: python3 docs/charts/make_charts.py",
+  "charts": [
+    {
+      "id": "coverage",
+      "title": "Order books held",
+      "subtitle": "Tokens listed by the venue and tokens with a live book, thousands",
+      "unit": "k",
+      "series": [
+        {
+          "name": "Listed",
+          "points": [
+            131,
+            131,
+            446,
+            459,
+            557,
+            551,
+            553
+          ]
+        },
+        {
+          "name": "With a book",
+          "points": [
+            47.5,
+            96,
+            250,
+            459,
+            557,
+            551,
+            551
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Run 6",
+          "fix": "laptop"
+        },
+        {
+          "run": "Run 7",
+          "fix": "#2 limiter"
+        },
+        {
+          "run": "Cloud 1",
+          "fix": "#1 cloud host"
+        },
+        {
+          "run": "Cloud 2",
+          "fix": "#3 socket cap"
+        },
+        {
+          "run": "Cloud 3",
+          "fix": "#4 #5"
+        },
+        {
+          "run": "Soak 3",
+          "fix": "#6–#10"
+        },
+        {
+          "run": "AWS",
+          "fix": "#11–#15"
+        }
+      ]
+    },
+    {
+      "id": "throughput",
+      "title": "Updates written per second",
+      "subtitle": "Full universe, thousands per second. After #5 the venue's own rate sets this, not the collector",
+      "unit": "k/s",
+      "series": [
+        {
+          "name": "Updates/s",
+          "points": [
+            18.9,
+            32.3,
+            34.3,
+            35.6,
+            31.0,
+            35.6,
+            42
+          ],
+          "lo": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            41
+          ],
+          "hi": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            43
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Cloud 2",
+          "fix": "#3 socket cap"
+        },
+        {
+          "run": "Cloud 3",
+          "fix": "#4 timers #5 hash"
+        },
+        {
+          "run": "Soak 1",
+          "fix": "#6 K cores"
+        },
+        {
+          "run": "Soak 2",
+          "fix": "#7 Ext 2"
+        },
+        {
+          "run": "Profile 2",
+          "fix": "#8 hash source"
+        },
+        {
+          "run": "Soak 3",
+          "fix": "#9 #10"
+        },
+        {
+          "run": "AWS",
+          "fix": "#11–#15"
+        }
+      ]
+    },
+    {
+      "id": "queue",
+      "title": "Core queue delay, p99",
+      "subtitle": "Socket to book, full universe, log scale. Profile 2 is the rotation fsync stall that #9 removed",
+      "unit": "ms",
+      "log": true,
+      "series": [
+        {
+          "name": "Core queue p99",
+          "points": [
+            524,
+            1050,
+            524,
+            262,
+            4200,
+            1050,
+            65.5,
+            8
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Cloud 1",
+          "fix": "#1 cloud host"
+        },
+        {
+          "run": "Cloud 2",
+          "fix": "#3 socket cap"
+        },
+        {
+          "run": "Cloud 3",
+          "fix": "#4 #5"
+        },
+        {
+          "run": "Soak 1",
+          "fix": "#6 K cores"
+        },
+        {
+          "run": "Profile 2",
+          "fix": "#7 #8"
+        },
+        {
+          "run": "A/B",
+          "fix": "#9 finisher"
+        },
+        {
+          "run": "Soak 3",
+          "fix": "#10"
+        },
+        {
+          "run": "AWS",
+          "fix": "#11–#15"
+        }
+      ]
+    },
+    {
+      "id": "core-cpu",
+      "title": "CPU per core thread",
+      "subtitle": "Percent of one CPU; whiskers show the range across threads",
+      "unit": "%",
+      "series": [
+        {
+          "name": "Core thread CPU",
+          "points": [
+            99.9,
+            70,
+            34.5
+          ],
+          "lo": [
+            null,
+            50,
+            31
+          ],
+          "hi": [
+            null,
+            90,
+            38
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Cloud 3",
+          "fix": "one thread"
+        },
+        {
+          "run": "Soak 1",
+          "fix": "#6 K cores"
+        },
+        {
+          "run": "Profile 2",
+          "fix": "#8 hash source"
+        }
+      ],
+      "small": true
+    },
+    {
+      "id": "memory",
+      "title": "Heap per token, offline bench",
+      "subtitle": "bench mem, 566k tokens, bytes per token. Overhead is everything except price levels",
+      "unit": "B",
+      "series": [
+        {
+          "name": "Total heap",
+          "points": [
+            7598,
+            5777,
+            5448,
+            5089,
+            4574
+          ]
+        },
+        {
+          "name": "Overhead",
+          "points": [
+            1528,
+            1434,
+            1106,
+            746,
+            652
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Baseline",
+          "fix": "BTreeMap books"
+        },
+        {
+          "run": "M2",
+          "fix": "flat books"
+        },
+        {
+          "run": "M4",
+          "fix": "inline replicas"
+        },
+        {
+          "run": "M5/M7",
+          "fix": "one symbol"
+        },
+        {
+          "run": "M6",
+          "fix": "lazy hash state"
+        }
+      ]
+    },
+    {
+      "id": "rss",
+      "title": "Live memory, full universe",
+      "subtitle": "RSS in GB; whisker is the range over the run",
+      "unit": "GB",
+      "series": [
+        {
+          "name": "RSS",
+          "points": [
+            3.05,
+            1.73,
+            1.82
+          ],
+          "lo": [
+            2.8,
+            null,
+            1.8
+          ],
+          "hi": [
+            3.3,
+            null,
+            1.92
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Soak 3",
+          "fix": "before #11"
+        },
+        {
+          "run": "Perf gate 1",
+          "fix": "#11 memory"
+        },
+        {
+          "run": "AWS",
+          "fix": "c7i.xlarge"
+        }
+      ],
+      "small": true
+    },
+    {
+      "id": "host-delay",
+      "title": "Host delay, p99",
+      "subtitle": "Kernel receive to collector read, upper bound, log scale",
+      "unit": "ms",
+      "log": true,
+      "series": [
+        {
+          "name": "Host delay p99",
+          "points": [
+            16,
+            8,
+            0.256
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Gate 2",
+          "fix": "1 io worker"
+        },
+        {
+          "run": "A/B",
+          "fix": "#15 ≥ 2 workers"
+        },
+        {
+          "run": "AWS",
+          "fix": "c7i.xlarge"
+        }
+      ],
+      "small": true
+    },
+    {
+      "id": "stalls",
+      "title": "Writer waits on disk",
+      "subtitle": "Times the writer blocked for 1 s or more",
+      "unit": "",
+      "series": [
+        {
+          "name": "Waits",
+          "points": [
+            8,
+            0,
+            0
+          ]
+        }
+      ],
+      "x": [
+        {
+          "run": "Soak 3",
+          "fix": "2.5 h"
+        },
+        {
+          "run": "Perf gate 1",
+          "fix": "#12 queue"
+        },
+        {
+          "run": "AWS",
+          "fix": "60 min"
+        }
+      ],
+      "small": true
+    }
+  ]
+}

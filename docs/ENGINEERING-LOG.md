@@ -1435,3 +1435,37 @@ decode 1,410 ns/frame (460 MB/s), core 4,665 ns/event, 2.43 allocs/event. `bench
   on the sample inside it.
 - **Docs:** new PERFORMANCE.md with the AWS numbers; README, GRADING, DEPLOY and LATENCY now
   quote the AWS run instead of the Codespace where both exist.
+
+## Turn — End-to-end check and README charts
+
+**Ask:** with the laptop on a VPN, check everything works end to end for the solution and for
+grading, check the submission against the challenge brief, and chart in the README how each fix
+moved its metric.
+
+**Checked** (laptop, VPN to Singapore):
+- `./demo.sh all` passed. The sample replayed 3,950 snapshots with 0 mismatches. Tests passed:
+  77 lib, 10 e2e, 3 golden, 3 Kalshi. A live run of 2,000 markets for 120 s wrote 108,401
+  updates and 23,344 snapshots; 15,344 replayed, 0 mismatches.
+- stdout output, live: 50 markets for 20 s, redirected to a file; `verify` OK, 58 matched.
+- Against the brief:
+  - Every core item and Ext 1–4 maps to code and a test or run.
+  - Shutdown sends a websocket Close on every socket before the file is closed.
+  - Kalshi discovery and lookup pass `mve_filter=exclude`.
+  - The README checklist gained rows for the stdout default and MVE exclusion.
+
+**Added:**
+- `docs/charts/data.json`: the per-run values, copied from this log and PERFORMANCE.md.
+- `make_charts.py`: standard library only. It draws one SVG line chart per metric. x is the
+  run, labelled with the fixes that landed before it.
+- The palette is the validated two-slot categorical pair, light and dark.
+- Eight charts: coverage, core queue p99, updates/s, heap per token, live RSS, core thread CPU,
+  host delay p99 and writer waits.
+- The README section "How each fix moved the numbers" holds the charts and the same data as a
+  fix → before → after table.
+
+**Left out of the charts:**
+- Soak 2's 2.1 s queue p99, which came from a deliberate 15 s freeze, not a fix.
+- The AWS core CPU of 47%, which is not per thread.
+
+**Open:** the zip and the email, on the user's go.
+
