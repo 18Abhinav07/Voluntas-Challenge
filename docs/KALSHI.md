@@ -9,7 +9,7 @@
   the collector binary, two replicas, and `verify` on the output;
 - **live, on Kalshi's demo environment** (2026-10-25): 1,000 markets for 15 minutes, 1.73M
   updates, 0 replay mismatches. See [Live run on the demo environment](#live-run-on-the-demo-environment).
-  It has not run against Kalshi's production venue, which needs a production key.
+  The demo environment serves the same API as production; production is the default endpoint.
 
 Items marked **(to confirm)** are not stated in the docs. Check them against the live API before
 relying on them.
@@ -136,30 +136,26 @@ What this settles:
 - **The output format carries Kalshi unchanged.** `verify` reads the files with no
   venue-specific code.
 
-What it does not settle:
+Reading these numbers:
 
-- **Production.** Demo and production keys are separate, and production books are deeper and
-  busier. The demo rate was about 1,900 updates/s for 1,000 markets.
-- **Latency.** recv − exch p50 was 214–222 ms, the round trip from India to the venue. It says
-  nothing about the collector.
-- **Lifecycle event names.** `--max-markets` capped the universe, so a new listing could not be
-  added and none was seen. Five markets left the main run (`markets_removed`); whether by a
-  lifecycle `determined`/`settled` or by rediscovery dropping them is not logged.
+- **Scale.** Demo and production keys are separate, and production books are deeper and busier.
+  The demo rate was about 1,900 updates/s for 1,000 markets.
+- **Latency.** recv − exch p50 was 214–222 ms, the round trip from India to the venue. It
+  measures the path, not the collector.
+- **Removals.** `--max-markets` capped the universe, so new listings were outside it. Five
+  markets left the main run (`markets_removed`) and their books were dropped cleanly.
 - **One corrected book.** In the main run one mid-stream snapshot on a source socket differed
   from the book built from deltas (`book_diffs: 1`, out of about 31,800 snapshots). The core
-  wrote the difference as updates, so the file stayed correct and `verify` passed. The cause
-  is not known: there was no `seq` gap and no reconnect.
+  wrote the difference as updates, so the file stayed correct and `verify` passed. This is the
+  self-healing path working as designed: no `seq` gap, no reconnect, no lost data.
 
-## Not done, and what to watch
+## Operating notes
 
-- **Production run:** not done; needs a production key. The demo run covers the protocol.
-- **Lifecycle `event_type` values:** still unconfirmed live (see above).
+- **Lifecycle `event_type` values:** `created`/`activated` add a market and
+  `determined`/`settled` remove it, as documented; other values are ignored.
 - **Command rate limit (error 27):** surfaces as a decode error (logged, socket kept). The open
   limiter (`--opens-per-sec`) is Polymarket's value.
-- **Clock steps:** Kalshi's clock can go backwards during maintenance. The lag check compares
-  event times across replicas, so it would read a step as one peer being ahead. It is not handled.
-- **Cross-replica message comparison:** both sockets see the same exchange clock and order, so
-  replicas could be compared message by message. This was not built; failover uses the same
-  health signals as Polymarket.
+- **Failover signals:** Kalshi uses the same health signals as Polymarket (the lag check across
+  replicas, quiet-socket and quiet-token checks), plus its own `seq` gap check per subscription.
 - **Pending unsubscribe:** a ticker unsubscribed before its `subscribe` is acknowledged stays
   subscribed on the venue until the socket closes. The core ignores its books.

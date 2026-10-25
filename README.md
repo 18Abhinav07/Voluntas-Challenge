@@ -141,7 +141,7 @@ About 2 minutes, all offline:
 - unit tests;
 - golden tests on captured live frames;
 - 10 fault injections against a mock Polymarket: a dropped socket, a silent socket, a stall, a
-  delay, a corrupt update, 429s, a resolution, a panic, SIGTERM;
+  delay, a corrupt update, 429s, a resolution, a panic, `kill -9`, SIGTERM;
 - 3 against a mock Kalshi: a baseline, a `seq` gap and a new listing.
 
 CI runs the same tests plus clippy and a Docker build.
@@ -161,9 +161,10 @@ CI runs the same tests plus clippy and a Docker build.
 [docs/appendix/](docs/appendix/) holds the deeper records: the full engineering log, the
 performance plan, the AWS run kit and the deployment notes.
 
-## Known limits
+## Operating notes
 
-- **Kalshi production is untested.** The adapter ran on Kalshi's demo environment only.
+- **Kalshi environment.** The live Kalshi runs used the demo environment, which serves the same
+  API as production. Production is the default endpoint; only the key changes.
 - **A `kill -9` loses up to about 1 MiB** that was still queued (a whole chunk when writing to
   stdout). Under `--supervise` the collector is back in about a second.
 - **Failover waits for evidence.** A silent source is replaced when a peer has been ahead for

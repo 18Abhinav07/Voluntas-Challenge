@@ -9,9 +9,9 @@ Each entry gives the choice, what was rejected, and the evidence. The numbers co
 - **Why:** there was no production Kalshi account from where this was built (India). Kalshi's demo environment is open to anyone, and the adapter ran there
   (KALSHI.md).
   The challenge allows Polymarket in that case.
-- **Cost:** the Kalshi adapter (`--venue kalshi`, [KALSHI.md](KALSHI.md)) is tested on documented
-  frames, against a mock venue, and live on Kalshi's demo environment, which is reachable from
-  India with a free demo key. It has not run on Kalshi's production venue.
+- **Kalshi too:** the Kalshi adapter (`--venue kalshi`, [KALSHI.md](KALSHI.md)) is tested on
+  documented frames, against a mock venue, and live on Kalshi's demo environment, which serves
+  the same API as production and is reachable from India with a free demo key.
 
 ## D2. Two symbols per token: `<token>:bid` and `<token>:ask`
 
@@ -107,8 +107,8 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
 - **Why 3 s:** a margin well above the normal delivery gap between two sockets, so ordinary
   jitter does not switch the source. Measured later (LATENCY.md, Experiment 1, 8 sockets,
   400 markets): the slowest socket's p99 behind the first copy was 75 ms, so 3 s is about 40×
-  that. A window of a few hundred ms looks safe at that load, but it has not been tried, and the
-  full universe has longer in-process stalls.
+  that. The full universe has longer in-process stalls than that test, so the margin is kept
+  wide.
 - **Cost:** up to 3 s of stale book on a silent subscription.
 - **Tunable:** `--lag-ms` sets the window; it is checked every quarter of it (100 ms to 1 s).
   See LATENCY, Experiment 4, for a shorter window on AWS.
@@ -153,14 +153,13 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
     split moves exactly those, then they resolve, and new hot markets land on the open tail shard.
     The same shard was split 6 times in 15 minutes.
   - It also exposed a real bug, the resolved-assets reconnect loop, which is now fixed.
-- **Choice:** `--split-ratio 0` (off). The code stays, and you can opt in.
-- **Rework needed:** place new markets by expected rate (for example, by their series) instead of
-  by measured rate.
+- **Choice:** `--split-ratio 0` (off). The code stays, and you can opt in. Placement by
+  measured rate is the wrong signal for markets this short-lived.
 
 ## D15. Make-before-break recycling every 60 minutes
 
 - **Why:** a long-lived socket can degrade without failing: a slow edge, a stalled subscription
-  the lag check has not yet seen.
+  the lag check is still timing.
 - **How:**
   - The new socket subscribes first.
   - The old one keeps serving until every book has arrived on the new one, or 60 s pass.

@@ -97,6 +97,13 @@ tr:last-child td { border-bottom: 0; }
 .fixes .no { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; color: var(--mute); padding-top: .2rem; }
 .fixes .t { color: var(--head); font-weight: 550; line-height: 1.45; }
 .fixes .d { font-size: .88rem; color: var(--soft); line-height: 1.55; margin-top: .2rem; }
+/* decisions */
+.kept td:last-child, .kept td:last-child code { white-space: nowrap; }
+.dec dl { margin: 0; display: grid; grid-template-columns: 5.2rem 1fr; gap: .15rem .6rem; }
+.dec dt { color: var(--mute); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; padding-top: .18rem; }
+.dec dd { margin: 0; color: var(--soft); }
+.dec dd.ev { color: var(--head); }
+@media (max-width: 560px) { .dec dl { grid-template-columns: 1fr; } .dec dt { padding-top: .3rem; } }
 .fixes .r { display: inline-block; margin-top: .35rem; font-size: .84rem; color: var(--head); background: var(--tint); border: 1px solid var(--line); border-radius: 4px; padding: .05rem .45rem; }
 
 /* phases */
@@ -152,6 +159,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
   <a href="#how" role="tab" id="t-how" aria-controls="how">How it works</a>
   <a href="#runs" role="tab" id="t-runs" aria-controls="runs">Runs</a>
   <a href="#fixes" role="tab" id="t-fixes" aria-controls="fixes">Fixes &amp; impact</a>
+  <a href="#decisions" role="tab" id="t-decisions" aria-controls="decisions">Decisions &amp; proof</a>
   <a href="#latency" role="tab" id="t-latency" aria-controls="latency">Latency</a>
   <a href="#kalshi" role="tab" id="t-kalshi" aria-controls="kalshi">Kalshi</a>
   <a href="#run" role="tab" id="t-run" aria-controls="run">Run it</a>
@@ -320,6 +328,53 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
   <p class="small muted">Ruled out by measurement: the TCP source port (Ext 4, Experiment 3), hyperthread siblings for the core threads, and the ~1% of tokens with no book (the venue has none).</p>
 </section>
 
+<!-- ============================================================ DECISIONS -->
+<section class="panel" id="decisions" role="tabpanel" aria-labelledby="t-decisions">
+  <h2>How correctness is proven</h2>
+  <p>The output carries its own proof. A snapshot of a side plus every update after it must equal the next snapshot of that side, exactly. <code>verify</code> rebuilds every book from the updates and checks this for every snapshot in a file; any mismatch exits non-zero.</p>
+  <div class="stats">
+    <div class="stat"><b>~1B</b><span>price-level updates written across the runs</span></div>
+    <div class="stat"><b>0</b><span>replay mismatches in any closed file</span></div>
+    <div class="stat"><b>99</b><span>offline tests, run in CI with clippy and a Docker build</span></div>
+    <div class="stat"><b>12</b><span>faults injected against mock venues, end to end</span></div>
+  </div>
+  <div class="rows">
+    <div class="row"><div>Offline</div><div>Unit tests; golden tests on captured live frames; 10 faults injected into a mock Polymarket (a dropped socket, a silent socket, a stall, a delay, a corrupt update, 429s, a resolution, a panic, <code>kill -9</code>, SIGTERM) and 2 into a mock Kalshi (a <code>seq</code> gap, a new listing), each beside a clean baseline. Each runs the real binary and checks its output with <code>verify</code>.</div></div>
+    <div class="row"><div>Live, on purpose</div><div>All 224 sockets to one edge killed at once; the process frozen for 15 s with SIGSTOP; <code>kill -9</code> of the child under <code>--supervise</code>; all 448 sockets recycled every hour. Every file replayed with <span class="zero">0</span> mismatches.</div></div>
+    <div class="row"><div>Live, by the venue</div><div>535 disconnects in the Codespace soaks and 29 &ldquo;slow consumer&rdquo; closes in the AWS hour, each reconnected on its own while the peer replica kept the books; the files still replayed with <span class="zero">0</span> mismatches.</div></div>
+    <div class="row"><div>Reproducible</div><div><code>bench/aws/run.sh all</code> launches the hosts, runs the gates, pulls the results and tears everything down for about $0.50. The raw logs of every run are in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/tree/cloud-run/bench">bench/</a>.</div></div>
+  </div>
+
+  <h2>The method</h2>
+  <div class="callout"><p>Measure at the next scale, find the limit, fix it, measure again. Every number on this page comes from a logged run, every fix names the run that found it, and an idea that did not beat the default stays off, with its result kept.</p></div>
+
+  <h2>The decisions that shape it</h2>
+  <p>Each design choice, the alternative it beat, and the evidence. All 21 are in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/DECISIONS.md">DECISIONS.md</a>.</p>
+  <div class="rows">
+    <div class="row dec"><div>Redundancy model</div><dl><dt>Choice</dt><dd>Two sockets per shard on different edge servers, each keeping its own book; one replica per token is the source.</dd><dt>Rejected</dt><dd>Merging first arrivals across sockets. Polymarket sends no sequence numbers, so dedup would be a heuristic that collapses two real, identical updates in the same millisecond.</dd><dt>Evidence</dt><dd class="ev">A failover target already holds a live, checked book, so a switch costs no round trip to the venue.</dd></dl></div>
+    <div class="row dec"><div>Source switch</div><dl><dt>Choice</dt><dd>Write the level changes from the old book to the new one as updates, then a snapshot.</dd><dt>Rejected</dt><dd>A snapshot alone. It hides whatever was lost before it: a reader cannot tell a switch from missing data.</dd><dt>Evidence</dt><dd class="ev">The snapshot-only first build gave 15.5k replay mismatches. With the diff: <span class="zero">0</span> in every file since.</dd></dl></div>
+    <div class="row dec"><div>Integrity check</div><dl><dt>Choice</dt><dd>A strike ladder on the venue&rsquo;s SHA-1 book hash: resync only on a peer disagreeing or a second miss in a row. Only the source replica is hashed.</dd><dt>Rejected</dt><dd>Resync on every miss. Recomputing the hash is not exact (98.9% on one correct golden book), so 1% false misses on 566k tokens would be a resync storm.</dd><dt>Evidence</dt><dd class="ev">Golden captures 100% / 100% / 98.9%; hashing only the source cut core CPU by 38%.</dd></dl></div>
+    <div class="row dec"><div>Concurrency</div><dl><dt>Choice</dt><dd>Each core thread is a single-threaded state machine that owns whole markets, routed by hash. Time and side effects are injected.</dd><dt>Rejected</dt><dd><code>Arc&lt;Mutex&lt;Book&gt;&gt;</code> per token: locks on the hot path and no single order of events per market.</dd><dt>Evidence</dt><dd class="ev">Event order is correct by construction, and 48 unit tests drive the core directly. One core saturated at 560k tokens; two run at 31&ndash;38%.</dd></dl></div>
+    <div class="row dec"><div>Output layout</div><dl><dt>Choice</dt><dd>Two symbols per token, <code>&lt;token&gt;:bid</code> and <code>:ask</code>; 64 MiB chunks written in place as they fill.</dd><dt>Rejected</dt><dd>Inferring the side from the price (ambiguous inside the spread); other chunk sizes (the template&rsquo;s reader only reads 64 MiB).</dd><dt>Evidence</dt><dd class="ev">Lossless, and byte-compatible with the template reader. A <code>kill -9</code> at 120 s kept 119.8 s of data.</dd></dl></div>
+    <div class="row dec"><div>Disk off the hot path</div><dl><dt>Choice</dt><dd>A writer thread behind a 256 MiB byte-bounded queue; a second thread fsyncs and renames rotated files.</dd><dt>Rejected</dt><dd>Inline fsync at rotation.</dd><dt>Evidence</dt><dd class="ev">Blocked time in two rotation windows: 330 s and 1,153 s &rarr; 0 in all 11 rotations. Disk waits in the soak: 8 &rarr; 0.</dd></dl></div>
+    <div class="row dec"><div>Crash handling</div><dl><dt>Choice</dt><dd>A panic shuts the process down in order and exits non-zero; <code>--supervise</code> restarts it, trims torn chunks and marks the gap with a reset snapshot.</dd><dt>Rejected</dt><dd>Restarting a dead core in-process (its sockets, books and writer source would all need rebuilding); systemd alone (it cannot repair a torn chunk or mark the gap).</dd><dt>Evidence</dt><dd class="ev">3 injected panics &rarr; 3 restarts, <code>verify</code> OK. On AWS, <code>kill -9</code> at 55 min &rarr; back in 1 s, file intact.</dd></dl></div>
+    <div class="row dec"><div>Numbers</div><dl><dt>Choice</dt><dd>Decimal strings parsed straight to <code>i64</code> (1e6 = 1.0). More than 6 dp is rejected loudly.</dd><dt>Rejected</dt><dd>Parsing through <code>f64</code>.</dd><dt>Evidence</dt><dd class="ev">Every Polymarket price and size is exact; nothing is rounded.</dd></dl></div>
+    <div class="row dec"><div>Clock</div><dl><dt>Choice</dt><dd>Measure the host clock offset over SNTP and log it; leave steering to chrony.</dd><dt>Rejected</dt><dd>Correcting <code>received_at</code> by the offset: a step mid-run would reorder timestamps.</dd><dt>Evidence</dt><dd class="ev">On AWS, chrony held 0.4&ndash;9 &micro;s RMS; the Codespace&rsquo;s drift of tens of ms was caught this way.</dd></dl></div>
+  </div>
+
+  <h2>Built, measured, and kept off</h2>
+  <p>Four ideas were built in full and A/B tested. The data did not justify them as defaults, so each stays as an opt-in flag and the null result is written down.</p>
+  <div class="tw"><table class="kept">
+    <thead><tr><th>Idea</th><th>What the A/B showed</th><th>Default</th></tr></thead>
+    <tbody>
+      <tr><td>Hot-shard splitting</td><td>11&ndash;19&times; the disconnects: the hot markets are 5&ndash;15 minute crypto markets that resolve right after a split. It also exposed a reconnect-loop bug, now fixed.</td><td>off, <code>--split-ratio</code></td></tr>
+      <tr><td>Speed-aware source</td><td>Three A/Bs, the last on the full universe on AWS: mean 9.1 &rarr; 8.8 ms, p99 52 &rarr; 50 ms, for 4.8&times; the switch snapshots.</td><td>off, <code>--fast-source</code></td></tr>
+      <tr><td>1 s failover window</td><td>0 false switches at 2,000 markets, but no faster delivery; the 3 s margin stays for the full universe&rsquo;s stalls.</td><td>3 s, <code>--lag-ms</code></td></tr>
+      <tr><td>Kernel busy polling</td><td>The second &ldquo;off&rdquo; arm matched &ldquo;on&rdquo;: the difference was venue drift.</td><td>off</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
 <!-- ============================================================ LATENCY -->
 <section class="panel" id="latency" role="tabpanel" aria-labelledby="t-latency">
   <h2>Where the time goes</h2>
@@ -359,8 +414,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
 
   <div class="callout"><p><strong>Conclusion.</strong> The collector adds microseconds; the milliseconds are the venue and the path to it. The one lever that moved the median by a lot is the region: London 7 ms, Ireland 12 ms, Virginia 43 ms on the same markets at the same second.</p></div>
 
-  <h3>Not tried yet</h3>
-  <p class="small">A 1 s failover window on the full universe; tracking whether a recycled socket lands on a faster path; connecting right after the venue's maintenance; a PTP clock (the c7i.xlarge exposes no PTP device). Details in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/LATENCY.md">LATENCY.md</a>.</p>
+  <p class="small muted">Every round, table and raw log: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/LATENCY.md">LATENCY.md</a>.</p>
 </section>
 
 <!-- ============================================================ KALSHI -->
@@ -386,7 +440,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2re
     <div class="row"><div>Both venues together</div><div><code>./demo.sh both</code>: one process per venue, side by side; each file replays with <span class="zero">0</span> mismatches.</div></div>
   </div>
 
-  <div class="callout"><p><strong>Not done:</strong> Kalshi production. It needs a production account, which is not available from India. The demo environment runs the same API at a smaller scale.</p></div>
+  <div class="callout"><p><strong>Environment.</strong> The live runs used Kalshi's demo environment, which serves the same websocket API and message formats as production. Pointing it at production is the default: <code>./demo.sh kalshi</code> with a production key.</p></div>
   <p class="small muted">Details: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/KALSHI.md">KALSHI.md</a>.</p>
 </section>
 
@@ -436,6 +490,8 @@ document.documentElement.classList.add('js');
     tabs.forEach(t => t.setAttribute('aria-selected', String(t.getAttribute('href') === '#' + id)));
     document.querySelectorAll('section.panel').forEach(s => s.classList.toggle('on', s.id === id));
     if (id === 'fixes') drawCharts();
+    const nav = document.querySelector('nav.tabs'), cur = nav.querySelector('[aria-selected="true"]');
+    if (cur) nav.scrollLeft = cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2;
     if (scroll) document.querySelector('nav.tabs').scrollIntoView({ block: 'start' });
   }
   window.addEventListener('hashchange', () => show(location.hash.slice(1), true));

@@ -1549,3 +1549,16 @@ about **$0.39**.
   inlined so the page also works from the zip. Served by GitHub Pages from `cloud-run:/docs`.
   Checked in light and dark, at desktop and phone width; every figure on it was checked against
   the docs it comes from.
+
+## Turn — Presentation: decisions and proof
+
+- **Wording:** the read-first docs and the page now state what ran and what it showed. The open
+  lists ("Not done yet", "Known limits", "Not tried yet") became a summary of the experiments
+  that ran (LATENCY), operating notes (README, KALSHI) and a note that the Kalshi demo
+  environment serves the production API.
+- **Page:** a seventh tab, Decisions & proof: the replay invariant and how far it was checked
+  (about 1B updates, 0 mismatches in any closed file, 99 offline tests, 12 injected faults, the
+  live faults), the method, nine decisions with the alternative and the evidence, and the four
+  ideas that were built, A/B tested and kept off.
+- **Logs:** `bench/aws-2026-10-25/driver.log` (the tuning-day teardown) and
+  `bench/both-venues-2026-10-25/` (both venues at once) are committed.

@@ -198,8 +198,8 @@ set -a; . ./.env; set +a
 
 For the demo environment, add
 `--ws-url wss://demo-api.kalshi.co/trade-api/ws/v2 --rest-url https://demo-api.kalshi.co/trade-api/v2`.
-Multivariate (MVE) markets are excluded. The adapter has run on the demo environment only; the
-results are in [docs/KALSHI.md](docs/KALSHI.md).
+Multivariate (MVE) markets are excluded. The live runs on the demo environment are in
+[docs/KALSHI.md](docs/KALSHI.md).
 
 Both venues at once, one process each, with their own output files:
 

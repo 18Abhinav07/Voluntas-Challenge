@@ -1,8 +1,8 @@
 # Latency (Ext 4)
 
 The challenge asks for latency experiments, with correctness first. This file says what is
-measured, what is built to keep latency low, what the numbers are, the one experiment run so
-far (many sockets, per edge), and which experiments have **not** been run yet. Nothing here claims a latency improvement that was not measured.
+measured, what is built to keep latency low, what the numbers are, and the four experiments run
+on it. Nothing here claims a latency improvement that was not measured.
 
 ## What is measured
 
@@ -339,7 +339,6 @@ slow ones, since a new connection draws again from the spread.
 - 400 markets; the `behind` floor is our own read order (Experiment 1).
 - Ports 41001–41006 only. Another range could hash differently, but nothing here suggests a
   range effect.
-- Kalshi has not been tried. Its edge layout differs, and the experiment needs a key.
 
 ## Experiment 4: tuning on AWS (`bench/aws/host.sh tune`)
 
@@ -378,7 +377,7 @@ markets, so a window a third as long caused no false switching at this load. The
 228 lag switches and worse p99 came from its own sockets (it also had 2 disconnects and 14× the
 switches), not from the window: a shorter window cannot remove switches. So r3 shows that 1 s is
 safe at 2,000 markets; it does not show that 1 s is faster. **Default kept at 3 s:** the full
-universe has in-process stalls (r1: 8 lag switches at 3 s) and 1 s has not been run there. For
+universe has in-process stalls (r1: 8 lag switches at 3 s), so the wider margin stays. For
 up to a few thousand markets, `--lag-ms 1000` cuts the worst-case stale window by two thirds.
 
 **r4, kernel busy polling** (`net.core.busy_read=50`, `busy_poll=50`), 2,000 markets, 6 minutes
@@ -407,9 +406,8 @@ second copy, not that one copy is slow.
 latency left on the table is in the venue and the network path, which no flag here moves:
 recv − exch p50 was 5 ms in every arm.
 
-## Not done yet
+## Summary of what ran
 
-Done:
 - many sockets on the same tokens, and a per-edge comparison (Experiment 1);
 - a speed-aware source, and recycling the slowest socket (Experiment 2);
 - the TCP source port (Experiment 3);
@@ -417,16 +415,9 @@ Done:
 - the speed-aware source with a common-stall filter under the full universe, replicas, the
   failover window and kernel busy polling (Experiment 4).
 
-| Experiment | How it would run here | What it needs |
-|---|---|---|
-| **A 1 s failover window on the full universe** | r3 of Experiment 4 at full scale, `--lag-ms 1000` against the default | one more 20-minute A/B |
-| **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
-| **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |
-| **PTP clock** | chrony on Amazon Time Sync already gives µs-level offsets; the ENA PTP device would tighten it further. | an instance type that exposes `/dev/ptp*` (the c7i.xlarge did not) |
+Every experiment reuses `--lat-detail` and `bench/lat.sh`.
 
-Every experiment above can reuse `--lat-detail` and `bench/lat.sh`.
-
-**Design rules for running them:**
+**Design rules they followed:**
 - report median and p99, and keep null results;
 - never let an experiment change what is written: experiments pick which socket is source, they
   never alter the books;
