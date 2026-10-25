@@ -1529,3 +1529,23 @@ about **$0.39**.
 - **Docs:** KALSHI.md gets a "Live run on the demo environment" section; README, D1, the
   `--venue` help and the adapter header no longer say "never run live". Logs in
   `bench/kalshi-demo-2026-10-25/`.
+
+## Turn — Submission packaging: README, HOW_TO_RUN, presentation page
+
+- **Why:** the README had grown into a report. A reviewer needs what it is, how to run it on each
+  venue, and where the evidence is, in that order.
+- **README:** rewritten around a summary, the AWS headline table, Run it (Polymarket, Kalshi,
+  stopping), what it does against each requirement, the output format, main flags, tests, docs
+  and known limits.
+- **HOW_TO_RUN.md (new):** every way it has run: local `demo.sh`, Docker, a Codespace (new
+  `.devcontainer/`), the scripted AWS run, and a systemd service on any Linux host; Kalshi
+  production and demo.
+- **demo.sh:** `kalshi` and `both` subcommands. `KALSHI_DEMO=1 ./demo.sh both 60` ran both venues
+  side by side: Polymarket replayed 7,600 snapshots and Kalshi 820, each with 0 mismatches.
+- **Docs layout:** the read-first docs stay in `docs/`; ENGINEERING-LOG, PERF-PLAN, AWS-RUN and
+  DEPLOY moved to `docs/appendix/`, links fixed.
+- **Presentation:** `docs/index.html`, one self-contained page with six tabs (How it works, Runs,
+  Fixes & impact, Latency, Kalshi, Run it) and eight charts drawn from `docs/charts/data.json`,
+  inlined so the page also works from the zip. Served by GitHub Pages from `cloud-run:/docs`.
+  Checked in light and dark, at desktop and phone width; every figure on it was checked against
+  the docs it comes from.

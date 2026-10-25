@@ -2,7 +2,7 @@
 
 What the collector measured on a production-like host, how, and how to reproduce it. Every number
 here comes from the AWS run of 24 October 2026 on build 7170677. The raw files are in
-[bench/aws-2026-10-24/](../bench/aws-2026-10-24/) and the run plan is in [AWS-RUN.md](AWS-RUN.md).
+[bench/aws-2026-10-24/](../bench/aws-2026-10-24/) and the run plan is in [AWS-RUN.md](appendix/AWS-RUN.md).
 
 ## The host
 
@@ -65,7 +65,7 @@ All three hosts started at the same second and ran 2,000 markets for 10 minutes 
 | us-east-1 Virginia | 679k | 82,008 matched, 0 not | 43 / 62 / 349 / 725 ms |
 
 London has the best median and Ireland the tightest tail. Virginia adds about 35 ms, the
-transatlantic path to the venue's origin. DEPLOY.md recommends London.
+transatlantic path to the venue's origin. [DEPLOY](appendix/DEPLOY.md) recommends London.
 
 ## Offline benchmarks
 

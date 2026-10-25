@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order-book collector</title>
+<meta name="description" content="A Rust order-book collector for Polymarket and Kalshi: how it works, every run, and what each fix changed.">
+<style>
+:root {
+  --bg: #fff; --ink: #333; --head: #222; --soft: #666; --mute: #898781; --line: #e6e5e0; --rule: #ccc;
+  --tint: #f7f7f5; --link-u: #999;
+  --surface: #fcfcfb; --c-text: #0b0b0b; --c-sec: #52514e; --c-mute: #898781; --grid: #e1e0d9; --axis: #c3c2b7;
+  --s1: #2a78d6; --s2: #eb6834; --ok: #2f7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --ink: #d6d5d0; --head: #f0efec; --soft: #a9a8a2; --mute: #898781; --line: #2c2c2a; --rule: #444;
+    --tint: #1d1d1c; --link-u: #666;
+    --surface: #1a1a19; --c-text: #f0efec; --c-sec: #c3c2b7; --c-mute: #898781; --grid: #2c2c2a; --axis: #383835;
+    --s1: #3987e5; --s2: #d95926; --ok: #5fb383;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --ink: #d6d5d0; --head: #f0efec; --soft: #a9a8a2; --mute: #898781; --line: #2c2c2a; --rule: #444;
+  --tint: #1d1d1c; --link-u: #666;
+  --surface: #1a1a19; --c-text: #f0efec; --c-sec: #c3c2b7; --c-mute: #898781; --grid: #2c2c2a; --axis: #383835;
+  --s1: #3987e5; --s2: #d95926; --ok: #5fb383;
+}
+* { box-sizing: border-box; }
+html { font-size: 110%; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 450; line-height: 1.75; font-feature-settings: "tnum" 1;
+}
+main { width: min(100% - 2rem, 46rem); margin-inline: auto; padding-block: 3rem 5rem; }
+h1, h2, h3 { color: var(--head); font-weight: 550; line-height: 1.3; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.5rem); letter-spacing: -0.035em; }
+h2 { font-size: 1.5rem; letter-spacing: -0.025em; margin-top: 3rem; margin-bottom: .75rem; }
+h3 { font-size: 1.125rem; margin-top: 2rem; margin-bottom: .4rem; }
+section > h2:first-child { margin-top: 2.25rem; }
+p { margin: 0 0 1rem; }
+strong { font-weight: 650; color: var(--head); }
+a { color: inherit; text-decoration: underline; text-decoration-color: var(--link-u); text-underline-offset: .2em; }
+a:hover { text-decoration-color: currentColor; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; background: var(--tint); padding: .1em .3em; border-radius: 3px; }
+pre { margin: 0 0 1rem; background: var(--tint); border: 1px solid var(--line); border-radius: 4px; padding: .7rem .9rem; overflow-x: auto; line-height: 1.55; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+.lede { font-size: 1.08rem; color: var(--ink); }
+.byline { color: var(--soft); font-size: .9rem; margin: .6rem 0 1.4rem; }
+.texture { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; line-height: 1.1; color: var(--rule); white-space: pre; overflow: hidden; margin: 0 0 1.6rem; user-select: none; height: 4.4em; }
+.muted { color: var(--soft); }
+.small { font-size: .88rem; }
+
+/* tabs */
+nav.tabs { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; margin-bottom: .5rem; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs a { flex: none; text-decoration: none; color: var(--soft); padding: .7rem .65rem .6rem; border-bottom: 2px solid transparent; font-size: .92rem; white-space: nowrap; }
+nav.tabs a:hover { color: var(--head); }
+nav.tabs a[aria-selected="true"] { color: var(--head); border-bottom-color: var(--head); font-weight: 550; }
+.js section.panel { display: none; }
+.js section.panel.on { display: block; }
+
+/* stat tiles */
+.stats { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 1.2rem 0 1.6rem; }
+.stat { flex: 1 1 8.2rem; background: var(--bg); padding: .8rem .9rem .7rem; }
+.stat b { display: block; font-size: 1.45rem; font-weight: 550; color: var(--head); letter-spacing: -0.02em; line-height: 1.2; }
+.stat span { display: block; font-size: .8rem; color: var(--soft); line-height: 1.4; margin-top: .2rem; }
+
+/* tables */
+.tw { overflow-x: auto; margin: 0 0 1.2rem; }
+table { border-collapse: collapse; width: 100%; font-size: .86rem; line-height: 1.5; }
+th, td { text-align: left; padding: .45rem .6rem .45rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 550; color: var(--head); border-bottom-color: var(--rule); white-space: nowrap; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+td:first-child { white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.zero { color: var(--ok); font-weight: 600; }
+
+/* pipeline */
+.flow { list-style: none; padding: 0; margin: 1.2rem 0 1.6rem; display: grid; gap: .5rem; }
+.flow li { display: grid; grid-template-columns: 2rem 1fr; gap: .2rem .8rem; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: 4px; position: relative; }
+.flow li + li::before { content: ""; position: absolute; left: 1.9rem; top: -.55rem; height: .5rem; border-left: 1px solid var(--rule); }
+.flow .k { grid-row: span 2; font-family: ui-monospace, Menlo, monospace; color: var(--mute); font-size: .8rem; padding-top: .15rem; }
+.flow b { color: var(--head); font-weight: 550; }
+.flow span { font-size: .9rem; color: var(--soft); line-height: 1.55; }
+
+/* lists of facts */
+.rows { border-top: 1px solid var(--line); margin: .6rem 0 1.4rem; }
+.row { display: grid; grid-template-columns: 11rem 1fr; gap: .2rem 1rem; padding: .6rem 0; border-bottom: 1px solid var(--line); font-size: .92rem; line-height: 1.6; }
+.row > :first-child { color: var(--head); font-weight: 550; }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+
+/* fixes */
+.fixes { list-style: none; padding: 0; margin: .6rem 0 1.4rem; border-top: 1px solid var(--line); }
+.fixes li { display: grid; grid-template-columns: 2.2rem 1fr; gap: 0 .6rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+.fixes .no { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; color: var(--mute); padding-top: .2rem; }
+.fixes .t { color: var(--head); font-weight: 550; line-height: 1.45; }
+.fixes .d { font-size: .88rem; color: var(--soft); line-height: 1.55; margin-top: .2rem; }
+.fixes .r { display: inline-block; margin-top: .35rem; font-size: .84rem; color: var(--head); background: var(--tint); border: 1px solid var(--line); border-radius: 4px; padding: .05rem .45rem; }
+
+/* phases */
+.phase { border-left: 2px solid var(--line); padding: 0 0 .2rem 1rem; margin: 1.4rem 0; }
+.phase h3 { margin-top: 0; }
+.phase .when { font-size: .8rem; color: var(--mute); text-transform: uppercase; letter-spacing: .06em; }
+
+/* charts */
+.charts { display: grid; gap: 1.6rem 1.4rem; grid-template-columns: 1fr 1fr; margin: 1.2rem 0 2rem; }
+.chart { grid-column: span 2; min-width: 0; }
+.chart.small { grid-column: span 1; }
+@media (max-width: 640px) { .charts { grid-template-columns: 1fr; } .chart, .chart.small { grid-column: span 1; } }
+.chart h3 { margin: 0; font-size: 1rem; }
+.chart .sub { font-size: .8rem; color: var(--soft); line-height: 1.45; margin: .15rem 0 .5rem; }
+.plot { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: .4rem .3rem .2rem; }
+.plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: .78rem; color: var(--c-sec); margin: 0 0 .35rem .3rem; }
+.legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .35rem; vertical-align: -.05rem; }
+.tip { position: absolute; pointer-events: none; background: var(--bg); color: var(--c-text); border: 1px solid var(--rule); border-radius: 4px; padding: .35rem .55rem; font-size: .76rem; line-height: 1.45; box-shadow: 0 2px 10px rgba(0,0,0,.08); white-space: nowrap; opacity: 0; transition: opacity .08s; z-index: 2; }
+.tip.show { opacity: 1; }
+.tip b { font-weight: 600; }
+.tip .tm { color: var(--c-mute); }
+details.data { margin-top: .35rem; font-size: .8rem; }
+details.data summary { cursor: pointer; color: var(--soft); width: max-content; }
+details.data table { font-size: .78rem; margin-top: .3rem; }
+.g { stroke: var(--grid); stroke-width: 1; }
+.ax { stroke: var(--axis); stroke-width: 1; }
+.tl { fill: var(--c-mute); font-size: 11px; }
+.xl { fill: var(--c-sec); font-size: 11px; }
+.xf { fill: var(--c-mute); font-size: 10px; }
+.dl { fill: var(--c-text); font-size: 11px; font-weight: 600; }
+.hit { fill: transparent; cursor: default; outline: none; }
+.hit:focus-visible { stroke: var(--c-sec); stroke-dasharray: 2 2; }
+
+.callout { border: 1px solid var(--line); background: var(--tint); border-radius: 4px; padding: .8rem 1rem; margin: 1.2rem 0; font-size: .92rem; }
+.callout p:last-child { margin: 0; }
+.verdict { display: inline-block; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; border: 1px solid var(--rule); border-radius: 4px; padding: 0 .4rem; color: var(--soft); margin-left: .4rem; vertical-align: .12rem; }
+.btn { display: inline-block; text-decoration: none; border: 1px solid var(--rule); border-radius: 4px; padding: .35rem .8rem; font-size: .9rem; margin: 0 .4rem .5rem 0; }
+.btn:hover { border-color: var(--soft); }
+footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.2rem; font-size: .84rem; color: var(--soft); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Order-book collector</h1>
+  <p class="byline">A Rust service for Polymarket and Kalshi · Abhinav Pangaria · take-home challenge, October 2026</p>
+  <div class="texture" id="texture" aria-hidden="true"></div>
+  <p class="lede">It subscribes to every live market on a prediction-market exchange, keeps an L2 order book for each one, and writes every price-level change, plus a snapshot of every book once a minute, in the challenge's aligned SBE format. Every file it writes can be replayed to prove the books are exact.</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <a href="#how" role="tab" id="t-how" aria-controls="how">How it works</a>
+  <a href="#runs" role="tab" id="t-runs" aria-controls="runs">Runs</a>
+  <a href="#fixes" role="tab" id="t-fixes" aria-controls="fixes">Fixes &amp; impact</a>
+  <a href="#latency" role="tab" id="t-latency" aria-controls="latency">Latency</a>
+  <a href="#kalshi" role="tab" id="t-kalshi" aria-controls="kalshi">Kalshi</a>
+  <a href="#run" role="tab" id="t-run" aria-controls="run">Run it</a>
+</nav>
+
+<!-- ============================================================ HOW IT WORKS -->
+<section class="panel" id="how" role="tabpanel" aria-labelledby="t-how">
+  <h2>The result</h2>
+  <p>The full Polymarket universe for an hour on one AWS c7i.xlarge in London (4 vCPU, 8 GB).</p>
+  <div class="stats">
+    <div class="stat"><b>550k</b><span>order books held, on about 450 websockets</span></div>
+    <div class="stat"><b>42k/s</b><span>price-level updates written</span></div>
+    <div class="stat"><b>0</b><span>mismatches in about 55M snapshots replayed</span></div>
+    <div class="stat"><b>8 ms</b><span>p50, exchange event to collector</span></div>
+    <div class="stat"><b>1.9 GB</b><span>peak memory; load 1.2 of 4 CPUs</span></div>
+  </div>
+
+  <h2>The pipeline</h2>
+  <p>One engine, five stages. Only the first two know which venue they are talking to; that seam is the <code>ExchangeAdapter</code> trait (Ext 3).</p>
+  <ol class="flow">
+    <li><span class="k">01</span><b>Discovery</b><span>Lists every live market at start and every 10 minutes, and follows the venue's listing and resolution events in between. New markets join; resolved ones are dropped.</span></li>
+    <li><span class="k">02</span><b>Shards and sockets</b><span>Markets are split into shards of 2,500 tokens. Each shard gets two websockets on different edge servers (Ext 1), so losing one socket or one edge loses nothing.</span></li>
+    <li><span class="k">03</span><b>Decode</b><span>Tokio workers read the sockets and turn the venue's JSON into a common event: a price, a size and a timestamp.</span></li>
+    <li><span class="k">04</span><b>Core threads</b><span>Each core thread owns whole markets. It applies events to flat sorted books, chooses which replica is the source, and checks each book against the venue's hash.</span></li>
+    <li><span class="k">05</span><b>Writer</b><span>Encodes updates and snapshots with the template's SBE helpers into 64 MiB chunks. Each chunk is written as it fills, then the file is rotated off the hot path.</span></li>
+  </ol>
+
+  <h2>When something goes wrong</h2>
+  <p>Each case below has a test that injects the fault against a mock venue, and most were also seen live.</p>
+  <div class="rows">
+    <div class="row"><div>A socket drops</div><div>Its replica is already the source or becomes it. A snapshot is written at the switch, so the output stays exact. The socket reconnects with backoff.</div></div>
+    <div class="row"><div>A socket goes silent</div><div>Replaced once a peer has been ahead for 3 s (<code>--lag-ms</code>). Quiet sockets are reconnected; every socket is recycled hourly, make-before-break (Ext 2).</div></div>
+    <div class="row"><div>A token goes quiet</div><div>Per-token rate checks resubscribe only tokens that are quiet for their own rate, with a wait that doubles on each strike (Ext 2).</div></div>
+    <div class="row"><div>A book is corrupted</div><div>The venue's book hash disagrees; the book is resynced from a fresh snapshot.</div></div>
+    <div class="row"><div>The process dies</div><div><code>--supervise</code> restarts it in about a second and keeps every whole chunk of the open file.</div></div>
+    <div class="row"><div>Ctrl-C or SIGTERM</div><div>Closes every websocket, writes the last chunk, closes the file.</div></div>
+  </div>
+
+  <h2>What the challenge asked for</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Requirement</th><th>Where it stands</th></tr></thead>
+    <tbody>
+      <tr><td>Every live market, many websockets, one L2 book each</td><td>Full universe, about 450 sockets, flat sorted books</td></tr>
+      <tr><td>Deltas plus a snapshot every 60 s, the template's helpers</td><td><code>PriceLevelUpdate</code>, <code>Snapshot</code>, <code>AlignedSbeWriter</code></td></tr>
+      <tr><td>Output to stdout; SIGINT closes sockets and file</td><td>Both; SIGTERM and panics too</td></tr>
+      <tr><td>No MVEs (Kalshi)</td><td><code>mve_filter=exclude</code></td></tr>
+      <tr><td>Ext 1: redundant websockets</td><td>2 per shard on different edges, source arbitration, <code>--supervise</code></td></tr>
+      <tr><td>Ext 2: subscription monitoring</td><td>Rate-aware resubscribe, quiet-socket reconnect, hourly recycle</td></tr>
+      <tr><td>Ext 3: generic encode/decode</td><td>Polymarket and Kalshi adapters on one engine</td></tr>
+      <tr><td>Ext 4: latency</td><td>Four experiments on three hosts; see <a href="#latency">Latency</a></td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Each claim, with the command that reproduces it: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/GRADING.md">GRADING.md</a>. The design choices and the alternatives they beat: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/DECISIONS.md">DECISIONS.md</a>.</p>
+</section>
+
+<!-- ============================================================ RUNS -->
+<section class="panel" id="runs" role="tabpanel" aria-labelledby="t-runs">
+  <h2>Every run, by host</h2>
+  <p>Four places, in the order they were used. Each move came from what the run before it showed. Every output file that was closed replayed with <span class="zero">0 mismatches</span>.</p>
+
+  <div class="phase">
+    <div class="when">1 · Laptop in India, behind a VPN</div>
+    <h3>The link was the bottleneck</h3>
+    <p>A 3.3 Mbit/s link to Singapore could not carry the start-up dumps of 131k tokens.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Run</th><th>Scale</th><th>Result</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Run 4</td><td>131k tokens, 265 sockets</td><td>file cut off</td><td>VPN collapsed into a reconnect storm</td></tr>
+        <tr><td>Run 6</td><td>47.5k of 131k got a book</td><td>1.01M updates, <span class="zero">0</span> mismatches</td><td>A coverage gap (fix #2)</td></tr>
+        <tr><td>Run 7</td><td>about 96k of 131k</td><td>614k replayed, <span class="zero">0</span> mismatches</td><td>Wire p50 130 s: move to the cloud (fix #1)</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="phase">
+    <div class="when">2 · GitHub Codespace, Azure West Europe, 4 vCPU</div>
+    <h3>Scale, faults and a 2.5-hour soak</h3>
+    <p>A few ms from Polymarket's London origin. Most of the fixes were found here, under the full universe and injected faults.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Run</th><th>Scale</th><th class="n">Updates</th><th>Replay</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Cloud 1</td><td>250k of 446k</td><td class="n">4.44M</td><td><span class="zero">0</span> / 2.27M</td><td>The universe is bigger; 429s (#3)</td></tr>
+        <tr><td>Cloud 2</td><td>459k, all placed</td><td class="n">5.67M</td><td><span class="zero">0</span></td><td>Timers starved, core saturated (#4)</td></tr>
+        <tr><td>Cloud 3</td><td>557k</td><td class="n">9.68M</td><td><span class="zero">0</span> / 5.27M</td><td>Hash hot spot fixed (#5)</td></tr>
+        <tr><td>Soak 1, 90 min</td><td>559k, 452 sockets</td><td class="n">185M</td><td><span class="zero">0</span>, 10 files</td><td>Ext 2 over-tuned (#7)</td></tr>
+        <tr><td>Soak 2, 30 min</td><td>560k</td><td class="n">64M</td><td><span class="zero">0</span>, 4 files</td><td>Core CPU is the limit (#8)</td></tr>
+        <tr><td>Profile 2</td><td>561k</td><td class="n">18.6M</td><td><span class="zero">0</span> / 10.3M</td><td>Rotation fsync stalls everything (#9)</td></tr>
+        <tr><td>A/B, 2 × 50 min</td><td>566k</td><td class="n">108.6M ×2</td><td><span class="zero">0</span> / 110M</td><td>Hot-shard split loops (#10)</td></tr>
+        <tr><td>Soak 3, 2.5 h</td><td>551k, 452 sockets</td><td class="n">320M</td><td><span class="zero">0</span>, 16 files</td><td>Stable; 3 GB RSS, disk waits (#11, #12)</td></tr>
+        <tr><td>Final gate</td><td>559k, kill -9 + SIGSTOP</td><td class="n">23.5M</td><td><span class="zero">0</span>, 7 files</td><td>Every recovery path works</td></tr>
+        <tr><td>Perf gate 1</td><td>563k, <code>--pin --kernel-ts</code></td><td class="n">—</td><td><span class="zero">0</span> / 9.67M</td><td>RSS 1.73 GB; a <code>--pin</code> bug (#13, #14)</td></tr>
+        <tr><td>Perf gate 2</td><td>561k, 1 io worker</td><td class="n">—</td><td><span class="zero">0</span> / 10.8M</td><td>One io worker is too few (#15)</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">During the soaks: all 224 sockets to one edge were killed, the process was frozen for 15 s, and 448 sockets were recycled every hour. 535 disconnects healed on their own. The Codespace clock drifted up to 88 ms and its disk stalled 8 times, which is why the latency figures come from AWS.</p>
+  </div>
+
+  <div class="phase">
+    <div class="when">3 · AWS, eu-west-2 London, c7i.xlarge</div>
+    <h3>The measured run, with a synced clock</h3>
+    <p>Launched, run and torn down by one script from the laptop, for about $0.50. Flags: <code>--supervise --pin --kernel-ts --rotate-mins 10</code>.</p>
+    <div class="rows">
+      <div class="row"><div>Coverage</div><div>548k–554k tokens on 442–452 sockets; 280,559 markets seen, 467 removed during the hour</div></div>
+      <div class="row"><div>Throughput</div><div>41–43k updates/s; 9 MB/s to disk, 5.4 GB per 10-minute file</div></div>
+      <div class="row"><div>Correctness</div><div>8 files, about 33 GB; about 55M snapshots matched, <span class="zero">0</span> did not</div></div>
+      <div class="row"><div>Latency</div><div>Exchange → collector p50 8–9 ms, p99 50–348 ms. Kernel → collector p50 ≤ 32 µs, p99 ≤ 128–256 µs</div></div>
+      <div class="row"><div>Resources</div><div>RSS 1.8 GB mean, 1.9 GB peak, flat. Core threads 47%, tokio 54%, writer 6% of one CPU</div></div>
+      <div class="row"><div>Writer</div><div>Queue peak 20 MB of 256; 0 waits on disk</div></div>
+      <div class="row"><div><code>kill -9</code> at 55 min</div><div>The supervisor restarted it in 1 s and kept the open file whole</div></div>
+    </div>
+    <p>The next day, five A/B tuning rounds on the same host type (see <a href="#latency">Latency</a>), and three regions started at the same second for 10 minutes on 2,000 markets:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Region</th><th class="n">Updates</th><th>Replay</th><th class="n">p50</th><th class="n">p90</th><th class="n">p99</th></tr></thead>
+      <tbody>
+        <tr><td>London, eu-west-2</td><td class="n">675k</td><td><span class="zero">0</span> / 81,288</td><td class="n"><strong>7 ms</strong></td><td class="n">21 ms</td><td class="n">118 ms</td></tr>
+        <tr><td>Ireland, eu-west-1</td><td class="n">680k</td><td><span class="zero">0</span> / 82,052</td><td class="n">12 ms</td><td class="n">25 ms</td><td class="n"><strong>73 ms</strong></td></tr>
+        <tr><td>Virginia, us-east-1</td><td class="n">679k</td><td><span class="zero">0</span> / 82,008</td><td class="n">43 ms</td><td class="n">62 ms</td><td class="n">349 ms</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="phase">
+    <div class="when">4 · Kalshi demo environment, from the laptop</div>
+    <h3>The second venue, live</h3>
+    <p>Kalshi needs a signed key even for public data, and production accounts are not open in India. The demo environment issues free keys. Same binary; only the URLs change.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Run</th><th class="n">Markets</th><th class="n">Sockets</th><th class="n">Length</th><th class="n">Updates</th><th class="n">Snapshots</th><th class="n">Mismatches</th></tr></thead>
+      <tbody>
+        <tr><td>Smoke</td><td class="n">200</td><td class="n">12</td><td class="n">60 s</td><td class="n">80,062</td><td class="n">332</td><td class="n zero">0</td></tr>
+        <tr><td>Main</td><td class="n">1,000</td><td class="n">12</td><td class="n">15 min</td><td class="n">1,726,633</td><td class="n">29,806</td><td class="n zero">0</td></tr>
+        <tr><td>One subscription</td><td class="n">2,500</td><td class="n">2</td><td class="n">150 s</td><td class="n">276,552</td><td class="n">12,006</td><td class="n zero">0</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <p class="small muted">Raw logs for every run are in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/tree/cloud-run/bench">bench/</a>; the full story, turn by turn, is the <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/appendix/ENGINEERING-LOG.md">engineering log</a>.</p>
+</section>
+
+<!-- ============================================================ FIXES -->
+<section class="panel" id="fixes" role="tabpanel" aria-labelledby="t-fixes">
+  <h2>How it got here</h2>
+  <p>The first build was correct but small. Each run at a bigger scale or a harder fault found the next limit; each limit got a fix and a measurement. The charts follow the same metric across the runs, labelled with the fixes that landed before each one.</p>
+  <div class="callout"><p><strong>Reading the charts:</strong> each point is one run. The second line under a run names the fixes that came before it (numbers match the list below). Hover or tap a point for its value; each chart has a table view.</p></div>
+
+  <div class="charts" id="charts"></div>
+
+  <h2>The fixes</h2>
+  <p>In the order they were found. Each line says what hit the limit, how it was found, and what the fix moved.</p>
+  <ol class="fixes">
+    <li><span class="no">#1</span><div><div class="t">Laptop link behind a VPN, 3.3 Mbit/s</div><div class="d">Run 4 collapsed into a reconnect storm. Moved to a cloud host near London; added a global outage backoff.</div><span class="r">wire p99: minutes → 173 ms</span></div></li>
+    <li><span class="no">#2</span><div><div class="t">Coverage stuck at 47.5k of 131k tokens</div><div class="d">Coverage grew one shard per 30 s, then stopped. The open limiter now reads the current gap; books that never arrive are re-asked.</div><span class="r">47.5k → 96k, later 100% placed</span></div></li>
+    <li><span class="no">#3</span><div><div class="t">Socket cap and rate-limited lookups</div><div class="d">Cloud 1 left 196k tokens unplaced and 102 lookups got 429s. The cap is sized to the universe; lookups are batched with backoff.</div><span class="r">250k → 459k placed, 0 429s</span></div></li>
+    <li><span class="no">#4</span><div><div class="t">Timers starved by inbound messages</div><div class="d">Cloud 2 printed one status line in 5 minutes. Timers run first; inbound is taken in batches of 256.</div><span class="r">p99 71 s → 524 ms</span></div></li>
+    <li><span class="no">#5</span><div><div class="t">The hash check took 45% of the core</div><div class="d">A <code>perf</code> profile showed allocation per level and a full rehash per candidate price. Hash once, copy the partial state, format without allocating.</div><span class="r">18.9k → 32.3k updates/s</span></div></li>
+    <li><span class="no">#6</span><div><div class="t">One core thread at 99.9%</div><div class="d">Per-thread CPU from <code>/proc</code>. K core threads now each own whole markets.</div><span class="r">99.9% → 50–90% per core</span></div></li>
+    <li><span class="no">#7</span><div><div class="t">Ext 2 over-tuned</div><div class="d">Soak 1 made 400k resubscribes in 90 minutes. Quiet detection became rate-aware, and the wait doubles on each strike.</div><span class="r">resubscribes cut to the truly quiet tokens</span></div></li>
+    <li><span class="no">#8</span><div><div class="t">Hashing standbys and a full lag walk</div><div class="d">A whole-process profile. Only the source replica is hashed; the lag check keeps an incremental candidate list.</div><span class="r">core CPU 50–60% → 31–38%</span></div></li>
+    <li><span class="no">#9</span><div><div class="t">Rotation fsync stalled every reader</div><div class="d">Profile 2 had 330 s and 1,153 s blocked in rotation windows. A finisher thread fsyncs and renames off the writer.</div><span class="r">blocked time at rotation → 0</span></div></li>
+    <li><span class="no">#10</span><div><div class="t">Hot-shard splitting caused a reconnect loop</div><div class="d">The A/B showed 11–19× the disconnects: the venue closes a socket whose assets have all resolved. Resolved tokens are dropped; splitting is opt-in.</div><span class="r">loop gone</span></div></li>
+    <li><span class="no">#11</span><div><div class="t">Memory at 2.8–3.3 GB</div><div class="d">An offline bench found 7.6 KB of heap per token. mimalloc, flat sorted books, inline replicas, one symbol per token, lazy hash state, FxHash.</div><span class="r">RSS 3.0 → 1.73 GB</span></div></li>
+    <li><span class="no">#12</span><div><div class="t">Disk stalls could reach the books</div><div class="d">The 2.5-hour soak had 8 writer waits of 1–1.5 s. A byte-bounded 256 MiB writer queue absorbs them.</div><span class="r">8 waits → 0</span></div></li>
+    <li><span class="no">#13</span><div><div class="t">The receive time included TLS and parsing</div><div class="d"><code>--kernel-ts</code> reads the kernel's arrival time (<code>SO_TIMESTAMPNS</code>) and reports the host's own delay.</div><span class="r">host delay measured: p50 ≤ 32 µs on AWS</span></div></li>
+    <li><span class="no">#14</span><div><div class="t"><code>--pin</code> started one core thread instead of two</div><div class="d">Found in the gate log. CPUs are counted once, before pinning.</div><span class="r">2 core threads, 281k / 280k tokens</span></div></li>
+    <li><span class="no">#15</span><div><div class="t">One tokio worker for about 450 TLS sockets</div><div class="d">Host delay was 4× worse in gate 2. A 5-minute A/B of three layouts; io workers now default to at least 2.</div><span class="r">host p99 8–16 ms → 4–8 ms</span></div></li>
+    <li><span class="no">#16</span><div><div class="t">A <code>kill -9</code> without the supervisor lost the file</div><div class="d">Chunks were written at the end. Each chunk is now written in place as it fills.</div><span class="r">data kept after kill at 120 s: 0 → 119.8 s</span></div></li>
+  </ol>
+  <p class="small muted">Ruled out by measurement: the TCP source port (Ext 4, Experiment 3), hyperthread siblings for the core threads, and the ~1% of tokens with no book (the venue has none).</p>
+</section>
+
+<!-- ============================================================ LATENCY -->
+<section class="panel" id="latency" role="tabpanel" aria-labelledby="t-latency">
+  <h2>Where the time goes</h2>
+  <p>Three numbers, each with a different clock problem. Only the last one is time spent inside the collector.</p>
+  <div class="rows">
+    <div class="row"><div><code>recv − exch</code></div><div>Kernel receive time minus the venue's event timestamp. Includes the venue's own processing, the network, and any clock offset, so it needs a synced clock (chrony on AWS).</div></div>
+    <div class="row"><div><code>behind</code></div><div>How long after the first socket to deliver an event another socket delivered it. Both times are on our clock, so it compares sockets and edges without any offset.</div></div>
+    <div class="row"><div>Host delay</div><div>Kernel receive to the collector reading the frame (<code>--kernel-ts</code>). This is the part the collector controls.</div></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>8–9 ms</b><span>recv − exch p50, full universe, AWS London</span></div>
+    <div class="stat"><b>≤ 32 µs</b><span>host delay p50, every 30 s window</span></div>
+    <div class="stat"><b>≤ 8 ms</b><span>core queue p99</span></div>
+  </div>
+
+  <h2>The four experiments</h2>
+  <div class="rows">
+    <div class="row"><div>1 · Many sockets, same tokens</div><div>Eight sockets on 400 markets for 20 minutes, two edges. The best socket was 1.4 ms behind the first on average and the worst 10.3 ms; the faster edge was about 2.5 ms better. <span class="verdict">built in</span><br><span class="small muted">Replicas use different edges, and the source is the replica that is ahead.</span></div></div>
+    <div class="row"><div>2 · A speed-aware source</div><div><code>--fast-source</code> scores sockets and prefers the faster one. It moved means by tenths of a ms and made one p99 worse. <span class="verdict">opt-in</span></div></div>
+    <div class="row"><div>3 · Does the source port pick the path?</div><div>Twelve sockets over six rounds, six on fixed ports. Rank correlation round to round +0.27, p ≈ 0.10: no reliable effect. <span class="verdict">ruled out</span></div></div>
+    <div class="row"><div>4 · Tuning on AWS</div><div>Five A/B rounds: <code>--fast-source</code>, 4 replicas, a 1 s failover window, kernel busy polling. The best gain was under 1 ms at p50. <span class="verdict">defaults kept</span></div></div>
+  </div>
+
+  <h3>Experiment 4, round by round</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Round</th><th>Arm</th><th class="n">Written p50 / p99</th><th class="n">Behind mean / p99</th></tr></thead>
+    <tbody>
+      <tr><td>r1, full universe, 20 min</td><td>default</td><td class="n">5 / 52 ms</td><td class="n">1.5 / 13 ms</td></tr>
+      <tr><td></td><td><code>--fast-source</code></td><td class="n">5 / 50 ms</td><td class="n">1.2 / 11 ms</td></tr>
+      <tr><td>r2, 2,000 markets, 15 min</td><td><code>--fast-source</code></td><td class="n">5 / 30 ms</td><td class="n">0.4 / 3 ms</td></tr>
+      <tr><td></td><td>+ <code>--replicas 4</code></td><td class="n">5 / 31 ms</td><td class="n">0.7 / 5 ms</td></tr>
+      <tr><td>r3, 2,000 markets, 15 min</td><td><code>--lag-ms 3000</code> (default)</td><td class="n">5 / 36 ms</td><td class="n">1.1 / 15 ms</td></tr>
+      <tr><td></td><td><code>--lag-ms 1000</code></td><td class="n">5 / 28 ms</td><td class="n">0.8 / 6 ms</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout"><p><strong>Conclusion.</strong> The collector adds microseconds; the milliseconds are the venue and the path to it. The one lever that moved the median by a lot is the region: London 7 ms, Ireland 12 ms, Virginia 43 ms on the same markets at the same second.</p></div>
+
+  <h3>Not tried yet</h3>
+  <p class="small">A 1 s failover window on the full universe; tracking whether a recycled socket lands on a faster path; connecting right after the venue's maintenance; a PTP clock (the c7i.xlarge exposes no PTP device). Details in <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/LATENCY.md">LATENCY.md</a>.</p>
+</section>
+
+<!-- ============================================================ KALSHI -->
+<section class="panel" id="kalshi" role="tabpanel" aria-labelledby="t-kalshi">
+  <h2>The second venue (Ext 3)</h2>
+  <p><code>--venue kalshi</code> runs the same core, socket actor, writer and <code>verify</code> on a Kalshi adapter. The adapter is the only part that knows Kalshi exists.</p>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>Polymarket</th><th>Kalshi</th></tr></thead>
+    <tbody>
+      <tr><td>Auth</td><td>none for market data</td><td>a signed handshake: RSA-PSS or Ed25519, fresh per connect</td></tr>
+      <tr><td>Updates</td><td>absolute size at a price</td><td>relative deltas, turned into absolute sizes by the adapter</td></tr>
+      <tr><td>Gap detection</td><td>the venue's book hash</td><td><code>seq</code> per subscription; a gap triggers a resync</td></tr>
+      <tr><td>Universe</td><td>about 550k tokens</td><td>MVEs excluded with <code>mve_filter=exclude</code></td></tr>
+      <tr><td>Symbols</td><td><code>&lt;token&gt;:bid</code>, <code>:ask</code></td><td><code>&lt;ticker&gt;:yes</code>, <code>:no</code> bids</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>How it was tested</h2>
+  <div class="rows">
+    <div class="row"><div>Unit tests</div><div>Kalshi's example frames from its docs; signatures with both key types checked over the exact signed string.</div></div>
+    <div class="row"><div>End to end, offline</div><div>A mock Kalshi venue: the real binary, two replicas, then <code>verify</code>. Cases: a baseline, a <code>seq</code> gap, a new listing.</div></div>
+    <div class="row"><div>Live, demo environment</div><div>1,000 markets for 15 minutes: 1,726,633 updates, 29,806 snapshots replayed, <span class="zero">0</span> mismatches, 0 disconnects, 0 <code>seq</code> gaps. Also 2,500 markets on one subscription.</div></div>
+    <div class="row"><div>Both venues together</div><div><code>./demo.sh both</code>: one process per venue, side by side; each file replays with <span class="zero">0</span> mismatches.</div></div>
+  </div>
+
+  <div class="callout"><p><strong>Not done:</strong> Kalshi production. It needs a production account, which is not available from India. The demo environment runs the same API at a smaller scale.</p></div>
+  <p class="small muted">Details: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/KALSHI.md">KALSHI.md</a>.</p>
+</section>
+
+<!-- ============================================================ RUN IT -->
+<section class="panel" id="run" role="tabpanel" aria-labelledby="t-run">
+  <h2>Run it</h2>
+  <p>Needs stable Rust. One command builds, replays the committed sample, runs the offline tests and collects two minutes of live Polymarket data:</p>
+<pre><code>./demo.sh</code></pre>
+  <h3>Polymarket, by hand</h3>
+<pre><code>cargo build --release --bins
+./target/release/collector --out ob.sbe --max-markets 2000 --duration-secs 120
+./target/release/verify ob.sbe</code></pre>
+  <h3>Kalshi</h3>
+  <p>Put a key in a gitignored <code>.env</code> (<code>KALSHI_API_KEY_ID</code>, <code>KALSHI_PRIVATE_KEY_PATH</code>), then:</p>
+<pre><code>./demo.sh kalshi                # production
+KALSHI_DEMO=1 ./demo.sh kalshi  # demo environment
+./demo.sh both                  # both venues at once</code></pre>
+  <h3>Elsewhere</h3>
+  <div class="rows">
+    <div class="row"><div>Docker</div><div><code>docker build -t collector .</code>, then run it with a volume for the output.</div></div>
+    <div class="row"><div>GitHub Codespace</div><div>The repo has a devcontainer for a 4-core machine; run <code>./demo.sh</code> in it.</div></div>
+    <div class="row"><div>AWS</div><div><code>bench/aws/run.sh all</code> launches, runs, pulls and tears down the measured run.</div></div>
+    <div class="row"><div>A Linux service</div><div>systemd plus <code>--supervise --rotate-mins 10</code>; sizing for 4 vCPU and 8 GB.</div></div>
+  </div>
+  <p>
+    <a class="btn" href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/HOW_TO_RUN.md">HOW_TO_RUN.md</a>
+    <a class="btn" href="https://github.com/18Abhinav07/Voluntas-Challenge/blob/cloud-run/docs/GRADING.md">GRADING.md</a>
+    <a class="btn" href="https://github.com/18Abhinav07/Voluntas-Challenge/tree/cloud-run">Source</a>
+  </p>
+</section>
+
+<footer>
+  <p>Source: <a href="https://github.com/18Abhinav07/Voluntas-Challenge/tree/cloud-run">github.com/18Abhinav07/Voluntas-Challenge</a>. Every number on this page comes from the run logs in <code>bench/</code> and the docs in <code>docs/</code>; chart data is <code>docs/charts/data.json</code>.</p>
+</footer>
+</main>
+
+<script id="chart-data" type="application/json">{"_source":"Every value is copied from docs/appendix/ENGINEERING-LOG.md (the run tables and the bottleneck table) or docs/PERFORMANCE.md. Each point is a run; 'fix' names the bottleneck-table fixes (#n) that landed before it. Edit this file, then run: python3 docs/charts/make_charts.py","charts":[{"id":"coverage","title":"Order books held","subtitle":"Tokens listed by the venue and tokens with a live book, thousands","unit":"k","series":[{"name":"Listed","points":[131,131,446,459,557,551,553]},{"name":"With a book","points":[47.5,96,250,459,557,551,551]}],"x":[{"run":"Run 6","fix":"laptop"},{"run":"Run 7","fix":"#2 limiter"},{"run":"Cloud 1","fix":"#1 cloud host"},{"run":"Cloud 2","fix":"#3 socket cap"},{"run":"Cloud 3","fix":"#4 #5"},{"run":"Soak 3","fix":"#6\u2013#10"},{"run":"AWS","fix":"#11\u2013#15"}]},{"id":"throughput","title":"Updates written per second","subtitle":"Full universe, thousands per second. After #5 the venue's own rate sets this, not the collector","unit":"k/s","series":[{"name":"Updates/s","points":[18.9,32.3,34.3,35.6,31.0,35.6,42],"lo":[null,null,null,null,null,null,41],"hi":[null,null,null,null,null,null,43]}],"x":[{"run":"Cloud 2","fix":"#3 socket cap"},{"run":"Cloud 3","fix":"#4 timers #5 hash"},{"run":"Soak 1","fix":"#6 K cores"},{"run":"Soak 2","fix":"#7 Ext 2"},{"run":"Profile 2","fix":"#8 hash source"},{"run":"Soak 3","fix":"#9 #10"},{"run":"AWS","fix":"#11\u2013#15"}]},{"id":"queue","title":"Core queue delay, p99","subtitle":"Socket to book, full universe, log scale. Profile 2 is the rotation fsync stall that #9 removed","unit":"ms","log":true,"series":[{"name":"Core queue p99","points":[524,1050,524,262,4200,1050,65.5,8]}],"x":[{"run":"Cloud 1","fix":"#1 cloud host"},{"run":"Cloud 2","fix":"#3 socket cap"},{"run":"Cloud 3","fix":"#4 #5"},{"run":"Soak 1","fix":"#6 K cores"},{"run":"Profile 2","fix":"#7 #8"},{"run":"A/B","fix":"#9 finisher"},{"run":"Soak 3","fix":"#10"},{"run":"AWS","fix":"#11\u2013#15"}]},{"id":"core-cpu","title":"CPU per core thread","subtitle":"Percent of one CPU; whiskers show the range across threads","unit":"%","series":[{"name":"Core thread CPU","points":[99.9,70,34.5],"lo":[null,50,31],"hi":[null,90,38]}],"x":[{"run":"Cloud 3","fix":"one thread"},{"run":"Soak 1","fix":"#6 K cores"},{"run":"Profile 2","fix":"#8 hash source"}],"small":true},{"id":"memory","title":"Heap per token, offline bench","subtitle":"bench mem, 566k tokens, bytes per token. Overhead is everything except price levels","unit":"B","series":[{"name":"Total heap","points":[7598,5777,5448,5089,4574]},{"name":"Overhead","points":[1528,1434,1106,746,652]}],"x":[{"run":"Baseline","fix":"BTreeMap books"},{"run":"M2","fix":"flat books"},{"run":"M4","fix":"inline replicas"},{"run":"M5/M7","fix":"one symbol"},{"run":"M6","fix":"lazy hash state"}]},{"id":"rss","title":"Live memory, full universe","subtitle":"RSS in GB; whisker is the range over the run","unit":"GB","series":[{"name":"RSS","points":[3.05,1.73,1.82],"lo":[2.8,null,1.8],"hi":[3.3,null,1.92]}],"x":[{"run":"Soak 3","fix":"before #11"},{"run":"Perf gate 1","fix":"#11 memory"},{"run":"AWS","fix":"c7i.xlarge"}],"small":true},{"id":"host-delay","title":"Host delay, p99","subtitle":"Kernel receive to collector read, upper bound, log scale","unit":"ms","log":true,"series":[{"name":"Host delay p99","points":[16,8,0.256]}],"x":[{"run":"Gate 2","fix":"1 io worker"},{"run":"A/B","fix":"#15 \u2265 2 workers"},{"run":"AWS","fix":"c7i.xlarge"}],"small":true},{"id":"stalls","title":"Writer waits on disk","subtitle":"Times the writer blocked for 1 s or more","unit":"","series":[{"name":"Waits","points":[8,0,0]}],"x":[{"run":"Soak 3","fix":"2.5 h"},{"run":"Perf gate 1","fix":"#12 queue"},{"run":"AWS","fix":"60 min"}],"small":true}]}</script>
+<script>
+document.documentElement.classList.add('js');
+
+/* ---------- tabs, driven by the URL hash ---------- */
+(function () {
+  const tabs = [...document.querySelectorAll('nav.tabs a')];
+  const ids = tabs.map(t => t.getAttribute('href').slice(1));
+  function show(id, scroll) {
+    if (!ids.includes(id)) id = ids[0];
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t.getAttribute('href') === '#' + id)));
+    document.querySelectorAll('section.panel').forEach(s => s.classList.toggle('on', s.id === id));
+    if (id === 'fixes') drawCharts();
+    if (scroll) document.querySelector('nav.tabs').scrollIntoView({ block: 'start' });
+  }
+  window.addEventListener('hashchange', () => show(location.hash.slice(1), true));
+  window.addEventListener('DOMContentLoaded', () => show(location.hash.slice(1), false));
+})();
+
+/* ---------- ASCII texture: a stylised order book depth ---------- */
+(function () {
+  const el = document.getElementById('texture');
+  const chars = ' .·:-=+*#';
+  function draw() {
+    const cols = Math.max(20, Math.floor(el.clientWidth / 6.02));
+    const rows = 4; let out = '';
+    for (let r = 0; r < rows; r++) {
+      let line = '';
+      for (let c = 0; c < cols; c++) {
+        const x = c / cols, mid = Math.abs(x - 0.5);
+        const depth = Math.min(1, mid * 2.4) * (0.55 + 0.45 * Math.sin(c * 0.37 + r * 1.3) * Math.cos(c * 0.11));
+        const v = mid < 0.015 ? 0 : Math.max(0, depth - (rows - 1 - r) * 0.18);
+        line += chars[Math.min(chars.length - 1, Math.floor(v * chars.length))];
+      }
+      out += line + '\n';
+    }
+    el.textContent = out;
+  }
+  draw(); addEventListener('resize', draw);
+})();
+
+/* ---------- charts ---------- */
+const DATA = JSON.parse(document.getElementById('chart-data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const COLORS = ['var(--s1)', 'var(--s2)'];
+
+function fmt(v, unit) {
+  if (v == null) return '—';
+  if (unit === 'ms') return v < 1 ? Math.round(v * 1000) + ' µs' : (v >= 1000 ? (v / 1000).toLocaleString('en', { maximumFractionDigits: 2 }) + ' s' : v.toLocaleString('en') + ' ms');
+  if (unit === 'k') return v.toLocaleString('en') + 'k';
+  if (unit === 'k/s') return v.toLocaleString('en') + 'k/s';
+  if (unit === '%') return v + '%';
+  if (unit === 'B') return v.toLocaleString('en') + ' B';
+  if (unit === 'GB') return v.toFixed(2) + ' GB';
+  return v.toLocaleString('en');
+}
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function niceMax(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+  return [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find(s => m <= s) * p;
+}
+function splitLabel(s) {
+  if (s.length <= 10 || !s.includes(' ')) return [s];
+  const mid = s.length / 2; let best = -1;
+  for (let i = 0; i < s.length; i++) if (s[i] === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+  return [s.slice(0, best), s.slice(best + 1)];
+}
+
+function renderChart(c, box) {
+  const plot = box.querySelector('.plot');
+  plot.querySelectorAll('svg,.tip').forEach(n => n.remove());
+  const W = Math.max(260, plot.clientWidth - 8);
+  const bars = c.small && !c.log;
+  const n = c.x.length, band0 = (W - 52) / n;
+  const showFix = band0 >= 58, every = band0 < 54 ? 2 : 1;
+  const fixLines = showFix ? Math.max(...c.x.map(x => splitLabel(x.fix).length)) : 0;
+  const H = c.small ? 190 : 230;
+  const m = { l: 44, r: 14, t: 14, b: 22 + fixLines * 12 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': c.title });
+
+  const vals = [];
+  c.series.forEach(s => s.points.forEach((p, i) => { if (p != null) vals.push(p); if (s.hi && s.hi[i] != null) vals.push(s.hi[i]); if (s.lo && s.lo[i] != null) vals.push(s.lo[i]); }));
+  let y, ticks;
+  if (c.log) {
+    const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...vals)))), hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...vals))));
+    y = v => m.t + ih - (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * ih;
+    ticks = []; for (let t = lo; t <= hi * 1.0001; t *= 10) ticks.push(t);
+  } else {
+    const hi = niceMax(Math.max(...vals) * 1.08);
+    y = v => m.t + ih - v / hi * ih;
+    ticks = [0, hi / 4, hi / 2, hi * 3 / 4, hi];
+  }
+  const band = iw / n, x = i => m.l + band * (i + 0.5);
+
+  ticks.forEach(t => {
+    svg.append(el('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: 'g' }));
+    svg.append(el('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end', class: 'tl' }, fmt(+t.toPrecision(3), c.unit)));
+  });
+  svg.append(el('line', { x1: m.l, x2: W - m.r, y1: m.t + ih, y2: m.t + ih, class: 'ax' }));
+  c.x.forEach((xi, i) => {
+    if (i % every && i !== n - 1) return;
+    svg.append(el('text', { x: x(i), y: m.t + ih + 15, 'text-anchor': 'middle', class: 'xl' }, xi.run));
+    if (showFix) splitLabel(xi.fix).forEach((ln, k) => svg.append(el('text', { x: x(i), y: m.t + ih + 28 + k * 12, 'text-anchor': 'middle', class: 'xf' }, ln)));
+  });
+
+  const ns = c.series.length;
+  c.series.forEach((s, si) => {
+    const col = COLORS[si];
+    if (bars) {
+      const bw = Math.min(36, band * 0.5) / ns;
+      s.points.forEach((p, i) => {
+        if (p == null) return;
+        const bx = x(i) - bw * ns / 2 + bw * si + 1, w = bw - 2, top = y(p), base = m.t + ih, h = base - top;
+        if (h > 0.5) {
+          const r = Math.min(4, h, w / 2);
+          svg.append(el('path', { d: `M${bx},${base}V${top + r}Q${bx},${top} ${bx + r},${top}H${bx + w - r}Q${bx + w},${top} ${bx + w},${top + r}V${base}Z`, fill: col }));
+        } else {
+          svg.append(el('line', { x1: bx, x2: bx + w, y1: base - 1, y2: base - 1, stroke: col, 'stroke-width': 2 }));
+        }
+        svg.append(el('text', { x: bx + w / 2, y: top - 5, 'text-anchor': 'middle', class: 'dl' }, fmt(p, c.unit)));
+      });
+    } else {
+      let d = '';
+      s.points.forEach((p, i) => { if (p != null) d += (d ? 'L' : 'M') + x(i) + ',' + y(p); });
+      svg.append(el('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      s.points.forEach((p, i) => {
+        if (p == null) return;
+        if (s.lo && s.lo[i] != null && s.hi && s.hi[i] != null) {
+          svg.append(el('line', { x1: x(i), x2: x(i), y1: y(s.lo[i]), y2: y(s.hi[i]), stroke: col, 'stroke-width': 1.5 }));
+          [s.lo[i], s.hi[i]].forEach(v => svg.append(el('line', { x1: x(i) - 4, x2: x(i) + 4, y1: y(v), y2: y(v), stroke: col, 'stroke-width': 1.5 })));
+        }
+        svg.append(el('circle', { cx: x(i), cy: y(p), r: 4, fill: col, stroke: 'var(--surface)', 'stroke-width': 2 }));
+      });
+      const last = s.points.length - 1, lv = s.points[last];
+      const other = ns > 1 ? c.series[1 - si].points[last] : null;
+      const below = other != null && lv < other;
+      svg.append(el('text', { x: x(last), y: y(lv) + (below ? 17 : -9), 'text-anchor': 'middle', class: 'dl' }, fmt(lv, c.unit)));
+    }
+  });
+
+  /* hover: one target per x position, covering every series */
+  const tip = document.createElement('div'); tip.className = 'tip'; plot.append(tip);
+  c.x.forEach((xi, i) => {
+    const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit', tabindex: 0 });
+    const lines = c.series.map((s, si) => {
+      const p = s.points[i]; if (p == null) return '';
+      const rng = s.lo && s.lo[i] != null ? ` <span class="tm">(${fmt(s.lo[i], c.unit)}–${fmt(s.hi[i], c.unit)})</span>` : '';
+      return `<div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${COLORS[si]};margin-right:5px"></i>${s.name}: <b>${fmt(p, c.unit)}</b>${rng}</div>`;
+    }).join('');
+    const showTip = () => {
+      tip.innerHTML = `<div><b>${xi.run}</b> <span class="tm">· ${xi.fix}</span></div>${lines}`;
+      tip.classList.add('show');
+      const px = x(i) / W * plot.clientWidth, tw = tip.offsetWidth;
+      tip.style.left = Math.max(4, Math.min(plot.clientWidth - tw - 4, px - tw / 2)) + 'px';
+      tip.style.top = '6px';
+    };
+    hit.addEventListener('mouseenter', showTip); hit.addEventListener('focus', showTip);
+    hit.addEventListener('click', showTip);
+    hit.addEventListener('mouseleave', () => tip.classList.remove('show'));
+    hit.addEventListener('blur', () => tip.classList.remove('show'));
+    svg.append(hit);
+  });
+  plot.append(svg);
+}
+
+function buildChart(c) {
+  const box = document.createElement('figure');
+  box.className = 'chart' + (c.small ? ' small' : ''); box.style.margin = 0;
+  const legend = c.series.length > 1 ? `<div class="legend">${c.series.map((s, i) => `<span><i style="background:${COLORS[i]}"></i>${s.name}</span>`).join('')}</div>` : '';
+  const head = `<tr><th>Run</th><th>After</th>${c.series.map(s => `<th class="n">${s.name}</th>`).join('')}</tr>`;
+  const rows = c.x.map((xi, i) => `<tr><td>${xi.run}</td><td>${xi.fix}</td>${c.series.map(s => {
+    const p = s.points[i], rng = s.lo && s.lo[i] != null ? ` (${fmt(s.lo[i], c.unit)}–${fmt(s.hi[i], c.unit)})` : '';
+    return `<td class="n">${fmt(p, c.unit)}${rng}</td>`;
+  }).join('')}</tr>`).join('');
+  box.innerHTML = `<h3>${c.title}</h3><p class="sub">${c.subtitle}</p>${legend}<div class="plot"></div>
+    <details class="data"><summary>Table</summary><div class="tw"><table><thead>${head}</thead><tbody>${rows}</tbody></table></div></details>`;
+  return box;
+}
+
+let built = false;
+const ORDER = ['coverage', 'throughput', 'queue', 'memory', 'core-cpu', 'rss', 'host-delay', 'stalls'];
+function drawCharts() {
+  const host = document.getElementById('charts');
+  if (!built) {
+    built = true;
+    ORDER.map(id => DATA.charts.find(c => c.id === id)).filter(Boolean).forEach(c => {
+      const b = buildChart(c); b._c = c; host.append(b);
+    });
+    let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(redraw, 120); });
+  }
+  redraw();
+}
+function redraw() {
+  document.querySelectorAll('#charts .chart').forEach(b => { if (b.offsetParent) renderChart(b._c, b); });
+}
+</script>
+</body>
+</html>

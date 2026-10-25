@@ -1,7 +1,7 @@
 # Decisions
 
 Each entry gives the choice, what was rejected, and the evidence. The numbers come from runs in
-[ENGINEERING-LOG.md](ENGINEERING-LOG.md).
+[ENGINEERING-LOG.md](appendix/ENGINEERING-LOG.md).
 
 ## D1. Polymarket, not Kalshi
 

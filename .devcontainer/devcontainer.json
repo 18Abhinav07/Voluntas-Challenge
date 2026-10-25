@@ -1,0 +1,7 @@
+{
+  "name": "collector",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bookworm",
+  "hostRequirements": { "cpus": 4 },
+  "postCreateCommand": "cargo build --release --bins",
+  "customizations": { "vscode": { "extensions": ["rust-lang.rust-analyzer"] } }
+}

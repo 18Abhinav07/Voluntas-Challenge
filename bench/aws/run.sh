@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot AWS run, driven from a laptop (docs/AWS-RUN.md). Needs `aws login` done first.
+# One-shot AWS run, driven from a laptop (docs/appendix/AWS-RUN.md). Needs `aws login` done first.
 #
 #   run.sh preflight   identity, quotas, plan limits (run-instances --dry-run), AMI, default VPC
 #   run.sh all         preflight, launch, setup, smoke gate, 3-region probe, main run, pull, teardown

@@ -2,7 +2,7 @@
 
 How the collector is put together, and where each part of the challenge is met. The reasons
 behind the choices are in [DECISIONS.md](DECISIONS.md). The measured runs are in
-[ENGINEERING-LOG.md](ENGINEERING-LOG.md).
+[ENGINEERING-LOG.md](appendix/ENGINEERING-LOG.md).
 
 ## Shape
 

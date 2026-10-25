@@ -100,7 +100,7 @@ Storage. `verify` exits non-zero on any mismatch, so a bad file stays on disk fo
 
 ## Not done
 
-- The collector has run only on the Codespace. The AWS, GCP and Hetzner rows are the same shape
-  of machine, and none of them has been run.
-- No container image. A static binary plus systemd is all the service needs. A Dockerfile would
-  add the `ulimit` and time sync as things to get right inside the container.
+- GCP and Hetzner are the same shape of machine as the tested c7i.xlarge. Neither has been run.
+- The Dockerfile in the repo root builds and runs the collector (CI builds it). The full-universe
+  runs used the plain binary under `--supervise`, so a container would also need
+  `--ulimit nofile=65536` and the host's time sync.

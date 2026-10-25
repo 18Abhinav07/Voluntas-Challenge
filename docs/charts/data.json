@@ -1,5 +1,5 @@
 {
-  "_source": "Every value is copied from docs/ENGINEERING-LOG.md (the run tables and the bottleneck table) or docs/PERFORMANCE.md. Each point is a run; 'fix' names the bottleneck-table fixes (#n) that landed before it. Edit this file, then run: python3 docs/charts/make_charts.py",
+  "_source": "Every value is copied from docs/appendix/ENGINEERING-LOG.md (the run tables and the bottleneck table) or docs/PERFORMANCE.md. Each point is a run; 'fix' names the bottleneck-table fixes (#n) that landed before it. Edit this file, then run: python3 docs/charts/make_charts.py",
   "charts": [
     {
       "id": "coverage",
