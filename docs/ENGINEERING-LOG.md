@@ -1408,7 +1408,10 @@ decode 1,410 ns/frame (460 MB/s), core 4,665 ns/event, 2.43 allocs/event. `bench
   against ≤ 128 µs) and the p99 tail is about 16× better.
 - The `recv − exch` max of 600–1,100 s is the venue stamping the initial snapshots with the
   time of the last book change, not real delay. The percentiles are unaffected.
-- Open: the sampler's `rx_mbps` read 0 all hour (wrong interface name on these hosts), and the
-  summary's host-delay section came out empty. Both are kit bugs; the numbers above come from
-  `collect-main.log` directly.
+- Kit bug: the sampler's `rx_mbps` read 0 all hour. It parsed `/proc/net/dev` by column, and
+  the columns shift with the interface name's padding, so it summed packets, not bytes. It now
+  reads `/sys/class/net/<default-route interface>/statistics/rx_bytes` (checked in an Ubuntu
+  24.04 container). The inbound rate for this run is not recoverable.
+- The summary's host-delay section is complete (119 windows); an earlier read of it filtered
+  those lines out by mistake.
 - Cost: about 1.5 h of c7i.xlarge and 0.4 h per probe, roughly $0.50 of the credits.

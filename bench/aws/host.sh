@@ -101,7 +101,10 @@ cpu_groups() { # cumulative CPU ticks per thread group of process $1
     echo "$c $s"
   done | awk '{g=$1; if(g ~ /^tokio/) g="tokio"; else if(g=="collector") g="main"; else if(g ~ /^core/) g="core"; a[g]+=$2} END{for(k in a) print k, a[k]}' | sort
 }
-net_rx() { awk -F'[: ]+' '$2 !~ /lo/ && NF>10 {s+=$3} END{print s}' /proc/net/dev; }
+# Bytes received on the default-route interface. Read from sysfs, not /proc/net/dev: the
+# column layout there shifts with the interface name's padding.
+NET_IF=$(ip route show default 2>/dev/null | awk '{print $5; exit}')
+net_rx() { cat /sys/class/net/${NET_IF:-eth0}/statistics/rx_bytes 2>/dev/null || echo 0; }
 disk_wr() { awk '$3 ~ /^(nvme[0-9]+n[0-9]+|xvd[a-z]|sd[a-z]|vd[a-z])$/ {s+=$10} END{print s*512}' /proc/diskstats; }
 
 verify_done() { # $1 dir: verify finished files (niced), record, delete
