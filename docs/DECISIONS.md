@@ -6,10 +6,12 @@ Each entry gives the choice, what was rejected, and the evidence. The numbers co
 ## D1. Polymarket, not Kalshi
 
 - **Choice:** Polymarket.
-- **Why:** Kalshi is US-only and its API could not be reached from where this was built (India).
+- **Why:** there was no production Kalshi account from where this was built (India). Kalshi's demo environment is open to anyone, and the adapter ran there
+  (KALSHI.md).
   The challenge allows Polymarket in that case.
-- **Cost:** the Kalshi adapter (`--venue kalshi`, [KALSHI.md](KALSHI.md)) is tested only on
-  documented frames and against a mock venue. It has never run live.
+- **Cost:** the Kalshi adapter (`--venue kalshi`, [KALSHI.md](KALSHI.md)) is tested on documented
+  frames, against a mock venue, and live on Kalshi's demo environment, which is reachable from
+  India with a free demo key. It has not run on Kalshi's production venue.
 
 ## D2. Two symbols per token: `<token>:bid` and `<token>:ask`
 

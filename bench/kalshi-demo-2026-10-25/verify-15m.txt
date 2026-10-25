@@ -1,0 +1,7 @@
+file:      kdemo-15m.sbe
+span:      898.1s, 2000 symbols
+messages:  31806 snapshots, 1726633 updates (1923/s)
+replay:    29806 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 194 p50 222 p90 368 p99 707 p99.9 2281 max 3092
+OK

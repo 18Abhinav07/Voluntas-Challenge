@@ -1,12 +1,15 @@
 # Kalshi adapter (Ext 3)
 
 `--venue kalshi` runs the same engine (core, socket actor, writer, `verify`) on a Kalshi adapter,
-[`src/adapter/kalshi.rs`](../src/adapter/kalshi.rs). **It has never run against Kalshi.** It was
-written from Kalshi's public API docs (docs.kalshi.com, read 2026-10-24) and is tested only:
+[`src/adapter/kalshi.rs`](../src/adapter/kalshi.rs). It was written from Kalshi's public API docs
+(docs.kalshi.com, read 2026-10-24) and is tested:
 
 - on Kalshi's example frames, in the adapter's unit tests;
 - end to end, against a mock of the documented API ([`tests/kalshi_e2e.rs`](../tests/kalshi_e2e.rs)):
-  the collector binary, two replicas, and `verify` on the output.
+  the collector binary, two replicas, and `verify` on the output;
+- **live, on Kalshi's demo environment** (2026-10-25): 1,000 markets for 15 minutes, 1.73M
+  updates, 0 replay mismatches. See [Live run on the demo environment](#live-run-on-the-demo-environment).
+  It has not run against Kalshi's production venue, which needs a production key.
 
 Items marked **(to confirm)** are not stated in the docs. Check them against the live API before
 relying on them.
@@ -25,7 +28,14 @@ KALSHI_PRIVATE_KEY_PATH=/path/to/kalshi-key.pem
 set -a; . ./.env; set +a; cargo run --release --bin collector -- --venue kalshi --out kalshi.sbe
 ```
 
-Without a key it stops at once with `--venue kalshi needs an API key`. The universe cache defaults
+Without a key it stops at once with `--venue kalshi needs an API key`.
+
+Kalshi's demo environment (demo.kalshi.co) issues keys the same way and needs no real funds. Point
+the collector at it with:
+
+```bash
+--ws-url wss://demo-api.kalshi.co/trade-api/ws/v2 --rest-url https://demo-api.kalshi.co/trade-api/v2
+``` The universe cache defaults
 to `universe-kalshi.json`, so it never reads Polymarket's.
 
 ## The feed, as implemented
@@ -102,15 +112,48 @@ the Polymarket adapter to `adapter::get_json`, so both venues share it.
 So the Ext 3 claim now holds for the trait as well as the core: a venue is one file implementing
 `ExchangeAdapter`, and `main.rs` picks it with `--venue`.
 
+## Live run on the demo environment
+
+Three runs on 2026-10-25 from a laptop in India, with a read-only Ed25519 demo key. Logs and
+`verify` output: [`bench/kalshi-demo-2026-10-25/`](../bench/kalshi-demo-2026-10-25/).
+
+| Run | Markets | Sockets | Length | Updates | Snapshots replayed | Mismatches | Disconnects |
+|---|---|---|---|---|---|---|---|
+| Smoke | 200 | 12 | 60 s | 80,062 | 332 | 0 | 0 |
+| Main | 1,000 | 12 | 15 min | 1,726,633 | 29,806 | 0 | 0 |
+| One subscription | 2,500 | 2 | 150 s | 276,552 | 12,006 | 0 | 0 |
+
+What this settles:
+
+- **The signed handshake is accepted.** Ed25519 over `timestamp + "GET" + "/trade-api/ws/v2"`,
+  on every socket. Without the headers the same endpoint answers 401.
+- **Subscribe, acks and relative deltas work as implemented.** The books the collector built
+  from snapshots plus deltas matched every later snapshot `verify` replayed.
+- **`seq` per `sid` holds** as far as these runs can show: 1.73M deltas on 12 sockets, each
+  with two subscriptions, raised no `seq` gap and so no resync.
+- **2,500 markets on one subscription is accepted.** No error 26, so `--tokens-per-conn 2500`
+  stands for Kalshi too. The real limit is still unknown; it is at least 2,500.
+- **The output format carries Kalshi unchanged.** `verify` reads the files with no
+  venue-specific code.
+
+What it does not settle:
+
+- **Production.** Demo and production keys are separate, and production books are deeper and
+  busier. The demo rate was about 1,900 updates/s for 1,000 markets.
+- **Latency.** recv − exch p50 was 214–222 ms, the round trip from India to the venue. It says
+  nothing about the collector.
+- **Lifecycle event names.** `--max-markets` capped the universe, so a new listing could not be
+  added and none was seen. Five markets left the main run (`markets_removed`); whether by a
+  lifecycle `determined`/`settled` or by rediscovery dropping them is not logged.
+- **One corrected book.** In the main run one mid-stream snapshot on a source socket differed
+  from the book built from deltas (`book_diffs: 1`, out of about 31,800 snapshots). The core
+  wrote the difference as updates, so the file stayed correct and `verify` passed. The cause
+  is not known: there was no `seq` gap and no reconnect.
+
 ## Not done, and what to watch
 
-- **Live run:** none. The first live run should check:
-  - that the signed path is accepted;
-  - that `seq` is per `sid` **(to confirm)**: the docs give a minimum of 1 and no scope;
-  - the real lifecycle `event_type` values.
-- **Market limit per subscription (error 26):** the number is not documented. `--tokens-per-conn`
-  defaults to 2500, which is Polymarket's value. If Kalshi rejects that, lower it; a shard is one
-  subscription.
+- **Production run:** not done; needs a production key. The demo run covers the protocol.
+- **Lifecycle `event_type` values:** still unconfirmed live (see above).
 - **Command rate limit (error 27):** surfaces as a decode error (logged, socket kept). The open
   limiter (`--opens-per-sec`) is Polymarket's value.
 - **Clock steps:** Kalshi's clock can go backwards during maintenance. The lag check compares

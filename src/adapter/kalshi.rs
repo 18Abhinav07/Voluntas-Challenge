@@ -1,6 +1,6 @@
 //! Kalshi `orderbook_delta` channel + REST `/markets` discovery (Ext 3). Written from Kalshi's
-//! API docs and tested on their example frames only: it has never run against Kalshi
-//! (docs/KALSHI.md).
+//! API docs, tested on their example frames, and run live on Kalshi's demo environment, not
+//! production (docs/KALSHI.md).
 //!
 //! A Kalshi market is one book of YES bids and NO bids. It is written as two symbols, like a
 //! Polymarket token: `<ticker>:bid` holds the YES bids, and `<ticker>:ask` holds the NO bids at

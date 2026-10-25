@@ -49,7 +49,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[command(about = "Collects prediction-market L2 orderbooks into an aligned SBE file", args_override_self = true)]
 struct Args {
     /// The exchange. Kalshi reads its API key from `KALSHI_API_KEY_ID` and
-    /// `KALSHI_PRIVATE_KEY_PATH` (docs/KALSHI.md); it has not been run against the live venue.
+    /// `KALSHI_PRIVATE_KEY_PATH` (docs/KALSHI.md); it has run on Kalshi's demo, not production.
     #[arg(long, value_enum, default_value_t = Venue::Polymarket)]
     venue: Venue,
     /// Output: `-` (the default) is stdout, anything else a file path, truncated on start.

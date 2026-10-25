@@ -4,10 +4,11 @@ A Rust collector that subscribes to every live Polymarket market, keeps an L2 bo
 token, and writes deltas plus a full snapshot of every book each minute to an aligned FIX SBE file
 (the challenge template's format and helpers).
 
-Polymarket is the venue it runs against: Kalshi could not be reached from where this was built
-(India), and the challenge allows that fallback. A Kalshi adapter exists too (`--venue kalshi`).
-It runs on the same engine and passes end-to-end tests against a mock of Kalshi's documented API,
-but it has never run live, which needs a Kalshi API key. See [docs/KALSHI.md](docs/KALSHI.md).
+Polymarket is the venue it runs against: there was no production Kalshi account from where this
+was built (India), and the challenge allows that fallback. A Kalshi adapter exists too (`--venue kalshi`).
+It runs on the same engine, passes end-to-end tests against a mock of Kalshi's documented API,
+and has run live on Kalshi's demo environment: 1,000 markets for 15 minutes, 0 replay mismatches.
+It has not run on Kalshi's production venue. See [docs/KALSHI.md](docs/KALSHI.md).
 
 ## Start here
 
@@ -64,7 +65,7 @@ to the command that reproduces it, and what every counter means. The measured nu
 | No multivariate events (Kalshi) | `mve_filter=exclude` on discovery and lookup (`adapter/kalshi.rs`); Polymarket has none | [docs/KALSHI.md](docs/KALSHI.md) |
 | Ext 1: redundancy | 2 replicas per shard on different edges, source arbitration, lag check, `--supervise` | e2e drop / silent / stall / delay / supervise; 224-socket edge kill live |
 | Ext 2: silent failures and exchange-side decay | venue hash ladder, quiet resubscribe, per-socket quiet reconnect, make-before-break recycling | e2e corrupt / stall; hourly recycle of 448 sockets with no gaps |
-| Ext 3: a second exchange | `ExchangeAdapter` trait; Polymarket and Kalshi adapters (`src/adapter/`), `--venue` | Kalshi e2e: seq gap → failover, listing → subscribe; never run live ([docs/KALSHI.md](docs/KALSHI.md)) |
+| Ext 3: a second exchange | `ExchangeAdapter` trait; Polymarket and Kalshi adapters (`src/adapter/`), `--venue` | Kalshi e2e: seq gap → failover, listing → subscribe; live on Kalshi demo, 1.73M updates, 0 mismatches ([docs/KALSHI.md](docs/KALSHI.md)) |
 | Ext 4: latency | per-socket latency (`--lat-detail`), `--fast-source`, a TCP source-port experiment (`--src-ports`), clock offset (D21) | [docs/LATENCY.md](docs/LATENCY.md) |
 
 ## Build and run
@@ -286,9 +287,9 @@ The same data as a table:
   stand. A 1 s failover window (`--lag-ms 1000`) raised no false switches on 2,000 markets but
   is untried on the full universe. recv − exch p50 was 5 ms in every arm: the rest is the venue
   and the network path.
-- **Kalshi is untested live.** The adapter passes against a mock built from Kalshi's docs.
-  KALSHI.md lists what the first live run must check (per-subscription market limit, `seq`
-  scope, lifecycle event names).
+- **Kalshi has run on its demo environment only.** The signed handshake, deltas, `seq` and a
+  2,500-market subscription all held there. Production, and the live names of lifecycle events,
+  are untested (KALSHI.md).
 - **Core CPU.** The two core threads together use about 47% of one CPU on the full universe.
   The integrity hash is the largest part of core time (PERFORMANCE.md).
 - **Some networks block the venue.** An ISP that answers `ws-subscriptions-clob.polymarket.com`

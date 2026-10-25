@@ -1,0 +1,22 @@
+2026-10-25T04:53:13.349681Z  INFO collector: thread budget cpus=12 cores=6 io=5 pinned=false
+2026-10-25T04:53:13.358829Z  INFO collector: websocket edges edges=[3.165.190.80:443, 3.165.190.99:443, 3.165.190.110:443, 3.165.190.118:443]
+2026-10-25T04:53:13.358975Z  INFO collector: core threads started cores=6
+2026-10-25T04:53:13.863018Z  INFO engineering_challenge::clock: clock offset server=time.google.com:123 offset_ms=2.4 rtt_ms=96.4
+2026-10-25T04:53:20.361294Z  INFO collector: opening connection conn=16777216 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=39
+2026-10-25T04:53:20.361415Z  INFO collector: opening connection conn=67108864 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=30
+2026-10-25T04:53:20.361297Z  INFO collector: opening connection conn=50331648 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=30
+2026-10-25T04:53:20.361540Z  INFO collector: opening connection conn=67108865 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=30
+2026-10-25T04:53:20.361591Z  INFO collector: opening connection conn=50331649 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=30
+2026-10-25T04:53:20.361306Z  INFO collector: opening connection conn=0 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=29
+2026-10-25T04:53:20.361723Z  INFO collector: opening connection conn=1 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=29
+2026-10-25T04:53:20.361456Z  INFO collector: opening connection conn=16777217 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=39
+2026-10-25T04:53:20.361354Z  INFO collector: opening connection conn=83886080 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=34
+2026-10-25T04:53:20.361955Z  INFO collector: opening connection conn=83886081 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=34
+2026-10-25T04:53:20.361961Z  INFO collector: opening connection conn=33554432 replica=0 edge=Some(3.165.190.80:443) src_port=None tokens=38
+2026-10-25T04:53:20.362103Z  INFO collector: opening connection conn=33554433 replica=1 edge=Some(3.165.190.99:443) src_port=None tokens=38
+2026-10-25T04:53:43.361210Z  INFO collector: status tokens=200 sourced=200 conns=12 per_core=[29, 39, 38, 30, 30, 34] stalls=0 queue_hwm_mb=0.010009765625 queue_waits=0 m=Metrics { updates: 24492, snapshots: 510, switches: 0, lag_switches: 0, hash_ok: 0, hash_miss: 0, hash_healed: 0, divergent: 0, hash_agreed: 0, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 200, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 0, wire: n=48467 p50<=262.1ms p99<=524.3ms max=624.1ms, queue: n=48867 p50<=0.0ms p99<=0.5ms max=4.4ms, src_behind: n=0, src_wire: n=0 }
+2026-10-25T04:53:43.361424Z  INFO collector: conn stats window=all: 18MB 64257f dec238ms stall0ms | top rx [33554433:1MB/6697f/dec22ms/stall0ms 16777216:1MB/6506f/dec24ms/stall0ms 33554432:1MB/6533f/dec23ms/stall0ms 16777217:1MB/6178f/dec23ms/stall0ms 83886081:1MB/5449f/dec20ms/stall0ms] | top stall []
+2026-10-25T04:54:13.352530Z  INFO collector: duration elapsed: shutting down
+2026-10-25T04:54:13.352680Z  INFO collector: closing connections
+2026-10-25T04:54:13.353790Z  INFO collector: writer queue queue_hwm_mb=0.01055908203125 queue_waits=0
+2026-10-25T04:54:13.360065Z  INFO collector: done updates=80062 snapshots=732 m=Metrics { updates: 80062, snapshots: 732, switches: 0, lag_switches: 0, hash_ok: 0, hash_miss: 0, hash_healed: 0, divergent: 0, hash_agreed: 0, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 200, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 0, wire: n=159636 p50<=262.1ms p99<=1048.6ms max=1171.3ms, queue: n=160009 p50<=0.0ms p99<=0.5ms max=4.4ms, src_behind: n=0, src_wire: n=0 }

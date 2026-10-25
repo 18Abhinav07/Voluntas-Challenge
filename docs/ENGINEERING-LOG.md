@@ -1508,3 +1508,24 @@ of c7i.xlarge at $0.2121/h ($0.36), the 100 GB gp3 volume ($0.02) and the public
 about **$0.39**.
 
 **Open:** a 1 s failover window on the full universe; the zip and the email, on the user's go.
+
+## Turn — Kalshi live on the demo environment
+
+- **Why:** Kalshi's WebSocket needs a signed key even for public data (401 without one, on
+  production and demo alike), so the adapter had only run against a mock. Kalshi's demo
+  environment (demo.kalshi.co) issues free keys. A read-only Ed25519 demo key went into the
+  gitignored `.env` and `kalshi-demo.pem`.
+- **Runs** (laptop, India; `--ws-url`/`--rest-url` pointed at demo-api.kalshi.co; no code change):
+  - smoke: 200 markets, 60 s, 80,062 updates, 332 snapshots replayed, 0 mismatches;
+  - main: 1,000 markets, 15 min, 12 sockets, 1,726,633 updates, 29,806 replayed, 0 mismatches,
+    0 disconnects, 0 `seq` resyncs;
+  - one subscription: 2,500 markets on one socket pair, 150 s, 12,006 replayed, 0 mismatches,
+    no error 26.
+- **Settled:** the signed handshake, subscribe and acks, relative deltas, `seq` per `sid` (no gap
+  on 1.73M deltas), and a subscription of at least 2,500 markets.
+- **Open:** production; lifecycle event names (the capped universe saw no listing); one
+  `book_diffs` in the main run, a mid-stream snapshot that corrected the delta-built book once in
+  about 31,800 snapshots, with no `seq` gap to explain it. The output stayed correct.
+- **Docs:** KALSHI.md gets a "Live run on the demo environment" section; README, D1, the
+  `--venue` help and the adapter header no longer say "never run live". Logs in
+  `bench/kalshi-demo-2026-10-25/`.
