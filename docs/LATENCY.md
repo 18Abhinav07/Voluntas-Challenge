@@ -341,17 +341,85 @@ slow ones, since a new connection draws again from the spread.
   range effect.
 - Kalshi has not been tried. Its edge layout differs, and the experiment needs a key.
 
+## Experiment 4: tuning on AWS (`bench/aws/host.sh tune`)
+
+One c7i.xlarge in London (eu-west-2), 2026-10-25, rev 5252f41. Each round ran two arms at the same
+time on the same markets, so an arm is compared only with its partner: both share one host,
+one network path and the same minutes of venue traffic. Round 4 ran its arms one after another,
+since a sysctl is host-wide. `python3 bench/tune_an.py bench/aws-tune-2026-10-25/main-eu-west-2`
+prints every number below. "Written" is recv − exch of the deltas the source wrote; "behind" is
+how far the source's copy came after the first copy from any socket.
+
+| Round | Arm | Written mean / p50 / p99 ms | Behind mean / p99 ms | Switches (lag) + tokens moved to the fast socket | Snapshots for switches | Verify |
+|---|---|---|---|---|---|---|
+| r1 full universe, 20 min | default (`--lat-detail`) | 9.1 / 5 / 52 | 1.5 / 13 | 44,767 (8) | 45,316 | OK |
+| | `--fast-source` | 8.8 / 5 / 50 | 1.2 / 11 | 48,492 (614) + 167,160 fast | 216,296 | OK |
+| r2 2,000 markets, 15 min | `--fast-source` | 7.5 / 5 / 30 | 0.4 / 3 | 366 (0) + 191 fast | 557 | OK |
+| | `--fast-source --replicas 4` | 7.6 / 5 / 31 | 0.7 / 5 | 373 (0) + 4,127 fast | 4,500 | OK |
+| r3 2,000 markets, 15 min | `--lag-ms 3000` (default) | 7.7 / 5 / 36 | 1.1 / 15 | 4,136 (228) | 4,145 | OK |
+| | `--lag-ms 1000` | 7.1 / 5 / 28 | 0.8 / 6 | 289 (0) | 296 | OK |
+
+**r1, the speed-aware source under the full universe.** The common-stall filter fired 318 times
+(windows where even the best socket was ≥ 4 ms behind and were left unscored). With it,
+`--fast-source` took 0.3 ms off the written mean and 2 ms off the p99, and 0.3 ms off the mean
+behind. The price is churn: 167,160 tokens moved onto a faster socket, about 4.8× the
+snapshots spent on switching, and 614 lag switches instead of 8 (a token just moved has a source
+its peers are often ahead of). 14,067 moves were refused because the fast socket's book differed
+from the source's. Both arms
+wrote about 40k updates/s and replayed with 0 mismatches. **Kept opt-in:** a 3% gain on the mean
+does not pay for 4.8× the switching.
+
+**r2, more replicas.** Four sockets per shard instead of two gave no gain: behind got slightly
+worse (0.4 → 0.7 ms mean) and tokens moved rose 20×. More copies give the score more chances
+to chase noise. **Kept at 2.**
+
+**r3, a 1 s failover window.** The 1 s arm raised **0** lag switches in 15 minutes on 2,000
+markets, so a window a third as long caused no false switching at this load. The 3 s arm's
+228 lag switches and worse p99 came from its own sockets (it also had 2 disconnects and 14× the
+switches), not from the window: a shorter window cannot remove switches. So r3 shows that 1 s is
+safe at 2,000 markets; it does not show that 1 s is faster. **Default kept at 3 s:** the full
+universe has in-process stalls (r1: 8 lag switches at 3 s) and 1 s has not been run there. For
+up to a few thousand markets, `--lag-ms 1000` cuts the worst-case stale window by two thirds.
+
+**r4, kernel busy polling** (`net.core.busy_read=50`, `busy_poll=50`), 2,000 markets, 6 minutes
+each, off → on → off:
+
+| Arm | Host delay p50 / p99 µs (median window) | Wire p99 ms | tokio CPU % |
+|---|---|---|---|
+| off (1st) | ≤ 128 / ≤ 512 | ≤ 131 | 1 |
+| on | ≤ 64 / ≤ 512 | ≤ 65.5 | 3 |
+| off (2nd) | ≤ 64 / ≤ 512 | ≤ 32.8 | 2 |
+
+The second "off" arm matched or beat "on", so the difference between the arms is drift in the
+venue's traffic, not polling. Host delay is already tens of µs against a recv − exch of
+milliseconds. **Null result; not applied.**
+
+**r5, `kill -9` with the in-place chunk writer.** 500 markets, unsupervised, killed at 120 s.
+The file kept 119.8 s of data (5,804 snapshots, 7,255 updates); `verify` replayed 3,862
+snapshots with 0 mismatches. The old writer would have left an empty file.
+
+**Host delay under the full universe.** In r1 two full-universe collectors shared the 4 vCPUs, and
+host delay p99 rose to ≤ 2 ms (median window), against ≤ 128–256 µs for one collector
+(PERFORMANCE). Two collectors per host is a test setup; it says the host has no room for a
+second copy, not that one copy is slow.
+
+**What this settles:** the defaults stand: two replicas, a 3 s window and a plain source. The
+latency left on the table is in the venue and the network path, which no flag here moves:
+recv − exch p50 was 5 ms in every arm.
+
 ## Not done yet
 
 Done:
 - many sockets on the same tokens, and a per-edge comparison (Experiment 1);
 - a speed-aware source, and recycling the slowest socket (Experiment 2);
 - the TCP source port (Experiment 3);
-- three host regions at the same time, with synced clocks (the region probe above).
+- three host regions at the same time, with synced clocks (the region probe above);
+- the speed-aware source with a common-stall filter under the full universe, replicas, the
+  failover window and kernel busy polling (Experiment 4).
 
 | Experiment | How it would run here | What it needs |
 |---|---|---|
-| **Tune the speed-aware source** | Experiment 2 again, skipping windows where every socket is behind, and under the full universe | a common-stall filter in `check_speed`; `--fast-source` and `bench/fast.sh` otherwise |
+| **A 1 s failover window on the full universe** | r3 of Experiment 4 at full scale, `--lag-ms 1000` against the default | one more 20-minute A/B |
 | **Does a recycle land somewhere faster?** | Experiment 2 recycled once. Track the new socket's score against the old one's over many recycles | more recycles: a lower `slow_windows`, or a longer run |
 | **Connect right after maintenance** | Note the venue's maintenance windows and compare sockets opened just after one against older ones. | Polymarket's maintenance timing (not looked up) |
 | **PTP clock** | chrony on Amazon Time Sync already gives µs-level offsets; the ENA PTP device would tighten it further. | an instance type that exposes `/dev/ptp*` (the c7i.xlarge did not) |

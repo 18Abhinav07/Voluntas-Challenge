@@ -1,0 +1,36 @@
+10 rss_mb=103 rx_mbps=21 wr_mbs=0 load=0.08 main=1 
+21 rss_mb=107 rx_mbps=12 wr_mbs=0 load=0.07 core=1 finisher=0 main=0 tokio=6 writer=0 
+31 rss_mb=105 rx_mbps=12 wr_mbs=0 load=0.06 core=0 finisher=0 main=0 tokio=6 writer=0 
+41 rss_mb=108 rx_mbps=10 wr_mbs=8 load=0.05 core=0 finisher=0 main=0 tokio=5 writer=0 
+51 rss_mb=106 rx_mbps=11 wr_mbs=0 load=0.12 core=1 finisher=0 main=0 tokio=5 writer=0 
+61 rss_mb=107 rx_mbps=11 wr_mbs=0 load=0.17 core=1 finisher=0 main=0 tokio=5 writer=0 
+71 rss_mb=109 rx_mbps=10 wr_mbs=0 load=0.15 core=0 finisher=0 main=0 tokio=5 writer=0 
+81 rss_mb=110 rx_mbps=12 wr_mbs=0 load=0.12 core=1 finisher=0 main=0 tokio=6 writer=0 
+91 rss_mb=111 rx_mbps=12 wr_mbs=0 load=0.10 core=0 finisher=0 main=0 tokio=5 writer=0 
+101 rss_mb=113 rx_mbps=4 wr_mbs=0 load=0.09 core=1 finisher=0 main=0 tokio=2 writer=0 
+111 rss_mb=115 rx_mbps=2 wr_mbs=0 load=0.07 core=1 finisher=0 main=0 tokio=1 writer=0 
+121 rss_mb=114 rx_mbps=2 wr_mbs=0 load=0.06 core=1 finisher=0 main=0 tokio=2 writer=0 
+131 rss_mb=117 rx_mbps=2 wr_mbs=0 load=0.05 core=0 finisher=0 main=0 tokio=1 writer=0 
+141 rss_mb=124 rx_mbps=2 wr_mbs=0 load=0.04 core=1 finisher=0 main=0 tokio=1 writer=0 
+151 rss_mb=124 rx_mbps=2 wr_mbs=0 load=0.04 core=1 finisher=0 main=0 tokio=1 writer=0 
+161 rss_mb=126 rx_mbps=2 wr_mbs=0 load=0.03 core=0 finisher=0 main=0 tokio=1 writer=0 
+171 rss_mb=129 rx_mbps=1 wr_mbs=0 load=0.02 core=0 finisher=0 main=0 tokio=1 writer=0 
+181 rss_mb=130 rx_mbps=2 wr_mbs=0 load=0.02 core=0 finisher=0 main=0 tokio=1 writer=0 
+191 rss_mb=132 rx_mbps=2 wr_mbs=0 load=0.02 core=0 finisher=0 main=0 tokio=1 writer=0 
+201 rss_mb=133 rx_mbps=2 wr_mbs=0 load=0.01 core=0 finisher=0 main=0 tokio=1 writer=0 
+211 rss_mb=133 rx_mbps=1 wr_mbs=0 load=0.01 core=0 finisher=0 main=0 tokio=1 writer=0 
+221 rss_mb=135 rx_mbps=2 wr_mbs=0 load=0.01 core=1 finisher=0 main=0 tokio=1 writer=0 
+231 rss_mb=135 rx_mbps=2 wr_mbs=0 load=0.01 core=0 finisher=0 main=0 tokio=1 writer=0 
+241 rss_mb=135 rx_mbps=1 wr_mbs=0 load=0.01 core=0 finisher=0 main=0 tokio=1 writer=0 
+251 rss_mb=137 rx_mbps=2 wr_mbs=0 load=0.08 core=0 finisher=0 main=0 tokio=1 writer=0 
+261 rss_mb=132 rx_mbps=1 wr_mbs=0 load=0.07 core=0 finisher=0 main=0 tokio=1 writer=0 
+271 rss_mb=132 rx_mbps=3 wr_mbs=0 load=0.06 core=1 finisher=0 main=0 tokio=2 writer=0 
+281 rss_mb=134 rx_mbps=3 wr_mbs=0 load=0.05 core=1 finisher=0 main=0 tokio=2 writer=0 
+291 rss_mb=134 rx_mbps=2 wr_mbs=0 load=0.04 core=0 finisher=0 main=0 tokio=1 writer=0 
+301 rss_mb=136 rx_mbps=2 wr_mbs=0 load=0.03 core=0 finisher=0 main=0 tokio=1 writer=0 
+311 rss_mb=136 rx_mbps=2 wr_mbs=0 load=0.03 core=0 finisher=0 main=0 tokio=1 writer=0 
+321 rss_mb=135 rx_mbps=2 wr_mbs=0 load=0.02 core=0 finisher=0 main=0 tokio=1 writer=0 
+332 rss_mb=135 rx_mbps=2 wr_mbs=0 load=0.02 core=0 finisher=0 main=0 tokio=1 writer=0 
+342 rss_mb=135 rx_mbps=2 wr_mbs=0 load=0.02 core=1 finisher=0 main=0 tokio=2 writer=0 
+352 rss_mb=137 rx_mbps=2 wr_mbs=0 load=0.01 core=0 finisher=0 main=0 tokio=1 writer=0 
+362 rss_mb=0 rx_mbps=1 wr_mbs=0 load=0.01 

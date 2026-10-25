@@ -1,0 +1,4 @@
+302 System time : 0.000000054 seconds slow of NTP time|RMS offset : 0.000008846 seconds|Root dispersion : 0.000045562 seconds|
+604 System time : 0.000000552 seconds fast of NTP time|RMS offset : 0.000004070 seconds|Root dispersion : 0.000039633 seconds|
+906 System time : 0.000000347 seconds slow of NTP time|RMS offset : 0.000001836 seconds|Root dispersion : 0.000037744 seconds|
+1208 System time : 0.000001016 seconds fast of NTP time|RMS offset : 0.000001260 seconds|Root dispersion : 0.000038621 seconds|

@@ -1,0 +1,9 @@
+== tune 2026-10-25T02:22:26Z
+universe 250443 markets
+== r1-fast-full 2026-10-25T02:24:28Z dur=1200 markets=0 A=[--lat-detail] B=[--fast-source]
+== r2-replicas 2026-10-25T02:47:15Z dur=900 markets=2000 A=[--fast-source] B=[--fast-source --replicas 4]
+== r3-lag 2026-10-25T03:02:19Z dur=900 markets=2000 A=[--lat-detail] B=[--lat-detail --lag-ms 1000]
+== r4-poll-off1 2026-10-25T03:17:23Z dur=360 markets=2000 busy_read=0 busy_poll=0
+== r4-poll-on 2026-10-25T03:23:24Z dur=360 markets=2000 busy_read=50 busy_poll=50
+== r4-poll-off2 2026-10-25T03:29:25Z dur=360 markets=2000 busy_read=0 busy_poll=0
+== r5-kill 2026-10-25T03:35:27Z

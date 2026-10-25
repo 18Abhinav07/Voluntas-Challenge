@@ -100,7 +100,7 @@ A snapshot is also written the first time a book appears.
 | **Buffering / slow consumer** | the core queue is full | the reader waits (backpressure) instead of dropping. Per-socket blocked time is logged every 30 s. |
 | **Venue closes a socket as "all assets resolved"** | the adapter matches the close reason | the reader drops those tokens without reconnecting. The core ends those markets with zero-size updates. |
 | **Panic in any thread or task** | panic hook | the whole process shuts down in order (sockets closed, last chunk written) and exits non-zero, rather than run on with a dead core's markets silent (D20) |
-| **Process crash or kill** | `--supervise`: the parent sees the child exit | restart with backoff (1 s doubling to 30 s). A torn chunk is dropped, a reset marker separates the runs, crashed `.part` files are cut to whole chunks (D20) |
+| **Process crash or kill** | `--supervise`: the parent sees the child exit | restart with backoff (1 s doubling to 30 s). A file keeps every message written before the kill (D11); a torn stdout chunk is dropped, a reset marker separates the runs, crashed `.part` files are cut to whole chunks (D20) |
 
 **Integrity ladder.** Polymarket's hash check passes 98.9–100% of the time on correct books (the
 trade-heavy golden capture is 98.9%), so one miss alone is weak evidence. A miss on the source:

@@ -1469,3 +1469,39 @@ moved its metric.
 
 **Open:** the zip and the email, on the user's go.
 
+
+## Turn — Crash loss, failover window, AWS tuning
+
+**Ask:** apart from the three limits left as they are (Kalshi live, core CPU, ISP blocks), fix
+the rest, then use AWS to run the tuning that the Codespace could not.
+
+**Fixed:**
+- **`kill -9` lost the open chunk.** The writer now sizes each file chunk to 64 MiB when it opens
+  and writes whole messages into it in place whenever its queue empties or 1 MiB is pending
+  (D11). The bytes on disk are what the template's writer would produce. A kill loses only what
+  was queued. New tests: a unit test replays a chunk that is synced but unfinished, and an e2e
+  test kills the process with SIGKILL and verifies the file. The e2e test fails with the old writer.
+- **The 3 s failover window had no flag.** `--lag-ms` sets it, and the lag check now runs on its
+  own timer (a quarter of the window, 100 ms to 1 s) rather than only when traffic arrives. Test:
+  a 500 ms window switches at 600 ms and not at 250 ms.
+- **The speed-aware source scored venue-wide stalls.** `check_speed` now skips a shard's window
+  when even its best socket averaged ≥ `--fast-stall-ms` (4 ms) behind, and counts it as
+  `fast_stalls`. Test: alternating 12 ms stalls leave the scores and the source unchanged.
+- **New metric:** `src_wire`, recv − exch of the written deltas, so A/B arms compare on what
+  readers get.
+
+**AWS run** (`bench/aws/run.sh tune`): one c7i.xlarge in London, 82 minutes of rounds.
+- r1 full universe, default against `--fast-source`: mean 9.1 → 8.8 ms, p99 52 → 50 ms, for
+  4.8× the switch snapshots. Kept opt-in.
+- r2 `--replicas 4` against 2: no gain, 20× the token moves. Kept at 2.
+- r3 `--lag-ms 1000` against 3000, 2,000 markets: 0 lag switches in 15 minutes, so no false
+  switching. Default kept at 3 s until a full-universe run.
+- r4 kernel busy polling: the second "off" arm matched "on". Null.
+- r5 `kill -9` at 120 s: 119.8 s kept, 3,862 snapshots replayed, 0 mismatches.
+- Every arm's `verify` was OK.
+
+**Teardown:** the AWS login session expired during the run, so the driver could not terminate
+the host. The host was launched to halt itself and terminate (volume deleted on termination)
+240 minutes after launch.
+
+**Open:** a 1 s failover window on the full universe; the zip and the email, on the user's go.

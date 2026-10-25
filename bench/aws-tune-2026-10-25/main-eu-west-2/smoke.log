@@ -1,0 +1,10 @@
+== smoke 2026-10-25T02:21:34Z
+collector exit 0
+2026-10-25T02:21:34.747791Z  INFO engineering_challenge::clock: clock offset server=169.254.169.123:123 offset_ms=0.0 rtt_ms=0.1
+2026-10-25T02:22:04.749075Z  INFO collector: status tokens=40 sourced=40 conns=4 per_core=[18, 22] stalls=0 queue_hwm_mb=0.04779052734375 queue_waits=0 m=Metrics { updates: 140, snapshots: 100, switches: 0, lag_switches: 0, hash_ok: 180, hash_miss: 0, hash_healed: 0, divergent: 0, hash_agreed: 0, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 20, markets_r
+2026-10-25T02:22:19.753023Z  INFO collector: done updates=266 snapshots=138 m=Metrics { updates: 266, snapshots: 138, switches: 0, lag_switches: 0, hash_ok: 300, hash_miss: 2, hash_healed: 0, divergent: 0, hash_agreed: 2, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 20, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 
+messages:  138 snapshots, 266 updates (7/s)
+replay:    58 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 5 p50 7 p90 19 p99 306 p99.9 1086 max 1086
+OK

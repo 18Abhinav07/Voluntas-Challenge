@@ -108,15 +108,19 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
   that. A window of a few hundred ms looks safe at that load, but it has not been tried, and the
   full universe has longer in-process stalls.
 - **Cost:** up to 3 s of stale book on a silent subscription.
-- **Not done:** the window is a `Config` field (`lag`) but has no CLI flag.
+- **Tunable:** `--lag-ms` sets the window; it is checked every quarter of it (100 ms to 1 s).
+  See LATENCY, Experiment 4, for a shorter window on AWS.
 
 ## D11. 64 MiB chunks
 
 - **Why:** the template's `AlignedSbeReader::open` always reads with `DEFAULT_CHUNK_SIZE`
   (64 MiB). The helpers are not to be edited. A file written with another chunk size cannot be
   read by the graders' reader.
-- **Consequence:** `flush` pads to a full chunk. The writer flushes only when a chunk fills and at
-  shutdown, never on a timer, which would write 64 MiB of mostly padding per tick.
+- **Consequence:** a file chunk is sized to 64 MiB when it opens (`set_len`, so the tail reads as
+  zeros: the reader's end mark). Whole messages are written into it in place as soon as the
+  writer's queue is empty or 1 MiB is pending, so the file is byte-identical to the template's
+  output but a `kill -9` loses only what was still queued, not the whole open chunk. Stdout still
+  pads and writes whole chunks: a pipe cannot be written in place.
 
 ## D12. One owner of book state per core thread
 
@@ -207,6 +211,10 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
   26 ms). It also costs the per-market windows of D18.
 - **Rejected:** first-arrival merge across sockets (D7), which would remove the choice entirely
   but needs a dedup key the venue does not give.
+- **Re-checked on AWS, full universe** (LATENCY, Experiment 4): with a common-stall filter
+  (`--fast-stall-ms`, windows where even the best socket is ≥ 4 ms behind are not scored), the
+  mean of the written events fell 9.1 → 8.8 ms and the p99 52 → 50 ms, for 4.8× the snapshots
+  spent on switching. Still opt-in.
 
 ## D20. Fail fast on a panic; restart from outside (`--supervise`)
 
@@ -231,7 +239,8 @@ The challenge asks for a snapshot on a source switch. One is written, after a di
   seconds.
 - **Rejected:** leaving it to systemd. Systemd would restart the process, but it cannot repair a
   torn chunk or mark the gap in the output.
-- **Cost:** a `kill -9` still loses the chunk in memory (D11). A panic does not.
+- **Cost:** a `kill -9` loses only the messages still queued for the writer (D11), at most about
+  1 MiB in a file. On stdout it still loses the chunk being filled. A panic loses nothing.
 - **Evidence:** 50 markets, live. Three injected panics: 3 restarts, `verify` OK with 3 resets and
   0 mismatches. `kill -9` of the child, single file: 1 restart, OK. Rotated: the empty `.part`
   was removed, the period reopened, both files OK.

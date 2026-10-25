@@ -114,6 +114,7 @@ A small run for trying it out:
 | `--tokens-per-conn` | `2500` | Tokens per websocket (one shard). |
 | `--replicas` | `2` | Independent sockets per shard, pinned to different edge IPs when DNS returns more than one. |
 | `--max-conns` | `600` | Cap on steady-state sockets (shards × replicas). |
+| `--lag-ms` | `3000` | Switch a shard's source when a peer has seen an event the source has not for this long (D10). |
 | `--core-threads` | `0` | Threads that own book state. 0 = half the CPUs, at most 8. |
 | `--core-queue` | `65536` | Decoded frames queued per core before socket readers wait. |
 | `--io-threads` | `0` | Tokio workers for sockets, TLS and decoding. 0 = CPUs − core threads − 1, at least 2. |
@@ -131,6 +132,7 @@ A small run for trying it out:
 | `--fast-source` | off | Prefer each shard's fastest socket as source and recycle one that stays slowest (see LATENCY, Experiment 2). |
 | `--fast-margin-ms` | `3` | With `--fast-source`: how much slower the preferred socket must be before it changes. |
 | `--fast-weight` | `0.25` | With `--fast-source`: weight of the newest 30 s window in a socket's score. |
+| `--fast-stall-ms` | `4` | With `--fast-source`: a 30 s window in which even a shard's best socket averaged this far behind is a venue stall and is not scored (0 = score every window). |
 | `--edge-ip`, `--src-ports` | off | Experiment 3: pin every socket to one edge IP; bind replica r to the r-th local port (0 = ephemeral). |
 | `--ntp-server` | `time.google.com:123` | Measure and log the host clock offset at start and every 10 min (D21). Empty = off. |
 
@@ -266,20 +268,24 @@ The same data as a table:
 | 13 | `--kernel-ts` | what host delay measures | TLS + parse + scheduling | kernel → read, p50 ≤ 128 µs |
 | 14 | Count CPUs before pinning | core threads with `--pin` | 1 | 2 |
 | 15 | At least 2 io workers | host delay p99 | 8–16 ms | 4–8 ms |
+| 16 | Write chunks in place as they fill | data kept by a `kill -9` at 120 s | 0 (empty file) | 119.8 s, 0 mismatches |
 
 ## Known limits
 
-- **A crash loses the unwritten chunk.** Output is written in whole 64 MiB chunks (D11), so a
-  `kill -9` loses what was still in memory, up to one chunk per open file. A panic does not: it
-  shuts down in order and writes the last chunk. Under `--supervise` the collector is back
-  within seconds of a crash, from the universe cache; the gap is marked in the output (D20).
-- **Failover is not instant.** A silent subscription is detected when a peer replica has seen
-  an event the source has not for 3 s. Until then the source's stale book is what readers have.
-- **Latency is measured but not tuned.** One experiment has run: 8 sockets on the same 400
-  markets (`--lat-detail`). The fastest socket was 1.4 ms behind the first copy on average and the
-  slowest 10.3 ms, and the edge IP mattered less than the connection. `--fast-source` acts on it
-  (opt-in): in two A/B runs it gave no consistent gain, so it is off by default. See
-  [docs/LATENCY.md](docs/LATENCY.md).
+- **A `kill -9` loses what was still queued.** Messages are written into the open 64 MiB file
+  chunk in place as soon as the writer's queue empties (D11), so a kill loses at most about
+  1 MiB, not the chunk. Stdout still writes whole chunks, so a kill there loses the chunk being
+  filled. A panic loses nothing. Under `--supervise` the collector is back within seconds; the
+  gap is marked in the output (D20).
+- **Failover waits for evidence.** A silent subscription is detected when a peer replica has
+  seen an event the source has not for `--lag-ms` (3 s by default). Until then readers have the
+  source's stale book.
+- **Latency is tuned to the venue's floor, not below it.** Four experiments (LATENCY.md). On
+  AWS London (Experiment 4), `--fast-source` took 0.3 ms off the mean for 4.8× the switching,
+  4 replicas gave nothing over 2, and kernel busy polling was a null result, so the defaults
+  stand. A 1 s failover window (`--lag-ms 1000`) raised no false switches on 2,000 markets but
+  is untried on the full universe. recv − exch p50 was 5 ms in every arm: the rest is the venue
+  and the network path.
 - **Kalshi is untested live.** The adapter passes against a mock built from Kalshi's docs.
   KALSHI.md lists what the first live run must check (per-subscription market limit, `seq`
   scope, lifecycle event names).

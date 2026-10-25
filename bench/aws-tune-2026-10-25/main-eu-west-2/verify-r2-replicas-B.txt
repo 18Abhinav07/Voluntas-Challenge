@@ -1,0 +1,1 @@
+verify ob.sbe 85M 0s span:      899.7s, 7894 symbols messages:  134422 snapshots, 477513 updates (531/s) replay:    126528 snapshots matched the rebuilt book, 0 did not crossed:   12 updates left a crossed book (informational) latency:   recv-exch ms p1 4 p50 6 p90 13 p99 32 p99.9 132 max 5515 OK 

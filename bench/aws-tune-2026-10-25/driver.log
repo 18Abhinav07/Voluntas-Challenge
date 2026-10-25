@@ -1,0 +1,22 @@
+[07:46:23] == preflight
+[07:46:28] identity 325365226388
+[07:46:32] account plan PAID, credits 140.0
+[07:46:40] eu-west-2 c7i.xlarge vcpus=4 quota=8.0 vpc=vpc-01b3bffcddcab9882 launchable
+[07:46:40] preflight OK
+[07:46:40] == tune: c7i.xlarge in eu-west-2, rev 5252f41; out /Users/18abhinav07/Documents/Voluntas-Challenge/bench/aws-tune-2026-10-25
+[07:46:52] eu-west-2 launched i-082dc07480f821800 (c7i.xlarge, halts itself in 240 min)
+[07:47:17] eu-west-2 ssh up at 16.60.29.229
+[07:52:23] == tune rounds
+[08:03:03] t=10m SMOKE_OK 2026-10-25T02:22:19Z|== r1-fast-full 2026-10-25T02:24:28Z dur=1200 markets=0 A=[--lat-detail] B=[--fast-source]|
+[08:13:41] t=21m SMOKE_OK 2026-10-25T02:22:19Z|== r1-fast-full 2026-10-25T02:24:28Z dur=1200 markets=0 A=[--lat-detail] B=[--fast-source]|
+[08:24:17] t=31m R1_DONE 2026-10-25T02:47:15Z|== r2-replicas 2026-10-25T02:47:15Z dur=900 markets=2000 A=[--fast-source] B=[--fast-source --replicas 4]|
+[08:34:52] t=42m R2_DONE 2026-10-25T03:02:19Z|== r3-lag 2026-10-25T03:02:19Z dur=900 markets=2000 A=[--lat-detail] B=[--lat-detail --lag-ms 1000]|
+[08:45:27] t=52m R2_DONE 2026-10-25T03:02:19Z|== r3-lag 2026-10-25T03:02:19Z dur=900 markets=2000 A=[--lat-detail] B=[--lat-detail --lag-ms 1000]|
+[08:56:02] t=63m R3_DONE 2026-10-25T03:17:23Z|== r4-poll-on 2026-10-25T03:23:24Z dur=360 markets=2000 busy_read=50 busy_poll=50|
+[09:06:37] t=74m R4_DONE 2026-10-25T03:35:27Z|== r5-kill 2026-10-25T03:35:27Z|
+[09:08:54] pulled main-eu-west-2
+[09:08:54] markers: SETUP_OK SMOKE_OK R1_DONE R2_DONE R3_DONE R4_DONE R5_OK TUNE_DONE 
+[09:08:54] TUNE_RUN_DONE
+[09:08:59] pulled main-eu-west-2
+[09:08:59] == teardown
+[09:09:05] eu-west-2 left running: ?

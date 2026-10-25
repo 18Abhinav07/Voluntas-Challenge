@@ -40,6 +40,19 @@ Notes on reading these:
 - **Host delay** is the time from the kernel receiving a frame to the collector reading it
   (`--kernel-ts`, `SO_TIMESTAMPNS`). This is the part the collector controls.
 
+## Tuning rounds
+
+Same host type and region, one more day (2026-10-25): five A/B rounds on `--fast-source`,
+replicas, the failover window and kernel busy polling. None beat the defaults by enough to change
+them; LATENCY, Experiment 4 has the tables. Two results that belong here:
+
+- **Two full-universe collectors on one c7i.xlarge** (round 1) each wrote about 40k updates/s,
+  each replayed with 0 mismatches, each held 1.72–1.74 GB RSS and used 54–55% of a CPU in the
+  core threads. Host delay p99 rose to ≤ 2 ms: the four vCPUs were shared by two.
+- **`kill -9` without the supervisor** (round 5, 500 markets, at 120 s): the file kept 119.8 s
+  of data and replayed 3,862 snapshots with 0 mismatches. Before the in-place writer (D11) the
+  same kill left nothing.
+
 ## Region probe
 
 All three hosts started at the same second and ran 2,000 markets for 10 minutes with
