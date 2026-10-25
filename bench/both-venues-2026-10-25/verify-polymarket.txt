@@ -1,0 +1,7 @@
+file:      target/demo/live.sbe
+span:      58.9s, 7996 symbols
+messages:  15596 snapshots, 74843 updates (1270/s)
+replay:    7600 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 129 p50 182 p90 491 p99 3477 p99.9 4429 max 5405
+OK

@@ -1,0 +1,33 @@
+
+== live: 500 Kalshi markets for 60 s (demo environment)
+[2m2026-10-25T05:35:20.797891Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m thread budget [3mcpus[0m[2m=[0m12 [3mcores[0m[2m=[0m6 [3mio[0m[2m=[0m5 [3mpinned[0m[2m=[0mfalse
+[2m2026-10-25T05:35:20.910917Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m websocket edges [3medges[0m[2m=[0m[3.165.190.80:443, 3.165.190.99:443, 3.165.190.110:443, 3.165.190.118:443]
+[2m2026-10-25T05:35:20.911149Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m core threads started [3mcores[0m[2m=[0m6
+[2m2026-10-25T05:35:21.210025Z[0m [32m INFO[0m [2mengineering_challenge::clock[0m[2m:[0m clock offset [3mserver[0m[2m=[0mtime.google.com:123 [3moffset_ms[0m[2m=[0m1.8 [3mrtt_ms[0m[2m=[0m95.9
+[2m2026-10-25T05:35:28.912489Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m67108864 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m75
+[2m2026-10-25T05:35:28.912491Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m16777216 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m78
+[2m2026-10-25T05:35:28.912608Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m67108865 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m75
+[2m2026-10-25T05:35:28.912632Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m16777217 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m78
+[2m2026-10-25T05:35:28.912507Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m0 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m100
+[2m2026-10-25T05:35:28.912504Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m83886080 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m87
+[2m2026-10-25T05:35:28.912489Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m33554432 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m77
+[2m2026-10-25T05:35:28.912490Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m50331648 [3mreplica[0m[2m=[0m0 [3medge[0m[2m=[0mSome(3.165.190.80:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m83
+[2m2026-10-25T05:35:28.912711Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m1 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m100
+[2m2026-10-25T05:35:28.912771Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m50331649 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m83
+[2m2026-10-25T05:35:28.912755Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m33554433 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m77
+[2m2026-10-25T05:35:28.912733Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m opening connection [3mconn[0m[2m=[0m83886081 [3mreplica[0m[2m=[0m1 [3medge[0m[2m=[0mSome(3.165.190.99:443) [3msrc_port[0m[2m=[0mNone [3mtokens[0m[2m=[0m87
+[2m2026-10-25T05:35:50.912847Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m status [3mtokens[0m[2m=[0m500 [3msourced[0m[2m=[0m500 [3mconns[0m[2m=[0m12 [3mper_core[0m[2m=[0m[100, 78, 77, 83, 75, 87] [3mstalls[0m[2m=[0m0 [3mqueue_hwm_mb[0m[2m=[0m0.005615234375 [3mqueue_waits[0m[2m=[0m0 [3mm[0m[2m=[0mMetrics { updates: 25339, snapshots: 1208, switches: 0, lag_switches: 0, hash_ok: 0, hash_miss: 0, hash_healed: 0, divergent: 0, hash_agreed: 0, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 500, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 0, wire: n=49501 p50<=262.1ms p99<=782.2ms max=782.2ms, queue: n=50501 p50<=0.0ms p99<=0.3ms max=1.2ms, src_behind: n=0, src_wire: n=0 }
+[2m2026-10-25T05:35:50.912943Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m conn stats [3mwindow[0m[2m=[0mall: 21MB 75659f dec136ms stall0ms | top rx [33554433:1MB/6956f/dec12ms/stall0ms 1:1MB/6961f/dec12ms/stall0ms 0:1MB/6893f/dec12ms/stall0ms 33554432:1MB/6710f/dec12ms/stall0ms 16777216:1MB/6446f/dec11ms/stall0ms] | top stall []
+[2m2026-10-25T05:36:20.800903Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m duration elapsed: shutting down
+[2m2026-10-25T05:36:20.800960Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m closing connections
+[2m2026-10-25T05:36:20.801433Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m writer queue [3mqueue_hwm_mb[0m[2m=[0m0.005615234375 [3mqueue_waits[0m[2m=[0m0
+[2m2026-10-25T05:36:20.807585Z[0m [32m INFO[0m [2mcollector[0m[2m:[0m done [3mupdates[0m[2m=[0m95333 [3msnapshots[0m[2m=[0m1820 [3mm[0m[2m=[0mMetrics { updates: 95333, snapshots: 1820, switches: 0, lag_switches: 0, hash_ok: 0, hash_miss: 0, hash_healed: 0, divergent: 0, hash_agreed: 0, resnapshots: 0, book_miss: 0, book_diffs: 0, disconnects: 0, recycles: 0, markets_added: 500, markets_removed: 0, quiet_resubs: 0, quiet_caught: 0, quiet_reconnects: 0, unplaced: 0, rot_early: 0, resolved_closes: 0, splits: 0, split_tokens: 0, fast_picks: 0, fast_switches: 0, slow_recycles: 0, fast_disagree: 0, fast_stalls: 0, switch_snaps: 0, wire: n=186554 p50<=262.1ms p99<=7772.0ms max=7772.0ms, queue: n=197805 p50<=0.0ms p99<=0.3ms max=1.3ms, src_behind: n=0, src_wire: n=0 }
+
+== verify the Kalshi capture
+file:      target/demo/kalshi.sbe
+span:      50.2s, 1000 symbols
+messages:  1820 snapshots, 95333 updates (1901/s)
+replay:    820 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 194 p50 224 p90 1596 p99 4653 p99.9 5374 max 5535
+OK

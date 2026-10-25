@@ -1,0 +1,7 @@
+file:      target/demo/kalshi.sbe
+span:      50.2s, 1000 symbols
+messages:  1820 snapshots, 95333 updates (1901/s)
+replay:    820 snapshots matched the rebuilt book, 0 did not
+crossed:   0 updates left a crossed book (informational)
+latency:   recv-exch ms p1 194 p50 224 p90 1596 p99 4653 p99.9 5374 max 5535
+OK

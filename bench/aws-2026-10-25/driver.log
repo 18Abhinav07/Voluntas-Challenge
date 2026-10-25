@@ -1,0 +1,6 @@
+[09:27:39] == teardown
+[09:27:42] eu-west-2 terminating i-082dc07480f821800
+[09:28:18] eu-west-2 deleted sg-0e9e6628822c1a2c5
+[09:28:22] eu-west-2 left running: 0
+[09:28:28] eu-west-1 left running: 0
+[09:28:36] us-east-1 left running: 0
