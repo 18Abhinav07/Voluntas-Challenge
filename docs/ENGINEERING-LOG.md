@@ -1501,7 +1501,10 @@ the rest, then use AWS to run the tuning that the Codespace could not.
 - Every arm's `verify` was OK.
 
 **Teardown:** the AWS login session expired during the run, so the driver could not terminate
-the host. The host was launched to halt itself and terminate (volume deleted on termination)
-240 minutes after launch.
+the host (it would have halted itself 240 minutes after launch). After a fresh login,
+`run.sh teardown` terminated it and deleted its security group and key; eu-west-2 then had no
+instances, volumes, extra security groups, key pairs, addresses or snapshots. Cost: 1 h 41 min
+of c7i.xlarge at $0.2121/h ($0.36), the 100 GB gp3 volume ($0.02) and the public IPv4 ($0.01),
+about **$0.39**.
 
 **Open:** a 1 s failover window on the full universe; the zip and the email, on the user's go.
