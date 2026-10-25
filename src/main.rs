@@ -128,6 +128,10 @@ struct Args {
     /// the r-th entry; replicas past the list are ephemeral (Ext 4, bench/port.sh).
     #[arg(long, value_delimiter = ',')]
     src_ports: Vec<u16>,
+    /// Failover: a source that has not seen an event a peer replica saw this long ago is
+    /// lagging, and its tokens move to that replica.
+    #[arg(long, default_value_t = Config::default().lag.as_millis() as u64)]
+    lag_ms: u64,
     /// With --fast-source: move off the preferred socket only when it is this much slower
     /// than the best.
     #[arg(long, default_value_t = Fast::default().margin_ms)]
@@ -135,6 +139,10 @@ struct Args {
     /// With --fast-source: weight of the newest 30 s window in a socket's score (1 = no memory).
     #[arg(long, default_value_t = Fast::default().weight)]
     fast_weight: f64,
+    /// With --fast-source: skip a window in which even the shard's best socket was this far
+    /// behind (every socket late together); 0 scores every window.
+    #[arg(long, default_value_t = Fast::default().stall_ms)]
+    fast_stall_ms: f64,
     /// Run the collector as a child process and restart it whenever it dies (D20). Output
     /// stays readable: a torn chunk is dropped, and a reset marker separates two runs.
     #[arg(long)]
@@ -435,11 +443,16 @@ fn spawn_core<A: ExchangeAdapter>(spec: CoreSpec<A>) -> std::io::Result<std::thr
 
 async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metrics> {
     let CoreSpec { idx, cfg, mut rt, mut ctl, inbound: mut irx, writer: wtx, status, .. } = spec;
+    let lag_every = (cfg.lag / 4).clamp(Duration::from_millis(100), Duration::from_secs(1));
     let mut core = Core::new(cfg, rt.adapter.integrity());
     let mut tick = interval(Duration::from_secs(1));
     tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut report = interval(Duration::from_secs(10));
     report.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    // The lag check also runs with the 1 s tick; this one bounds detection to a quarter of the
+    // lag window past it.
+    let mut lag_tick = interval(lag_every);
+    lag_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     // Timers and control come first in the biased select: under load the inbound channel is
     // always ready, and polling it first starved ticks and snapshots. Inbound is drained in
@@ -455,6 +468,7 @@ async fn core_loop<A: ExchangeAdapter>(spec: CoreSpec<A>) -> anyhow::Result<Metr
                     Some(Ctl::Shutdown) | None => break,
                 },
                 _ = tick.tick() => core.on_tick(std::time::Instant::now(), now_us(), &mut rt),
+                _ = lag_tick.tick() => core.on_lag_tick(std::time::Instant::now(), now_us(), &mut rt),
                 _ = report.tick() => {
                     // Tokens the venue has no book for stay unsourced (CLOB: "No orderbook exists").
                     if tracing::enabled!(tracing::Level::DEBUG) {
@@ -707,7 +721,8 @@ async fn run<A: ExchangeAdapter>(args: Args, adapter: Arc<A>, n_cores: usize, pi
             rotate_every: rotate,
             split_ratio: (args.split_ratio > 0.0).then_some(args.split_ratio),
             lat_detail: args.lat_detail,
-            fast: args.fast_source.then(|| Fast { margin_ms: args.fast_margin_ms, weight: args.fast_weight, ..Fast::default() }),
+            lag: Duration::from_millis(args.lag_ms.max(1)),
+            fast: args.fast_source.then(|| Fast { margin_ms: args.fast_margin_ms, weight: args.fast_weight, stall_ms: args.fast_stall_ms, ..Fast::default() }),
             ..Config::default()
         };
         let rt = Runtime {

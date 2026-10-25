@@ -90,6 +90,8 @@ pub struct Metrics {
     pub slow_recycles: u64,
     /// Tokens left on their source because the fast socket's book differed from it.
     pub fast_disagree: u64,
+    /// Speed windows skipped because every socket of the shard was behind (a common stall).
+    pub fast_stalls: u64,
     /// Source changes of a published book, each written as a diff then a snapshot (D8).
     pub switch_snaps: u64,
     /// `recv - exch` per delta event per replica: venue to socket read.
@@ -99,6 +101,9 @@ pub struct Metrics {
     /// `behind` of the events the source delivered, i.e. of what is written: how much the
     /// choice of source costs against the first copy. Kept with the arrival windows only.
     pub src_behind: MsHist,
+    /// `recv - exch` of the events the source delivered: the absolute latency of what is
+    /// written, comparable across replica counts. Kept with the arrival windows only.
+    pub src_wire: MsHist,
 }
 
 impl Metrics {
@@ -108,8 +113,9 @@ impl Metrics {
         sum!(updates, snapshots, switches, lag_switches, hash_ok, hash_miss, hash_healed, divergent, hash_agreed,
             resnapshots, book_miss, book_diffs, disconnects, recycles, markets_added, markets_removed,
             quiet_resubs, quiet_caught, quiet_reconnects, unplaced, rot_early, resolved_closes, splits, split_tokens,
-            fast_picks, fast_switches, slow_recycles, fast_disagree, switch_snaps);
+            fast_picks, fast_switches, slow_recycles, fast_disagree, fast_stalls, switch_snaps);
         self.src_behind.merge(&o.src_behind);
+        self.src_wire.merge(&o.src_wire);
         self.wire.merge(&o.wire);
         self.queue.merge(&o.queue);
     }

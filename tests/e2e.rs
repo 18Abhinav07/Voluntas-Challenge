@@ -359,6 +359,8 @@ enum Stop {
     Sigterm,
     /// SIGTERM to a `--supervise` parent, which passes it on to the child.
     Supervised,
+    /// SIGKILL to the collector: no shutdown, no last flush.
+    Sigkill,
 }
 
 /// Runs the collector for `secs` against a mock venue with `fault`, then stops it by `stop`.
@@ -407,8 +409,13 @@ fn run(fault: Fault, secs: u64, extra: &[&str], stop: Stop) -> Run {
         }
         let mut child = cmd.spawn().unwrap();
         std::thread::sleep(Duration::from_secs(secs));
-        unsafe { libc::kill(child.id() as i32, libc::SIGTERM) };
-        assert!(child.wait().unwrap().success(), "exits 0 on SIGTERM: {}", std::fs::read_to_string(&log).unwrap());
+        if stop == Stop::Sigkill {
+            unsafe { libc::kill(child.id() as i32, libc::SIGKILL) };
+            child.wait().unwrap();
+        } else {
+            unsafe { libc::kill(child.id() as i32, libc::SIGTERM) };
+            assert!(child.wait().unwrap().success(), "exits 0 on SIGTERM: {}", std::fs::read_to_string(&log).unwrap());
+        }
     } else {
         let st = cmd.args(["--duration-secs", &secs.to_string()]).status().unwrap();
         assert!(st.success(), "collector failed: {}", std::fs::read_to_string(&log).unwrap());
@@ -517,6 +524,18 @@ fn supervisor_restarts_after_a_panic() {
     assert!(r.verify.contains("0 did not"), "{}", r.verify);
     assert!(r.verify.contains("resets:"), "a reset marker between runs: {}", r.verify);
     assert!(r.log.contains("supervisor: child died; restarting"));
+}
+
+#[test]
+fn sigkill_keeps_what_was_written() {
+    // A few seconds of the mock is far less than one 64 MiB chunk, so before the writer handed
+    // each batch to the kernel this file held nothing at all.
+    let r = run(Fault::None, 10, &[], Stop::Sigkill);
+    assert!(r.verify_ok, "verify failed:\n{}", r.verify);
+    assert!(r.verify.contains("0 did not"), "{}", r.verify);
+    let line = r.verify.lines().find(|l| l.starts_with("messages:")).expect("messages line");
+    let n: u64 = line.split_whitespace().nth(3).and_then(|w| w.replace(',', "").parse().ok()).unwrap_or(0);
+    assert!(n > 100, "the killed run's file replays its batches: {line}");
 }
 
 #[test]

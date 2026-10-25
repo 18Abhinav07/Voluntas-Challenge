@@ -56,13 +56,17 @@ pub struct Fast {
     pub weight: f64,
     pub slow_ms: f64,
     pub slow_windows: u32,
+    /// A window in which even a shard's best socket was this far behind is a common stall:
+    /// every socket was late together, and the window says nothing about which is faster, so
+    /// it leaves the shard's scores as they were. 0 turns the filter off.
+    pub stall_ms: f64,
     /// A window with fewer timed events than this leaves a socket's score as it was.
     pub min_samples: u64,
 }
 
 impl Default for Fast {
     fn default() -> Self {
-        Self { margin_ms: 3.0, weight: 0.25, slow_ms: 4.0, slow_windows: 10, min_samples: 50 }
+        Self { margin_ms: 3.0, weight: 0.25, slow_ms: 4.0, slow_windows: 10, stall_ms: 4.0, min_samples: 50 }
     }
 }
 

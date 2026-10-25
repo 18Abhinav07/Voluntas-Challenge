@@ -57,9 +57,22 @@ impl<M> Core<M> {
     /// fastest socket, and recycles a socket that stays far behind. See [`Fast`].
     pub(super) fn check_speed(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
         let Some(f) = self.cfg.fast.clone() else { return };
+        let mean = |cs: &super::ConnState| (cs.beh_n >= f.min_samples).then(|| cs.beh_sum as f64 / cs.beh_n as f64 / 1000.0);
+        let mut floor = vec![f64::INFINITY; self.shards.len()];
+        for cs in self.conns.values() {
+            if let (Some(m), Some(fl)) = (mean(cs), floor.get_mut(cs.shard)) {
+                *fl = fl.min(m);
+            }
+        }
+        for (s, fl) in floor.iter().enumerate() {
+            if f.stall_ms > 0.0 && fl.is_finite() && *fl >= f.stall_ms {
+                tracing::info!(shard = s, best_ms = format!("{fl:.1}"), "every socket behind; window not scored");
+                self.metrics.fast_stalls += 1;
+            }
+        }
         for cs in self.conns.values_mut() {
-            if cs.beh_n >= f.min_samples {
-                let m = cs.beh_sum as f64 / cs.beh_n as f64 / 1000.0;
+            let stalled = f.stall_ms > 0.0 && floor.get(cs.shard).is_some_and(|fl| *fl >= f.stall_ms);
+            if let Some(m) = mean(cs).filter(|_| !stalled) {
                 cs.speed = Some(cs.speed.map_or(m, |s| (1.0 - f.weight) * s + f.weight * m));
             }
             (cs.beh_sum, cs.beh_n) = (0, 0);

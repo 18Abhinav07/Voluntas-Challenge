@@ -3,6 +3,7 @@
 #
 #   run.sh preflight   identity, quotas, plan limits (run-instances --dry-run), AMI, default VPC
 #   run.sh all         preflight, launch, setup, smoke gate, 3-region probe, main run, pull, teardown
+#   run.sh tune        preflight, one main host, setup, smoke, host.sh tune (A/B rounds), pull, teardown
 #   run.sh pull        copy ~/results from every live host into $OUT
 #   run.sh teardown    terminate everything tagged Project=voluntas-run, delete its SGs and keys
 #
@@ -186,10 +187,41 @@ all() {
   log "RUN_DONE"
 }
 
+tune() {
+  PROBES=""
+  preflight
+  [ -s "$STATE/hosts" ] && die "$STATE/hosts exists: a previous run is live; run teardown first"
+  [ "${KEEP:-0}" = 1 ] || trap 'pull; teardown' EXIT
+  trap 'log "interrupted"; exit 130' INT TERM
+  MYIP=$(curl -s -m 10 https://checkip.amazonaws.com) || die "no public IP"
+  [ -f $KEY ] || ssh-keygen -q -t ed25519 -N "" -C $TAG -f $KEY
+  git diff --quiet HEAD -- src Cargo.toml Cargo.lock bench/aws || log "WARNING: uncommitted changes are not shipped"
+  log "== tune: $MAIN_TYPE in $MAIN_REGION, rev $(git rev-parse --short HEAD); out $OUT"
+  launch $MAIN_REGION $MAIN_TYPE $LIFE_MAIN 100 main
+  git archive HEAD | on $MAIN_REGION 'mkdir -p src && tar -x -C src' || die "ship source"
+  $SCP bench/aws/host.sh ubuntu@$(ip_of $MAIN_REGION):host.sh
+  on $MAIN_REGION 'chmod +x host.sh; nohup ./host.sh setup main >/dev/null 2>&1 </dev/null &'
+  wait_marker $MAIN_REGION 'SETUP_' 1500 | grep -q SETUP_OK || { pull; die "setup failed (see setup.log)"; }
+  on $MAIN_REGION 'nohup ./host.sh smoke >/dev/null 2>&1 </dev/null &'
+  wait_marker $MAIN_REGION 'SMOKE_' 300 | grep -q SMOKE_OK || { pull; die "NO-GO: smoke failed"; }
+  log "== tune rounds"
+  on $MAIN_REGION 'nohup ./host.sh tune >/dev/null 2>&1 </dev/null &'
+  local t0=$(date +%s) n=0
+  until on $MAIN_REGION 'grep -qE "TUNE_(DONE|FAILED)" results/markers' 2>/dev/null; do
+    sleep 60; n=$((n+1))
+    [ $(( $(date +%s) - t0 )) -gt ${MAIN_TIMEOUT:-7200} ] && { log "tune timed out"; break; }
+    [ $((n % 10)) = 0 ] && log "t=$(( ($(date +%s) - t0) / 60 ))m $(on $MAIN_REGION 'tail -1 results/markers; tail -1 results/tune.log' 2>/dev/null | tr '\n' '|')"
+  done
+  pull
+  log "markers: $(awk '{print $1}' "$OUT"/main-$MAIN_REGION/markers 2>/dev/null | tr '\n' ' ')"
+  log "TUNE_RUN_DONE"
+}
+
 case "${1:-}" in
   preflight) preflight ;;
   all) all ;;
+  tune) tune ;;
   pull) pull ;;
   teardown) teardown ;;
-  *) echo "usage: run.sh preflight | all | pull | teardown"; exit 2 ;;
+  *) echo "usage: run.sh preflight | all | tune | pull | teardown"; exit 2 ;;
 esac

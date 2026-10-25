@@ -10,10 +10,16 @@
 //! Finishing a file (last chunk, fsync, rename) runs on a separate `finisher` thread. An fsync
 //! of a multi-GB file takes seconds; done inline it stopped the writer, which filled its
 //! channel and blocked every core and socket reader behind it.
+//!
+//! A file on disk is written by [`ChunkFile`]: the template's chunk format, handed to the kernel
+//! as each batch lands rather than once per 64 MiB chunk, so a `kill -9` loses only what was
+//! still queued. Stdout keeps the template's [`AlignedSbeWriter`].
 
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
+    fs::File,
+    os::unix::fs::FileExt,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -31,8 +37,11 @@ use crate::{
     fixed::Fx,
     util::{
         AlignedSbeWriter,
-        dtos::challenge_orderbook::{
-            PriceLevelUpdateDomain, SnapshotAsksEntryDomain, SnapshotBidsEntryDomain, SnapshotDomain,
+        dtos::{
+            SbeEncode,
+            challenge_orderbook::{
+                PriceLevelUpdateDomain, SnapshotAsksEntryDomain, SnapshotBidsEntryDomain, SnapshotDomain,
+            },
         },
     },
 };
@@ -129,8 +138,98 @@ fn ts(us: Ts) -> anyhow::Result<DateTime<Utc>> {
     DateTime::from_timestamp_micros(us).ok_or_else(|| anyhow::anyhow!("timestamp out of range: {us}"))
 }
 
+/// Bytes held back before [`ChunkFile::sync`] runs even with the queue still busy.
+const SYNC_BYTES: usize = 1 << 20;
+
+/// Byte-for-byte the format of [`AlignedSbeWriter`] (whole messages, each chunk zero-padded to
+/// [`CHUNK`]), but the open chunk lives in the file, not only in memory. Opening a chunk sets the
+/// file length to the chunk's end, so the not-yet-written tail is already the zero sentinel the
+/// reader stops at; [`Self::sync`] then writes only the new whole messages at their offset. The
+/// file is a valid capture after every sync, and a killed process leaves it in the page cache.
+struct ChunkFile {
+    file: File,
+    buf: Vec<u8>,
+    /// File offset of the open chunk.
+    base: u64,
+    /// Bytes of `buf` already handed to the kernel.
+    synced: usize,
+}
+
+impl ChunkFile {
+    fn create(path: &Path) -> anyhow::Result<Self> {
+        let file = File::create(path)?;
+        file.set_len(CHUNK as u64)?;
+        Ok(Self { file, buf: Vec::with_capacity(CHUNK), base: 0, synced: 0 })
+    }
+
+    /// As [`AlignedSbeWriter::write_msg`]: a message that does not fit starts the next chunk.
+    fn write_msg<T: SbeEncode + ?Sized>(&mut self, message: &T) -> anyhow::Result<()> {
+        // The template's eight-byte header, left as trailing zeros in every chunk.
+        let limit = CHUNK - 8;
+        let len = message.encoded_length_with_header()?;
+        anyhow::ensure!(len <= limit, "SBE message does not fit in a chunk");
+        if len > limit - self.buf.len() {
+            self.sync()?;
+            self.buf.clear();
+            self.synced = 0;
+            self.base += CHUNK as u64;
+            self.file.set_len(self.base + CHUNK as u64)?;
+        }
+        let start = self.buf.len();
+        self.buf.resize(start + len, 0);
+        let result = message.encode(&mut self.buf[start..]).and_then(|written| {
+            anyhow::ensure!(written == len, "SBE encoded length mismatch: expected {len} bytes, wrote {written}");
+            Ok(())
+        });
+        if result.is_err() {
+            self.buf.truncate(start);
+        }
+        result
+    }
+
+    fn pending(&self) -> usize {
+        self.buf.len() - self.synced
+    }
+
+    fn sync(&mut self) -> anyhow::Result<()> {
+        if self.pending() > 0 {
+            self.file.write_all_at(&self.buf[self.synced..], self.base + self.synced as u64)?;
+            self.synced = self.buf.len();
+        }
+        Ok(())
+    }
+}
+
+enum Out {
+    File(ChunkFile),
+    Stdout(AlignedSbeWriter),
+}
+
+impl Out {
+    fn write_msg<T: SbeEncode + ?Sized>(&mut self, message: &T) -> anyhow::Result<()> {
+        match self {
+            Out::File(f) => f.write_msg(message),
+            Out::Stdout(w) => w.write_msg(message),
+        }
+    }
+
+    fn sync(&mut self, force: bool) -> anyhow::Result<()> {
+        match self {
+            Out::File(f) if force || f.pending() >= SYNC_BYTES => f.sync(),
+            _ => Ok(()),
+        }
+    }
+
+    fn flush(&mut self) -> anyhow::Result<()> {
+        match self {
+            Out::File(f) => f.sync(),
+            Out::Stdout(w) => w.flush(),
+        }
+    }
+}
+
 struct Part {
-    w: AlignedSbeWriter,
+    w: Out,
     tmp: PathBuf,
     fin: PathBuf,
 }
@@ -190,7 +289,8 @@ pub fn spawn(
             None => target.clone(),
         };
         let tmp = if period.is_some() { fin.with_extension("sbe.part") } else { fin.clone() };
-        Ok(Part { w: AlignedSbeWriter::create(&tmp, CHUNK)?, tmp, fin })
+        let w = if tmp == Path::new("/dev/stdout") { Out::Stdout(AlignedSbeWriter::create(&tmp, CHUNK)?) } else { Out::File(ChunkFile::create(&tmp)?) };
+        Ok(Part { w, tmp, fin })
     };
     let now_us = chrono::Utc::now().timestamp_micros();
     let start = period.map_or(0, |p| now_us / p);
@@ -285,6 +385,12 @@ pub fn spawn(
                     Rec::Rotate { .. } => unreachable!("handled above"),
                 }
             }
+            // Hand the new bytes to the kernel once the queue is drained (or 1 MiB has built up),
+            // so a burst costs one write call, not one per batch.
+            let idle = rx.is_empty();
+            for p in files.values_mut() {
+                p.w.sync(idle)?;
+            }
         }
         drop(done_tx);
         let finished = finisher.join().map_err(|_| anyhow::anyhow!("finisher thread panicked"))?;
@@ -326,6 +432,43 @@ mod tests {
         let u = PriceLevelUpdateDomain::try_from_decoder(u).unwrap();
         assert_eq!((u.price_level, u.quantity, u.backtest_timestamp.timestamp_micros()), (500_000, 0, 4));
         assert!(r.read_msg().unwrap().is_none());
+    }
+
+    #[test]
+    fn a_synced_chunk_file_replays_before_it_is_finished() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("live.sbe");
+        let mut f = ChunkFile::create(&path).unwrap();
+        let upd = |q| PriceLevelUpdateDomain {
+            backtest_timestamp: DateTime::UNIX_EPOCH,
+            exchange_timestamp: DateTime::UNIX_EPOCH,
+            price_level: 1,
+            quantity: q,
+            symbol: "1:bid".into(),
+        };
+        f.write_msg(&upd(1)).unwrap();
+        f.sync().unwrap();
+        f.write_msg(&upd(2)).unwrap();
+        // Not synced: the second message is still only in memory, as at a `kill -9`.
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), CHUNK as u64);
+        assert_eq!(count(&path), 1);
+        f.sync().unwrap();
+        assert_eq!(count(&path), 2);
+        // Same bytes as the template writer.
+        let tpl = dir.path().join("tpl.sbe");
+        let mut t = AlignedSbeWriter::create(&tpl, CHUNK).unwrap();
+        t.write_msg(&upd(1)).unwrap();
+        t.write_msg(&upd(2)).unwrap();
+        t.flush().unwrap();
+        assert!(std::fs::read(&tpl).unwrap() == std::fs::read(&path).unwrap());
+        // Filling the chunk opens the next one, already zero-padded to its end.
+        let msg = upd(3).encoded_length_with_header().unwrap();
+        for _ in 0..(CHUNK - 8) / msg {
+            f.write_msg(&upd(3)).unwrap();
+        }
+        f.sync().unwrap();
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 2 * CHUNK as u64);
+        assert_eq!(count(&path), 2 + (CHUNK - 8) / msg);
     }
 
     fn count(path: &std::path::Path) -> usize {

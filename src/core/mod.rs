@@ -416,6 +416,7 @@ impl<M> Core<M> {
                     && changes.first().and_then(|c| self.tokens.get(&c.token)).is_some_and(|t| t.source == Some(conn))
                 {
                     self.metrics.src_behind.record(b);
+                    self.metrics.src_wire.record(recv - exch_ts);
                 }
                 for c in changes {
                     let Some(tok) = self.tokens.get_mut(&c.token) else { continue };
@@ -460,6 +461,12 @@ impl<M> Core<M> {
             NormEvent::Resolved { market } => self.remove_market(market, recv, fx),
             NormEvent::Trade { .. } | NormEvent::TickSize { .. } => {}
         }
+    }
+
+    /// The silent-subscription check alone, for a caller that wants it more often than
+    /// [`Self::on_tick`].
+    pub fn on_lag_tick(&mut self, now: Instant, recv: Ts, fx: &mut dyn Effects) {
+        self.check_lag(now, recv, fx);
     }
 
     /// Call once per second.

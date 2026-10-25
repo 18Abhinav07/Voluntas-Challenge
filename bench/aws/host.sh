@@ -8,6 +8,9 @@
 #   host.sh smoke             45 s on 20 markets, then verify: proves the venue is reachable
 #   host.sh probe START       region probe at epoch START: 2,000 markets, --lat-detail, 10 min
 #   host.sh main              tests, offline bench, 60-min full universe, 2-min sample
+#   host.sh tune              A/B rounds, two collectors at once on the same markets (TUNE.md):
+#                             speed-aware source, replica count, failover window, busy polling,
+#                             and a kill -9 of an unsupervised run
 #
 # DRY=1 shortens every duration (a dry run on any Linux box); NTP overrides the time server.
 set -u
@@ -232,10 +235,79 @@ main() {
   mark ALL_DONE
 }
 
+# One A/B round: two collectors at the same time, each with its own sockets, on the same markets.
+ab() { # $1 round $2 secs $3 markets $4 A-args $5 B-args
+  local n=$1 d=$2 m=$3 x
+  rm -rf out-$n; mkdir -p out-$n/A out-$n/B
+  cp tune-u.json out-$n/A/u.json; cp tune-u.json out-$n/B/u.json
+  echo "== $n $(date -u +%FT%TZ) dur=$d markets=$m A=[$4] B=[$5]"
+  for x in A B; do
+    local a; [ $x = A ] && a=$4 || a=$5
+    NO_COLOR=1 $BIN/collector --out out-$n/$x/ob.sbe --duration-secs $d --max-markets $m --kernel-ts \
+      --ntp-server $NTP --universe-cache out-$n/$x/u.json $a > "$R/collect-$n-$x.log" 2>&1 &
+    eval "pid_$x=\$!"
+  done
+  sample_loop $pid_A $n-A & local sa=$!
+  sample_loop $pid_B $n-B & local sb=$!
+  wait $pid_A $pid_B; wait $sa $sb
+  for x in A B; do verify_done out-$n/$x $n-$x; done
+  rm -rf out-$n
+}
+
+# Sequential arms for a host-wide setting (a sysctl cannot differ between two processes).
+seq_arm() { # $1 name $2 secs $3 markets
+  rm -rf out-$1; mkdir -p out-$1; cp tune-u.json out-$1/u.json
+  echo "== $1 $(date -u +%FT%TZ) dur=$2 markets=$3 busy_read=$(sysctl -n net.core.busy_read) busy_poll=$(sysctl -n net.core.busy_poll)"
+  NO_COLOR=1 $BIN/collector --out out-$1/ob.sbe --duration-secs $2 --max-markets $3 --kernel-ts \
+    --ntp-server $NTP --universe-cache out-$1/u.json > "$R/collect-$1.log" 2>&1 &
+  local pid=$!
+  sample_loop $pid $1
+  wait $pid
+  verify_done out-$1 $1; rm -rf out-$1
+}
+
+tune() {
+  exec >> "$R/tune.log" 2>&1
+  ulimit -n 65536 2>/dev/null || ulimit -n 4096
+  local full=$(dur 1200 120) part=$(dur 900 90) seqd=$(dur 360 45) m=${TUNE_MARKETS:-2000}
+  echo "== tune $(date -u +%FT%TZ)"
+  # One discovery, shared, so both arms of every round start on the same markets.
+  rm -rf out-prep; mkdir -p out-prep
+  NO_COLOR=1 $BIN/collector --out out-prep/ob.sbe --duration-secs $(dur 120 60) --universe-cache tune-u.json > "$R/collect-prep.log" 2>&1
+  rm -rf out-prep
+  [ -s tune-u.json ] || { echo "no universe cache"; mark TUNE_FAILED; exit 1; }
+  echo "universe $(jq length tune-u.json) markets"
+
+  ab r1-fast-full $full 0 "--lat-detail" "--fast-source"; mark R1_DONE
+  ab r2-replicas $part $m "--fast-source" "--fast-source --replicas 4"; mark R2_DONE
+  ab r3-lag $part $m "--lat-detail" "--lat-detail --lag-ms 1000"; mark R3_DONE
+
+  local br=$(sysctl -n net.core.busy_read) bp=$(sysctl -n net.core.busy_poll)
+  seq_arm r4-poll-off1 $seqd $m
+  sudo sysctl -q -w net.core.busy_read=50 net.core.busy_poll=50
+  seq_arm r4-poll-on $seqd $m
+  sudo sysctl -q -w net.core.busy_read=$br net.core.busy_poll=$bp
+  seq_arm r4-poll-off2 $seqd $m; mark R4_DONE
+
+  # kill -9, unsupervised: what was written before the kill must replay.
+  rm -rf out-r5; mkdir -p out-r5; cp tune-u.json out-r5/u.json
+  echo "== r5-kill $(date -u +%FT%TZ)"
+  NO_COLOR=1 $BIN/collector --out out-r5/ob.sbe --max-markets 500 --kernel-ts --ntp-server $NTP \
+    --universe-cache out-r5/u.json > "$R/collect-r5-kill.log" 2>&1 &
+  local pid=$!
+  sleep $(dur 120 30); kill -9 $pid; wait $pid 2>/dev/null
+  echo "killed; file $(stat -c %s out-r5/ob.sbe 2>/dev/null) bytes" >> "$R/verify-r5-kill.txt"
+  verify_done out-r5 r5-kill; rm -rf out-r5
+  if grep -qE '^verify .* 0 did not' "$R/verify-r5-kill.txt" && ! grep -q 'messages: +0 snapshots' "$R/verify-r5-kill.txt"; then mark R5_OK; else mark R5_FAILED; fi
+  env_capture
+  mark TUNE_DONE
+}
+
 case "${1:-}" in
   setup) setup "${2:?main|probe}" ;;
   smoke) smoke ;;
   probe) probe "${2:?START epoch}" ;;
   main) main ;;
-  *) echo "usage: host.sh setup main|probe | smoke | probe START | main"; exit 2 ;;
+  tune) tune ;;
+  *) echo "usage: host.sh setup main|probe | smoke | probe START | main | tune"; exit 2 ;;
 esac

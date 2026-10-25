@@ -194,6 +194,19 @@ fn lagging_source_switches_and_resnapshots() {
 }
 
 #[test]
+fn shorter_lag_window_switches_sooner() {
+    let (mut core, mut fx, now) = setup();
+    core.cfg.lag = Duration::from_millis(500);
+    core.on_events(0, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+    core.on_events(1, 1, &[book("a", 5, &[(400, 1)], &[])], now, &mut fx);
+    core.on_events(1, 2, &[lvl("a", 6, Side::Bid, 400, 2)], now, &mut fx);
+    core.on_lag_tick(now + Duration::from_millis(250), 3, &mut fx);
+    assert_eq!(core.metrics.lag_switches, 0, "within the lag window");
+    core.on_lag_tick(now + Duration::from_millis(600), 4, &mut fx);
+    assert_eq!(core.metrics.lag_switches, 1);
+}
+
+#[test]
 fn stalled_source_switches_while_the_peer_keeps_ticking() {
     // The peer's newest delta is always fresh; the lag runs from its oldest unseen one.
     let (mut core, mut fx, now) = setup();
@@ -759,6 +772,25 @@ fn sources_follow_the_fastest_socket_past_a_margin() {
     core.check_speed(now, 4, &mut fx);
     assert_eq!((core.tokens["a"].source, core.metrics.fast_picks), (Some(0), 2));
     assert_eq!((core.tokens["b"].source, core.metrics.fast_disagree), (Some(1), 1), "books differ: b stays");
+}
+
+#[test]
+fn a_window_where_every_socket_is_behind_is_not_scored() {
+    let (mut core, mut fx, now) = fast_pair(Fast::default());
+    race(&mut core, &mut fx, now, 1, 5_000, 1);
+    core.check_speed(now, 2, &mut fx);
+    let before: Vec<_> = [0, 1].iter().map(|c| core.conns[c].speed).collect();
+    // Each socket first half the time, 12 ms ahead: both 6 ms behind on average.
+    for i in 100..160 {
+        let (first, second) = if i % 2 == 0 { (0, 1) } else { (1, 0) };
+        let ev = [lvl("a", i * 10_000, Side::Bid, 400, i)];
+        core.on_events(first, i * 10_000 + 1_000, &ev, now, &mut fx);
+        core.on_events(second, i * 10_000 + 13_000, &ev, now, &mut fx);
+    }
+    core.check_speed(now, 3, &mut fx);
+    assert_eq!(core.metrics.fast_stalls, 1);
+    assert_eq!([0, 1].iter().map(|c| core.conns[c].speed).collect::<Vec<_>>(), before, "scores as they were");
+    assert_eq!(core.tokens["a"].source, Some(1));
 }
 
 #[test]
